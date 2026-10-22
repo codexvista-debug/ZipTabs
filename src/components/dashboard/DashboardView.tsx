@@ -21,10 +21,11 @@ import {
   FileText,
   AlertCircle,
   ExternalLink,
+  FolderOpen,
 } from "lucide-react";
 
 interface DashboardViewProps {
-  onNavigate: (tab: "dashboard" | "invoices" | "notes" | "calendar" | "usage") => void;
+  onNavigate: (tab: "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "usage") => void;
 }
 
 interface InvoiceSummaryItem {
@@ -91,6 +92,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const [storageBytes, setStorageBytes] = useState(0);
   const [storageFilesCount, setStorageFilesCount] = useState(0);
   const [databaseSizeBytes, setDatabaseSizeBytes] = useState(0);
+  const [driveFilesCount, setDriveFilesCount] = useState(0);
 
   // Calendar Calculations for Current Real Month
   const now = new Date();
@@ -219,6 +221,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         setStorageBytes(usageRes.data.storage_bytes || 0);
         setStorageFilesCount(usageRes.data.storage_files || 0);
         setDatabaseSizeBytes(usageRes.data.database_size_bytes || 0);
+        setDriveFilesCount(usageRes.data.drive_files_count || 0);
       }
     } catch (err) {
       console.error("Dashboard data load error:", err);
@@ -404,7 +407,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           {/* Module 1: Invoices */}
           <div
             onClick={() => onNavigate("invoices")}
@@ -441,7 +444,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 <ArrowRight className="w-3 h-3 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
               <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mt-0.5">
-                {notesCount} NOTES · {storageFilesCount} ATTACHMENTS
+                {notesCount} NOTES · {urgentNotesCount} URGENT
               </div>
               <div className="text-[11px] text-slate-400 mt-0.5 truncate">
                 Auto-Keywords · Clipboard Paste
@@ -471,7 +474,29 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             </div>
           </div>
 
-          {/* Module 4: Storage & Usage */}
+          {/* Module 4: Cloud Drive */}
+          <div
+            onClick={() => onNavigate("drive")}
+            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-sky-400 hover:shadow-md transition-all flex items-center gap-3.5 cursor-pointer group"
+          >
+            <div className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 transition-colors shrink-0">
+              <FolderOpen className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 truncate flex items-center gap-1.5">
+                <span>Drive Storage</span>
+                <ArrowRight className="w-3 h-3 text-sky-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </div>
+              <div className="text-[10px] font-bold text-sky-600 uppercase tracking-wider mt-0.5">
+                {driveFilesCount} DOCUMENTS STORED
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                OneDrive-Style Folders & Docs
+              </div>
+            </div>
+          </div>
+
+          {/* Module 5: Storage & Usage */}
           <div
             onClick={() => onNavigate("usage")}
             className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-emerald-400 hover:shadow-md transition-all flex items-center gap-3.5 cursor-pointer group"

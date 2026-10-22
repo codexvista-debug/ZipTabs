@@ -141,6 +141,8 @@ export function UsageView() {
         if (error) {
           showToast(`Error deleting file: ${error.message}`);
         } else {
+          // If this file was uploaded from Drive, also clean up the database record
+          await supabase.from("drive_files").delete().eq("storage_path", file.name);
           showToast(`✓ Removed file and reclaimed ${formatBytes(file.size)}`);
           fetchUsage(false);
         }
@@ -466,7 +468,7 @@ export function UsageView() {
             </h4>
             <p className="text-xs text-slate-500 max-w-sm mt-1">
               {usage.files.length === 0
-                ? "When you attach receipts, documents, or screenshots in the Notes tab, they will appear here with live storage metrics."
+                ? "When you attach receipts or screenshots in Notes, or upload documents to Drive, they will appear here with live storage metrics."
                 : "Try clearing your search query or filter."}
             </p>
           </div>
@@ -485,7 +487,10 @@ export function UsageView() {
               <tbody className="divide-y divide-slate-100 text-xs font-medium">
                 {filteredFiles.map((file) => {
                   const isImage = file.mimetype?.startsWith("image/");
-                  const cleanDisplayName = file.name.split("/").pop() || file.name;
+                  const isDriveFile = file.name.startsWith("drive/");
+                  const rawName = file.name.split("/").pop() || file.name;
+                  // Strip timestamp prefix if formatted as 1234567890_filename
+                  const cleanDisplayName = rawName.replace(/^\d{10,13}_/, "");
                   const dateStr = new Date(file.created_at).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
@@ -508,9 +513,20 @@ export function UsageView() {
                               <FileText className="w-3.5 h-3.5" />
                             </div>
                           )}
-                          <span className="font-bold text-slate-800 truncate max-w-xs sm:max-w-md">
-                            {cleanDisplayName}
-                          </span>
+                          <div className="min-w-0 flex items-center gap-2">
+                            <span className="font-bold text-slate-800 truncate max-w-xs sm:max-w-sm">
+                              {cleanDisplayName}
+                            </span>
+                            <span
+                              className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                isDriveFile
+                                  ? "bg-sky-50 text-sky-700 border border-sky-200"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                              }`}
+                            >
+                              {isDriveFile ? "Drive" : "Notes"}
+                            </span>
+                          </div>
                         </div>
                       </td>
 

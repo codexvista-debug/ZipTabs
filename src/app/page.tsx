@@ -8,12 +8,13 @@ import { DashboardView } from "@/components/dashboard/DashboardView";
 import { InvoicesView } from "@/components/invoices/InvoicesView";
 import { NotesView } from "@/components/notes/NotesView";
 import { USCalendarView } from "@/components/calendar/USCalendarView";
+import { DriveView } from "@/components/drive/DriveView";
 import { UsageView } from "@/components/usage/UsageView";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 import { Menu, Loader2 } from "lucide-react";
 
-type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "usage";
-const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "usage"];
+type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "usage";
+const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "drive", "usage"];
 
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -120,6 +121,8 @@ export default function Home() {
             <NotesView />
           ) : activeTab === "calendar" ? (
             <USCalendarView />
+          ) : activeTab === "drive" ? (
+            <DriveView onNavigateUsage={() => handleTabChange("usage")} />
           ) : activeTab === "usage" ? (
             <UsageView />
           ) : (
