@@ -317,6 +317,9 @@ export function NotesView() {
   // Custom Delete Confirm Dialog Modal
   const [confirmDeleteNote, setConfirmDeleteNote] = useState<NoteItem | null>(null);
 
+  // Read-Only View Note Modal State
+  const [viewingNote, setViewingNote] = useState<NoteItem | null>(null);
+
   // Image Preview Lightbox
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
 
@@ -1268,7 +1271,7 @@ export function NotesView() {
               return (
                 <div
                   key={note.id}
-                  onClick={() => handleOpenEdit(note)}
+                  onClick={() => setViewingNote(note)}
                   className={`group relative rounded-2xl border p-5 transition-all duration-200 flex flex-col justify-between cursor-pointer ${
                     note.is_completed
                       ? "bg-slate-50 border-slate-200 opacity-60 hover:opacity-100"
@@ -1861,6 +1864,210 @@ export function NotesView() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Read-Only View Note Modal */}
+      {viewingNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div
+            onClick={() => setViewingNote(null)}
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+          />
+
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-5 sm:p-7 z-10 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 flex flex-col justify-between">
+            <div>
+              {/* Top Bar: Category Pill, Priority, Target Date & Close Button */}
+              <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Category Pill */}
+                  {(() => {
+                    const normCat = normalizeCategory(viewingNote.category);
+                    const catCfg = allCategories.find((c) => c.id === normCat) || allCategories[0];
+                    const CIcon = catCfg.icon || Tag;
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${catCfg.color} shrink-0`}>
+                        <CIcon className="w-3.5 h-3.5" />
+                        <span>{normCat}</span>
+                      </span>
+                    );
+                  })()}
+
+                  {/* Priority Pill */}
+                  {viewingNote.priority === "urgent" && (
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
+                      Urgent 🔥
+                    </span>
+                  )}
+                  {viewingNote.priority === "high" && (
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                      High Priority
+                    </span>
+                  )}
+
+                  {/* Target Date Pill */}
+                  {viewingNote.target_date && (() => {
+                    const urg = getDateUrgency(viewingNote.target_date);
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border font-semibold ${urg.badgeClass} shrink-0`}>
+                        <CalendarClock className="w-3.5 h-3.5" />
+                        <span>{viewingNote.target_date} ({urg.label})</span>
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingNote(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Note Subject / Title */}
+              <div className="mt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
+                    {viewingNote.title || "Note"}
+                  </h2>
+                  {viewingNote.is_completed && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Completed</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Note Details Content */}
+                {viewingNote.content && (
+                  <div className="mt-4 p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap select-text font-normal">
+                    {viewingNote.content}
+                  </div>
+                )}
+              </div>
+
+              {/* Attachments Section */}
+              {viewingNote.attachments && viewingNote.attachments.length > 0 && (
+                <div className="mt-6 pt-5 border-t border-slate-100">
+                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Paperclip className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Attachments ({viewingNote.attachments.length})</span>
+                  </div>
+
+                  {(() => {
+                    const imgs = viewingNote.attachments.filter((a) => a.type.startsWith("image/"));
+                    const docs = viewingNote.attachments.filter((a) => !a.type.startsWith("image/"));
+
+                    return (
+                      <div className="space-y-3">
+                        {/* Image Attachments */}
+                        {imgs.length > 0 && (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                            {imgs.map((img) => (
+                              <div
+                                key={img.id}
+                                onClick={() => setPreviewImage({ url: img.url, name: img.name })}
+                                className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video cursor-pointer hover:border-blue-500 transition-colors shadow-2xs"
+                                title="Click to view full preview"
+                              >
+                                <img
+                                  src={img.url}
+                                  alt={img.name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                  <ExternalLink className="w-4 h-4" />
+                                </div>
+                                <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] p-1 px-2 truncate backdrop-blur-2xs">
+                                  {img.name}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Document Attachments */}
+                        {docs.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {docs.map((doc) => (
+                              <a
+                                key={doc.id}
+                                href={doc.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-medium transition-colors"
+                              >
+                                <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                                <span className="truncate max-w-[160px] font-semibold">{doc.name}</span>
+                                <span className="text-[10px] text-slate-500">({formatFileSize(doc.size)})</span>
+                                <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="mt-8 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    handleToggleCompleted(viewingNote, e);
+                    setViewingNote({ ...viewingNote, is_completed: !viewingNote.is_completed });
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                    viewingNote.is_completed
+                      ? "text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200"
+                      : "text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{viewingNote.is_completed ? "Completed ✓" : "Mark as Done"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => handleCopyNote(viewingNote, e)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setViewingNote(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+
+                {/* Edit Button with Pencil Icon */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const noteToEdit = viewingNote;
+                    setViewingNote(null);
+                    handleOpenEdit(noteToEdit);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Note</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
