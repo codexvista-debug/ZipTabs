@@ -109,26 +109,36 @@ export function InvoicesView() {
   };
 
   // Helper to format any date string strictly as MM/DD/YYYY
-  const formatDateMMDDYYYY = (rawDate?: string): string => {
+  const formatDateMMDDYYYY = (rawDate?: string | number): string => {
     if (!rawDate) return "—";
-    const str = String(rawDate).trim();
-    if (!str) return "—";
 
-    // 1. If YYYY-MM-DD (e.g. 2025-05-01 or 2025-03-07)
-    const dashMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (dashMatch) {
-      const [, y, m, d] = dashMatch;
-      return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+    // Handle Excel numeric date serials (e.g. 45780)
+    if (typeof rawDate === "number" && rawDate > 25000 && rawDate < 60000) {
+      const jsDate = new Date((rawDate - 25569) * 86400 * 1000);
+      const m = String(jsDate.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(jsDate.getUTCDate()).padStart(2, "0");
+      const y = jsDate.getUTCFullYear();
+      return `${m}/${d}/${y}`;
     }
 
-    // 2. If already MM/DD/YYYY
+    const str = String(rawDate).trim();
+    if (!str || str === "—") return "—";
+
+    // 1. If already MM/DD/YYYY (e.g. 5/1/2025 or 06/15/2025)
     const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if (slashMatch) {
       const [, m, d, y] = slashMatch;
       return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
     }
 
-    // 3. Date object parsing fallback (e.g. 31-Aug-26)
+    // 2. If YYYY-MM-DD (e.g. 2025-06-15)
+    const dashMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (dashMatch) {
+      const [, y, m, d] = dashMatch;
+      return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+    }
+
+    // 3. Fallback date parse
     const d = new Date(str);
     if (!isNaN(d.getTime())) {
       const month = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -141,35 +151,81 @@ export function InvoicesView() {
   };
 
   // Intelligently map arbitrary columns to our standardized schema
+  // Prioritizes exact columns: Client, Invoice Number, Due Date, Days Overdue, Balance Due
   const normalizeRow = (row: Record<string, any>): InvoiceRecord | null => {
     const keys = Object.keys(row);
     if (keys.length === 0) return null;
 
-    const findVal = (patterns: string[]) => {
-      const matchedKey = keys.find((k) =>
-        patterns.some((p) => k.toLowerCase().replace(/[^a-z0-9]/g, "").includes(p))
-      );
-      return matchedKey ? row[matchedKey] : undefined;
+    // Helper: look up key by priority list of exact normalized names
+    const getByPriority = (priorityList: string[]) => {
+      // 1. Exact match (stripped of spaces and punctuation)
+      for (const pref of priorityList) {
+        const prefNorm = pref.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const found = keys.find(
+          (k) => k.toLowerCase().replace(/[^a-z0-9]/g, "") === prefNorm
+        );
+        if (found && row[found] !== undefined && row[found] !== null && String(row[found]).trim() !== "") {
+          return row[found];
+        }
+      }
+      // 2. Substring match
+      for (const pref of priorityList) {
+        const prefNorm = pref.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const found = keys.find(
+          (k) => k.toLowerCase().replace(/[^a-z0-9]/g, "").includes(prefNorm)
+        );
+        if (found && row[found] !== undefined && row[found] !== null && String(row[found]).trim() !== "") {
+          return row[found];
+        }
+      }
+      return undefined;
     };
 
+    // 1. Client / Vendor Name
     const vendor =
-      findVal(["vendor", "worker", "client", "customer", "company", "supplier", "payee", "name"]) ||
+      getByPriority(["Client", "Vendor", "Client Name", "Vendor Name", "Customer", "Company", "Supplier", "Name"]) ||
       row[keys[0]] ||
       "Unknown Vendor";
 
+    // 2. Invoice Number
     const invoiceNum =
-      findVal(["invoice", "inv", "bill", "number", "num", "id", "ref"]) || "";
+      getByPriority(["Invoice Number", "Invoice #", "Invoice No", "Invoice", "Inv Number", "Bill Number", "Ref"]) || "";
 
-    const rawAmount = findVal(["amount", "balance", "open", "due", "total", "net", "payable", "sum", "hours"]);
+    // 3. Amount Due -> MUST prioritize 'Balance Due' as in user's Excel
+    const rawAmount =
+      getByPriority([
+        "Balance Due",
+        "BalanceDue",
+        "Amount Due",
+        "AmountDue",
+        "Open Balance",
+        "Balance",
+        "Amount",
+        "Total Due",
+        "Net Due",
+      ]);
     const amount = parseAmount(rawAmount);
 
-    const rawDueDate = findVal(["duedate", "expecteddate", "due", "paymentdue", "date", "expiry"]);
-    const dueDateStr = rawDueDate ? String(rawDueDate).trim() : "";
+    // 4. Due Date -> MUST prioritize 'Due Date' and NEVER match 'Issue Date' or 'Invoice Date'
+    const rawDueDate =
+      getByPriority([
+        "Due Date",
+        "DueDate",
+        "Payment Due Date",
+        "Payment Due",
+        "Date Due",
+        "Expected Date",
+      ]);
+    const dueDateStr = rawDueDate ? formatDateMMDDYYYY(rawDueDate) : "";
 
-    const rawDays = findVal(["overdue", "aging", "days", "pastdue"]);
+    // 5. Days Overdue / Aging
+    const rawDays =
+      getByPriority(["Days Overdue", "DaysOverdue", "Overdue Days", "Aging", "Days Past Due", "Days"]);
     const daysOverdue = parseDays(rawDays, dueDateStr);
 
-    const notes = findVal(["notes", "memo", "description", "remarks"]) || "";
+    // 6. Notes / Aging Bucket
+    const notes =
+      getByPriority(["Last Note", "Aging Bucket", "Notes", "Memo", "Description", "Remarks"]) || "";
 
     return {
       vendor_name: String(vendor).trim(),
