@@ -110,9 +110,6 @@ export function Sidebar({
                 <p className="text-xs font-semibold text-white truncate">
                   @{user?.username || "chief"}
                 </p>
-                <p className="text-[10px] text-slate-400 truncate">
-                  {user?.role || "Chief Administrator"}
-                </p>
               </div>
             </div>
 

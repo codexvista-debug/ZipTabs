@@ -7,7 +7,6 @@ import * as XLSX from "xlsx";
 import {
   Upload,
   FileSpreadsheet,
-  Trash2,
   Search,
   AlertCircle,
   Clock,
@@ -15,11 +14,11 @@ import {
   Users,
   CheckCircle2,
   Loader2,
-  RefreshCw,
-  FileDown,
   Copy,
   Check,
-  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react";
 
 export interface InvoiceRecord {
@@ -46,11 +45,25 @@ export function InvoicesView() {
   const [agingFilter, setAgingFilter] = useState<"all" | "30" | "60" | "90+">("all");
   const [sortBy, setSortBy] = useState<"days_desc" | "amount_desc" | "vendor_asc">("days_desc");
 
-  // Selection State (for Excel-like multi-row select & copy)
+  // Pagination State (50 rows per page)
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
+
+  // Selection State (click rows to select & copy formatted for Zoho Mail)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-dismiss status messages after 5 seconds
+  useEffect(() => {
+    if (statusMessage) {
+      const timer = setTimeout(() => {
+        setStatusMessage(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusMessage]);
 
   // Fetch invoices from Supabase on mount
   const loadInvoices = async () => {
@@ -81,6 +94,11 @@ export function InvoicesView() {
   useEffect(() => {
     loadInvoices();
   }, []);
+
+  // Reset to first page when search, filter, or sorting changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, agingFilter, sortBy]);
 
   // Helper to extract clean numeric amount
   const parseAmount = (val: any): number => {
@@ -158,7 +176,6 @@ export function InvoicesView() {
 
     // Helper: look up key by priority list of exact normalized names
     const getByPriority = (priorityList: string[]) => {
-      // 1. Exact match (stripped of spaces and punctuation)
       for (const pref of priorityList) {
         const prefNorm = pref.toLowerCase().replace(/[^a-z0-9]/g, "");
         const found = keys.find(
@@ -168,7 +185,6 @@ export function InvoicesView() {
           return row[found];
         }
       }
-      // 2. Substring match
       for (const pref of priorityList) {
         const prefNorm = pref.toLowerCase().replace(/[^a-z0-9]/g, "");
         const found = keys.find(
@@ -312,6 +328,7 @@ export function InvoicesView() {
       // 3. Reload from Supabase
       await loadInvoices();
       setSelectedIds(new Set());
+      setCurrentPage(1);
       setStatusMessage({
         type: "success",
         text: `Successfully purged previous data and imported ${recordsToInsert.length} fresh invoices!`,
@@ -325,36 +342,6 @@ export function InvoicesView() {
     } finally {
       setIsProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  // Purge all data manually
-  const handlePurgeAll = async () => {
-    if (!window.confirm("Are you sure you want to delete all invoice data? This cannot be undone.")) {
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      if (supabase) {
-        await supabase
-          .from("invoices")
-          .delete()
-          .neq("id", "00000000-0000-0000-0000-000000000000");
-      }
-      setInvoices([]);
-      setSelectedIds(new Set());
-      setStatusMessage({
-        type: "success",
-        text: "All invoice records have been purged from database.",
-      });
-    } catch (err: any) {
-      setStatusMessage({
-        type: "error",
-        text: "Failed to purge database records.",
-      });
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -387,6 +374,12 @@ export function InvoicesView() {
   const uniqueVendorsCount = new Set(invoices.map((inv) => inv.vendor_name.toLowerCase())).size;
   const criticalOverdueCount = invoices.filter((inv) => inv.days_overdue > 60).length;
 
+  // Pagination Calculations (50 rows per page)
+  const totalPages = Math.ceil(filteredInvoices.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredInvoices.length);
+  const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
+
   // Selection handlers
   const toggleSelectRow = (id: string) => {
     const next = new Set(selectedIds);
@@ -398,12 +391,19 @@ export function InvoicesView() {
     setSelectedIds(next);
   };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredInvoices.length) {
-      setSelectedIds(new Set());
+  const toggleSelectCurrentPage = () => {
+    const currentPageRowIds = paginatedInvoices.map(
+      (inv) => inv.id || inv.invoice_number || inv.vendor_name
+    );
+    const allCurrentSelected = currentPageRowIds.every((id) => selectedIds.has(id));
+
+    const next = new Set(selectedIds);
+    if (allCurrentSelected) {
+      currentPageRowIds.forEach((id) => next.delete(id));
     } else {
-      setSelectedIds(new Set(filteredInvoices.map((inv) => inv.id || inv.invoice_number || inv.vendor_name)));
+      currentPageRowIds.forEach((id) => next.add(id));
     }
+    setSelectedIds(next);
   };
 
   // ==========================================
@@ -503,37 +503,64 @@ export function InvoicesView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedIds, invoices]);
 
-  // Export current view to CSV
-  const exportToCSV = () => {
-    if (invoices.length === 0) return;
-    const csvData = filteredInvoices.map((inv) => ({
-      "Vendor Name": inv.vendor_name,
-      "Invoice #": inv.invoice_number,
-      Amount: inv.amount,
-      "Due Date": formatDateMMDDYYYY(inv.due_date),
-      Aging: inv.days_overdue,
-      Status: inv.status,
-      Notes: inv.notes,
-    }));
-
-    const csvString = Papa.unparse(csvData);
-    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `overdue_invoices_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const selectedRowsList = invoices.filter((inv) =>
     selectedIds.has(inv.id || inv.invoice_number || inv.vendor_name)
   );
 
   return (
     <div className="space-y-6 relative pb-16">
-      {/* Top Header Row */}
+      {/* ==================================================== */}
+      {/* FLOATING TOP-CENTER NOTIFICATIONS (STATUS & COPY)    */}
+      {/* ==================================================== */}
+      {statusMessage && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-lg w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
+          <div
+            className={`p-3.5 px-5 rounded-2xl shadow-2xl flex items-center justify-between gap-4 border ${
+              statusMessage.type === "success"
+                ? "bg-slate-950 text-white border-slate-800"
+                : "bg-rose-950 text-white border-rose-800"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {statusMessage.type === "success" ? (
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              ) : (
+                <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+              )}
+              <span className="text-xs font-semibold leading-snug">{statusMessage.text}</span>
+            </div>
+            <button
+              onClick={() => setStatusMessage(null)}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {copiedNotification && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-lg w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="p-3.5 px-5 rounded-2xl bg-slate-950 text-white text-xs font-medium shadow-2xl flex items-center gap-3 border border-slate-800">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <Check className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-bold text-white">{copiedNotification}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                Ready to paste directly into Zoho Mail with blue headers and borders.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top Header Row (Export CSV, Purge, and Refresh buttons removed as requested) */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
         <div>
           <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
@@ -544,8 +571,8 @@ export function InvoicesView() {
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Sole Action Button: Import File */}
+        <div className="flex items-center gap-2.5">
           <input
             type="file"
             ref={fileInputRef}
@@ -578,80 +605,8 @@ export function InvoicesView() {
             )}
             <span>{isProcessing ? "Processing & Importing..." : "Import File (.csv / .xlsx)"}</span>
           </button>
-
-          {invoices.length > 0 && (
-            <>
-              <button
-                type="button"
-                onClick={exportToCSV}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors shadow-xs"
-              >
-                <FileDown className="w-4 h-4 text-slate-500" />
-                <span>Export CSV</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handlePurgeAll}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold transition-colors shadow-xs"
-              >
-                <Trash2 className="w-4 h-4 text-rose-500" />
-                <span>Purge Table</span>
-              </button>
-            </>
-          )}
-
-          <button
-            type="button"
-            onClick={loadInvoices}
-            title="Refresh database records"
-            className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors shadow-xs"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-          </button>
         </div>
       </div>
-
-      {/* Copied Success Toast Notice */}
-      {copiedNotification && (
-        <div className="fixed top-5 right-5 z-50 p-4 rounded-xl bg-slate-900 text-white text-xs font-medium shadow-2xl flex items-center gap-3 border border-slate-800 animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-            <Check className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="font-bold text-white">{copiedNotification}</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">
-              Ready to paste directly into Zoho Mail with blue headers and borders.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status Notice Banner */}
-      {statusMessage && (
-        <div
-          className={`p-4 rounded-xl text-xs flex items-center justify-between gap-3 ${
-            statusMessage.type === "success"
-              ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-              : "bg-rose-50 border border-rose-200 text-rose-800"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {statusMessage.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            )}
-            <span>{statusMessage.text}</span>
-          </div>
-          <button
-            onClick={() => setStatusMessage(null)}
-            className="text-xs font-bold opacity-60 hover:opacity-100"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -724,7 +679,7 @@ export function InvoicesView() {
             />
           </div>
 
-          {/* Filter Pills */}
+          {/* Filter Pills & Select Page Action */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex rounded-lg bg-slate-100 p-1 border border-slate-200/70 text-xs font-semibold">
               <button
@@ -775,6 +730,21 @@ export function InvoicesView() {
               <option value="amount_desc">Sort: Highest Amount</option>
               <option value="vendor_asc">Sort: Vendor (A-Z)</option>
             </select>
+
+            {/* Optional Select Page Toggle */}
+            {paginatedInvoices.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleSelectCurrentPage}
+                className="px-3 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                {paginatedInvoices.every((inv) =>
+                  selectedIds.has(inv.id || inv.invoice_number || inv.vendor_name)
+                )
+                  ? "Deselect Page"
+                  : `Select Page (${paginatedInvoices.length})`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -813,27 +783,16 @@ export function InvoicesView() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  {/* Select All Checkbox */}
-                  <th className="py-3.5 px-4 w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size > 0 && selectedIds.size === filteredInvoices.length}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      title="Select all rows"
-                    />
-                  </th>
-                  <th className="py-3.5 px-4">Vendor</th>
+                  <th className="py-3.5 px-5">Vendor</th>
                   <th className="py-3.5 px-4">Invoice</th>
                   <th className="py-3.5 px-4 text-right">Amount Due</th>
                   <th className="py-3.5 px-4 text-center">Due Date</th>
                   <th className="py-3.5 px-4 text-center">Aging</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-center w-20">Copy</th>
+                  <th className="py-3.5 px-5 text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-medium">
-                {filteredInvoices.map((inv, idx) => {
+                {paginatedInvoices.map((inv, idx) => {
                   const rowId = inv.id || inv.invoice_number || inv.vendor_name;
                   const isSelected = selectedIds.has(rowId);
                   const isHighAlert = inv.days_overdue > 60;
@@ -843,35 +802,17 @@ export function InvoicesView() {
                     <tr
                       key={rowId || idx}
                       onClick={() => toggleSelectRow(rowId)}
-                      className={`cursor-pointer transition-colors ${
+                      className={`cursor-pointer transition-colors select-none ${
                         isSelected
-                          ? "bg-blue-50/70 hover:bg-blue-100/60"
+                          ? "bg-blue-50/90 hover:bg-blue-100/70"
                           : "hover:bg-slate-50/80"
                       }`}
                     >
-                      {/* Checkbox */}
-                      <td
-                        className="py-3.5 px-4 text-center"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectRow(rowId)}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                      </td>
-
-                      {/* 1. Vendor */}
-                      <td className="py-3.5 px-4">
+                      {/* 1. Vendor (Notes removed completely as requested) */}
+                      <td className="py-3.5 px-5">
                         <div className="font-bold text-slate-900">
                           {inv.vendor_name}
                         </div>
-                        {inv.notes && (
-                          <div className="text-[11px] text-slate-400 mt-0.5 truncate max-w-xs">
-                            {inv.notes}
-                          </div>
-                        )}
                       </td>
 
                       {/* 2. Invoice */}
@@ -909,7 +850,7 @@ export function InvoicesView() {
                       </td>
 
                       {/* Status */}
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3.5 px-5 text-center">
                         <span
                           className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             inv.days_overdue > 0
@@ -920,21 +861,6 @@ export function InvoicesView() {
                           {inv.status || "Overdue"}
                         </span>
                       </td>
-
-                      {/* Quick 1-Click Copy Row for Zoho Mail */}
-                      <td
-                        className="py-3.5 px-4 text-center"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => copyFormattedForZoho([inv])}
-                          title="Copy this row formatted for Zoho Mail"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}
@@ -943,20 +869,48 @@ export function InvoicesView() {
           </div>
         )}
 
-        {/* Table Footer */}
+        {/* Table Footer with 50-row Pagination Controls */}
         {filteredInvoices.length > 0 && (
-          <div className="p-4 border-t border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
-            <span>
-              Showing <strong>{filteredInvoices.length}</strong> of <strong>{invoices.length}</strong> records
-              {selectedIds.size > 0 && (
-                <span className="ml-2 font-semibold text-blue-600">
-                  ({selectedIds.size} selected)
-                </span>
-              )}
-            </span>
-            <span className="text-[11px] text-slate-400">
-              💡 Tip: Select rows and press <kbd className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px]">Ctrl+C</kbd> to copy for Zoho Mail
-            </span>
+          <div className="p-4 border-t border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <span>
+                Showing <strong>{startIndex + 1}</strong>–<strong>{endIndex}</strong> of <strong>{filteredInvoices.length}</strong> records (up to 50 per page)
+                {selectedIds.size > 0 && (
+                  <span className="ml-2 font-semibold text-blue-600">
+                    ({selectedIds.size} selected)
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5 self-center sm:self-auto">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold shadow-2xs transition-colors"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
+
+                <div className="px-3 py-1 text-xs font-bold text-slate-700">
+                  Page {currentPage} of {totalPages}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold shadow-2xs transition-colors"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
