@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   FileSpreadsheet,
   NotebookPen,
+  CalendarDays,
   HardDrive,
   LogOut,
   KeyRound,
@@ -34,6 +35,7 @@ export function Sidebar({
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "invoices", label: "Invoices", icon: FileSpreadsheet },
     { id: "notes", label: "Notes & Reminders", icon: NotebookPen },
+    { id: "calendar", label: "US Calendar", icon: CalendarDays },
     { id: "usage", label: "Usage", icon: HardDrive },
   ];
 
