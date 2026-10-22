@@ -97,11 +97,11 @@ export function extractKeywordsSubject(details: string): string {
   const clean = details.trim();
   const firstLine = clean.split("\n")[0].trim();
 
-  // 1. Find currency / dollar amount: e.g. "$2965", "$2,965", "$2965.00"
+  // 1. Currency amount
   const amountMatch = firstLine.match(/\$[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{2})?|\b[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{2})?\s*(?:usd|dollars)/i);
   const amount = amountMatch ? amountMatch[0] : "";
 
-  // 2. Find invoice number: e.g. "INV-102", "#32219"
+  // 2. Invoice number
   const invMatch = firstLine.match(/(?:inv(?:oice)?\.?\s*#?\s*|#)([0-9a-zA-Z-]+)/i);
   const invNum = invMatch ? (invMatch[0].startsWith("#") ? invMatch[0] : `Inv #${invMatch[1]}`) : "";
 
@@ -110,41 +110,30 @@ export function extractKeywordsSubject(details: string): string {
     "premium", "deposit", "invoice", "payment", "refund", "salary", "bonus", 
     "tax", "license", "reconciliation", "audit", "fee", "bill", "balance", 
     "deduction", "payout", "wire", "vendor", "contract", "client", "overdue", "rates",
-    "payroll", "quickbooks", "paychex", "leopard", "invoices", "payments"
+    "payroll", "quickbooks", "paychex", "leopard", "invoices", "payments", "uscis"
   ]);
 
-  // Common stop/filler words to skip
+  // Common stop words, pronouns, verbs to skip
   const stopWords = new Set([
-    "the", "is", "at", "which", "on", "a", "an", "and", "or", "in", "with", "to", "for", "of", "from", 
-    "be", "been", "by", "this", "that", "it", "amount", "need", "please", "call", "send", "have", "has", 
-    "do", "does", "deducted", "deduct", "added", "updated", "checked", "check", "note", "reminder", "follow", 
-    "up", "about", "pay", "paid", "will", "would", "should", "can", "could", "into", "reserve", "majithia", "also"
+    "i", "me", "my", "we", "us", "our", "you", "your", "he", "him", "his", "she", "her", "they", "them", "their",
+    "the", "is", "are", "was", "were", "am", "at", "which", "on", "a", "an", "and", "or", "in", "with", "to", "for", "of", "from", 
+    "be", "been", "being", "by", "this", "that", "it", "amount", "need", "needs", "please", "call", "send", "sent", "have", "has", 
+    "had", "do", "does", "did", "deducted", "deduct", "added", "updated", "checked", "check", "note", "reminder", "follow", 
+    "up", "about", "pay", "paid", "making", "make", "made", "will", "would", "should", "can", "could", "into", "reserve", 
+    "today", "tomorrow", "yesterday", "here", "there", "now", "just", "per", "via", "also", "done", "got", "get", "majithia"
   ]);
 
-  let beforeDash = "";
-  if (firstLine.includes(" - ")) {
-    beforeDash = firstLine.split(" - ")[0].trim();
-  }
-
-  const tokens = firstLine
+  const rawTokens = firstLine
     .replace(/[,\/#!$%\^&\*;:{}=\_`~()\-]/g, " ")
     .split(/\s+/)
     .map((w) => w.trim())
     .filter(Boolean);
 
-  let firstEntity = "";
+  const entities: string[] = [];
   let businessTerm = "";
-  const otherKeywords: string[] = [];
 
-  if (beforeDash) {
-    const beforeWords = beforeDash.split(/\s+/).filter((w) => !stopWords.has(w.toLowerCase()));
-    if (beforeWords.length > 0) {
-      firstEntity = beforeWords[0].charAt(0).toUpperCase() + beforeWords[0].slice(1);
-    }
-  }
-
-  for (let i = 0; i < tokens.length; i++) {
-    const word = tokens[i];
+  for (let i = 0; i < rawTokens.length; i++) {
+    const word = rawTokens[i];
     const lower = word.toLowerCase();
 
     if (amount && (word.includes("$") || word === amount.replace("$", ""))) continue;
@@ -152,36 +141,37 @@ export function extractKeywordsSubject(details: string): string {
     if (/^[0-9]+$/.test(word) && !amount) continue;
 
     if (priorityKeywords.has(lower)) {
-      if (!businessTerm) businessTerm = word.charAt(0).toUpperCase() + word.slice(1);
+      if (!businessTerm) {
+        businessTerm = word.toUpperCase() === word ? word : (word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+      }
       continue;
     }
 
-    if (stopWords.has(lower)) continue;
+    if (stopWords.has(lower) || lower.length <= 1) continue;
 
-    if (!firstEntity) {
-      firstEntity = word.charAt(0).toUpperCase() + word.slice(1);
-    } else if (otherKeywords.length < 2 && word.toLowerCase() !== firstEntity.toLowerCase()) {
-      otherKeywords.push(word.charAt(0).toUpperCase() + word.slice(1));
+    const formatted = word.toUpperCase() === word ? word : (word.charAt(0).toUpperCase() + word.slice(1));
+    if (entities.length < 2 && !entities.includes(formatted)) {
+      entities.push(formatted);
     }
   }
 
   const resultParts: string[] = [];
-  if (firstEntity) resultParts.push(firstEntity);
+  if (entities.length > 0) resultParts.push(...entities.slice(0, 2));
   if (businessTerm) resultParts.push(businessTerm);
   if (amount) {
     resultParts.push(amount);
   } else if (invNum) {
     resultParts.push(invNum);
-  } else if (!businessTerm && otherKeywords.length > 0) {
-    resultParts.push(...otherKeywords.slice(0, 1));
   }
 
-  if (resultParts.length === 0) {
-    const words = firstLine.split(/\s+/).slice(0, 3).join(" ");
-    return words || firstLine.substring(0, 25);
+  // Keep focused to 2-3 key words
+  const trimmedParts = resultParts.slice(0, 3);
+
+  if (trimmedParts.length === 0) {
+    return firstLine.substring(0, 25);
   }
 
-  return resultParts.join(" ");
+  return trimmedParts.join(" ");
 }
 
 export function formatFileSize(bytes: number) {
@@ -1463,54 +1453,120 @@ export function NotesView() {
                 {(existingAttachments.length > 0 || newFilesToUpload.length > 0) && (
                   <div className="mt-2.5 space-y-1.5">
                     {/* Existing from Supabase */}
-                    {existingAttachments.map((att) => (
-                      <div
-                        key={att.id}
-                        className="flex items-center justify-between p-2 rounded-lg bg-slate-100 border border-slate-200 text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {att.type.startsWith("image/") ? (
-                            <ImageIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                          ) : (
-                            <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          )}
-                          <span className="font-medium text-slate-800 truncate max-w-xs">{att.name}</span>
-                          <span className="text-[10px] text-slate-400 shrink-0">({formatFileSize(att.size)})</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveExistingAttachment(att.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
-                          title="Remove file"
+                    {existingAttachments.map((att) => {
+                      const isImage = att.type.startsWith("image/");
+                      return (
+                        <div
+                          key={att.id}
+                          className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs gap-3 group/item hover:border-slate-300 transition-colors"
                         >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {isImage ? (
+                              <div
+                                onClick={() => setPreviewImage({ url: att.url, name: att.name })}
+                                className="relative w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
+                                title="Click to view full preview"
+                              >
+                                <img
+                                  src={att.url}
+                                  alt={att.name}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0">
+                                <FileText className="w-5 h-5" />
+                              </div>
+                            )}
 
-                    {/* Newly picked files awaiting upload */}
-                    {newFilesToUpload.map((file, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-2 rounded-lg bg-blue-50/60 border border-blue-200 text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileUp className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span className="font-medium text-blue-900 truncate max-w-xs">{file.name}</span>
-                          <span className="text-[10px] text-blue-500 shrink-0">
-                            ({formatFileSize(file.size)} - pending upload)
-                          </span>
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-800 truncate block max-w-xs">
+                                {att.name}
+                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-slate-500 font-semibold">
+                                  {formatFileSize(att.size)}
+                                </span>
+                                <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                  {isImage ? "Image" : "Document"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExistingAttachment(att.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Remove file"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveNewFile(idx)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
-                          title="Cancel upload"
+                      );
+                    })}
+
+                    {/* Newly picked files awaiting upload (instant visual image preview) */}
+                    {newFilesToUpload.map((file, idx) => {
+                      const isImage = file.type.startsWith("image/");
+                      const previewUrl = isImage ? URL.createObjectURL(file) : null;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2 rounded-xl bg-blue-50/70 border border-blue-200 text-xs gap-3 group/item hover:border-blue-300 transition-colors"
                         >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {isImage && previewUrl ? (
+                              <div
+                                onClick={() => setPreviewImage({ url: previewUrl, name: file.name })}
+                                className="relative w-12 h-12 rounded-lg border border-blue-300 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
+                                title="Click to view full preview"
+                              >
+                                <img
+                                  src={previewUrl}
+                                  alt={file.name}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                                <FileUp className="w-5 h-5" />
+                              </div>
+                            )}
+
+                            <div className="min-w-0">
+                              <span className="font-bold text-blue-950 truncate block max-w-xs">
+                                {file.name}
+                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-blue-600 font-semibold">
+                                  {formatFileSize(file.size)}
+                                </span>
+                                <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                  {isImage ? "Image Preview" : "Pending Document"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNewFile(idx)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Cancel upload"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
