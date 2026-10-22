@@ -108,6 +108,38 @@ export function InvoicesView() {
     return 0;
   };
 
+  // Helper to format any date string strictly as MM/DD/YYYY
+  const formatDateMMDDYYYY = (rawDate?: string): string => {
+    if (!rawDate) return "—";
+    const str = String(rawDate).trim();
+    if (!str) return "—";
+
+    // 1. If YYYY-MM-DD (e.g. 2025-05-01 or 2025-03-07)
+    const dashMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (dashMatch) {
+      const [, y, m, d] = dashMatch;
+      return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+    }
+
+    // 2. If already MM/DD/YYYY
+    const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+      const [, m, d, y] = slashMatch;
+      return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+    }
+
+    // 3. Date object parsing fallback (e.g. 31-Aug-26)
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      const year = d.getUTCFullYear();
+      return `${month}/${day}/${year}`;
+    }
+
+    return str;
+  };
+
   // Intelligently map arbitrary columns to our standardized schema
   const normalizeRow = (row: Record<string, any>): InvoiceRecord | null => {
     const keys = Object.keys(row);
@@ -332,7 +364,7 @@ export function InvoicesView() {
       inv.vendor_name,
       inv.invoice_number || "—",
       `$${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      inv.due_date || "—",
+      formatDateMMDDYYYY(inv.due_date),
       inv.days_overdue ?? 0, // Clean number only, without "days"
     ];
 
@@ -422,8 +454,8 @@ export function InvoicesView() {
       "Vendor Name": inv.vendor_name,
       "Invoice #": inv.invoice_number,
       Amount: inv.amount,
-      "Due Date": inv.due_date,
-      "Days Overdue": inv.days_overdue,
+      "Due Date": formatDateMMDDYYYY(inv.due_date),
+      Aging: inv.days_overdue,
       Status: inv.status,
       Notes: inv.notes,
     }));
@@ -789,8 +821,8 @@ export function InvoicesView() {
                       </td>
 
                       {/* 4. Due Date */}
-                      <td className="py-3.5 px-4 text-center text-slate-600">
-                        {inv.due_date || "—"}
+                      <td className="py-3.5 px-4 text-center text-slate-600 font-mono">
+                        {formatDateMMDDYYYY(inv.due_date)}
                       </td>
 
                       {/* 5. Aging (Number only, no 'days') */}
