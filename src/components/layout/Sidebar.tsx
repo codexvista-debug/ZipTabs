@@ -19,6 +19,7 @@ import {
   Building2,
   FileText,
   LogOut,
+  KeyRound,
   X,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ interface SidebarProps {
   onSelect?: (id: string) => void;
   isOpen?: boolean;
   onClose?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function Sidebar({
@@ -34,6 +36,7 @@ export function Sidebar({
   onSelect,
   isOpen = false,
   onClose,
+  onOpenSettings,
 }: SidebarProps) {
   const { user, logout } = useAuth();
 
@@ -124,18 +127,28 @@ export function Sidebar({
         <div className="p-4 border-t border-[#15203b] bg-[#090e1a]/50">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-xs font-bold text-blue-400 shrink-0">
-                {user?.name ? user.name.charAt(0).toUpperCase() : "A"}
+              <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-xs font-bold text-blue-400 shrink-0 uppercase">
+                {user?.username ? user.username.charAt(0) : "C"}
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-white truncate">
-                  {user?.name || "Admin"}
+                  @{user?.username || "chief"}
                 </p>
                 <p className="text-[10px] text-slate-400 truncate">
-                  {user?.email || "admin@ziptabs.com"}
+                  {user?.role || "Chief Administrator"}
                 </p>
               </div>
             </div>
+
+            {/* Change Password / Settings Button */}
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              title="Change Password & Security"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <KeyRound className="w-4 h-4 text-slate-400 hover:text-blue-400 transition-colors" />
+            </button>
           </div>
 
           <button

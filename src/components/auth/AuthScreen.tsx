@@ -13,8 +13,7 @@ import {
 export function AuthScreen() {
   const { login, register } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,21 +28,26 @@ export function AuthScreen() {
 
     try {
       if (isRegister) {
-        const res = await register(name, email, password);
+        const res = await register(username, password);
         if (!res.success) {
           setError(res.error || "Failed to create account.");
-        } else if (res.error) {
-          setInfo(res.error);
         }
       } else {
-        const res = await login(email, password);
+        const res = await login(username, password);
         if (!res.success) {
-          setError(res.error || "Invalid credentials.");
+          setError(res.error || "Invalid username or password.");
         }
       }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const fillChief = () => {
+    setUsername("chief");
+    setPassword("123");
+    setIsRegister(false);
+    setError(null);
   };
 
   return (
@@ -58,7 +62,7 @@ export function AuthScreen() {
             </h1>
             <p className="text-xs text-zinc-400 mt-1.5 font-normal">
               {isRegister
-                ? "Create your credentials to access the workspace suite"
+                ? "Create a username and password to access the suite"
                 : "Enter your credentials to access the management suite"}
             </p>
           </div>
@@ -81,32 +85,18 @@ export function AuthScreen() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegister && (
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full px-3.5 py-2.5 bg-[#222226] border border-[#303036] rounded-lg text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-400 transition-colors"
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Username / Email
+                Username
               </label>
               <input
-                type="email"
+                type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="jdoe@company.com"
+                autoCapitalize="none"
+                autoCorrect="off"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="chief"
                 className="w-full px-3.5 py-2.5 bg-[#222226] border border-[#303036] rounded-lg text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-400 transition-colors"
               />
             </div>
@@ -120,7 +110,7 @@ export function AuthScreen() {
                   <button
                     type="button"
                     onClick={() => {
-                      alert("Contact your workspace administrator to reset credentials.");
+                      alert("Please log in with 'chief' / '123' or contact workspace admin.");
                     }}
                     className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
                   >
@@ -164,8 +154,19 @@ export function AuthScreen() {
             </button>
           </form>
 
+          {/* Quick Chief shortcut */}
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={fillChief}
+              className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Default admin: <span className="text-zinc-300 font-semibold underline">chief</span> / <span className="text-zinc-300 font-semibold underline">123</span>
+            </button>
+          </div>
+
           {/* Switch between Login and Register */}
-          <div className="mt-5 text-center">
+          <div className="mt-4 text-center">
             <button
               type="button"
               onClick={() => {
@@ -177,7 +178,7 @@ export function AuthScreen() {
             >
               {isRegister
                 ? "Already have an account? Sign in"
-                : "New authorized user? Create account"}
+                : "New user? Create account"}
             </button>
           </div>
 

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { AuthScreen } from "@/components/auth/AuthScreen";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import {
   AlertCircle,
@@ -16,19 +17,21 @@ import {
   Menu,
   ShieldCheck,
   Loader2,
+  KeyRound,
 } from "lucide-react";
 
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // 1. Loading Session State
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center text-slate-700 gap-3">
-        <Loader2 className="w-6 h-6 animate-spin text-[#2563eb]" />
-        <span className="text-xs font-bold tracking-widest uppercase text-slate-400">
+      <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center text-zinc-400 gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-white" />
+        <span className="text-xs font-bold tracking-widest uppercase text-zinc-500">
           VERIFYING CREDENTIALS...
         </span>
       </div>
@@ -43,12 +46,13 @@ export default function Home() {
   // 3. Authenticated Workspace
   return (
     <div className="flex h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
-      {/* Sidebar (Desktop static + Mobile responsive drawer) */}
+      {/* Sidebar */}
       <Sidebar
         activeItem={activeTab}
         onSelect={(id) => setActiveTab(id)}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {/* Main Workspace Column */}
@@ -68,11 +72,16 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-950/80 text-blue-300 border border-blue-500/30">
-              {user?.role || "Active"}
-            </span>
-            <div className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-              {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800"
+              title="Change Password"
+            >
+              <KeyRound className="w-4 h-4" />
+            </button>
+            <div className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center uppercase">
+              {user?.username ? user.username.charAt(0) : "C"}
             </div>
           </div>
         </header>
@@ -254,6 +263,12 @@ export default function Home() {
           </section>
         </main>
       </div>
+
+      {/* Change Password Dialog Modal */}
+      <ChangePasswordModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
   );
 }
