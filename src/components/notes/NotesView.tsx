@@ -34,6 +34,8 @@ import {
   BookOpen,
   Briefcase,
   Edit,
+  ChevronDown,
+  UploadCloud,
 } from "lucide-react";
 
 export interface NoteAttachment {
@@ -43,6 +45,17 @@ export interface NoteAttachment {
   type: string;
   url: string;
   path: string;
+}
+
+export interface BackgroundUploadJob {
+  id: string;
+  noteId: string;
+  noteTitle: string;
+  fileName: string;
+  fileSize: number;
+  progress: number;
+  status: "uploading" | "completed" | "error";
+  error?: string;
 }
 
 export interface NoteItem {
@@ -307,6 +320,10 @@ export function NotesView() {
   // Image Preview Lightbox
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
 
+  // Background Uploads State
+  const [backgroundUploads, setBackgroundUploads] = useState<BackgroundUploadJob[]>([]);
+  const [isUploadsMinimized, setIsUploadsMinimized] = useState(false);
+
   // Custom Styled Toast Notification
   const [toastNotification, setToastNotification] = useState<{
     type: "success" | "error" | "info";
@@ -548,13 +565,124 @@ export function NotesView() {
     return newFilesToUpload.filter((_, i) => i !== index);
   };
 
-  // Save note (Focuses on 2-3 key words: e.g. "Akash Premium $2965")
+  // Background Upload Process for note attachments
+  const queueBackgroundUploads = (noteId: string, noteTitle: string, files: File[]) => {
+    const jobs: BackgroundUploadJob[] = files.map((file) => ({
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+      noteId,
+      noteTitle,
+      fileName: file.name,
+      fileSize: file.size,
+      progress: 20,
+      status: "uploading",
+    }));
+
+    setBackgroundUploads((prev) => [...prev, ...jobs]);
+
+    // Process each file concurrently in background
+    jobs.forEach(async (job, idx) => {
+      const file = files[idx];
+      try {
+        if (!supabase) throw new Error("Supabase client not initialized");
+
+        const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+        const storagePath = `${noteId}/${Date.now()}_${cleanName}`;
+
+        // Simulated progress ticker while uploading
+        const progTimer = setInterval(() => {
+          setBackgroundUploads((prev) =>
+            prev.map((j) =>
+              j.id === job.id && j.status === "uploading"
+                ? { ...j, progress: Math.min(j.progress + 15, 85) }
+                : j
+            )
+          );
+        }, 300);
+
+        const { error: uploadError } = await supabase.storage
+          .from("note-attachments")
+          .upload(storagePath, file, { cacheControl: "3600", upsert: true });
+
+        clearInterval(progTimer);
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data } = supabase.storage
+          .from("note-attachments")
+          .getPublicUrl(storagePath);
+
+        const newAttachment: NoteAttachment = {
+          id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+          name: file.name,
+          size: file.size,
+          type: file.type || "application/octet-stream",
+          url: data?.publicUrl || "",
+          path: storagePath,
+        };
+
+        // 1. Immediately update note state and localStorage
+        setNotes((prevNotes) => {
+          const next = prevNotes.map((n) => {
+            if (n.id === noteId) {
+              const existingAtts = n.attachments || [];
+              return { ...n, attachments: [...existingAtts, newAttachment] };
+            }
+            return n;
+          });
+          try {
+            localStorage.setItem("ziptabs_app_notes", JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+
+        // 2. Persist to Supabase database
+        try {
+          const { data: dbNote } = await supabase
+            .from("app_notes")
+            .select("attachments")
+            .eq("id", noteId)
+            .single();
+
+          const currentAtts: NoteAttachment[] = dbNote?.attachments || [];
+          await supabase
+            .from("app_notes")
+            .update({
+              attachments: [...currentAtts, newAttachment],
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", noteId);
+        } catch (dbErr) {
+          console.error("Failed to update note attachments in db:", dbErr);
+        }
+
+        // 3. Mark background upload as completed
+        setBackgroundUploads((prev) =>
+          prev.map((j) => (j.id === job.id ? { ...j, progress: 100, status: "completed" } : j))
+        );
+
+        // Auto remove completed job after 4 seconds
+        setTimeout(() => {
+          setBackgroundUploads((prev) => prev.filter((j) => j.id !== job.id));
+        }, 4000);
+      } catch (err: any) {
+        console.error("Background upload failed for:", file.name, err);
+        setBackgroundUploads((prev) =>
+          prev.map((j) =>
+            j.id === job.id ? { ...j, status: "error", error: err?.message || "Upload failed" } : j
+          )
+        );
+      }
+    });
+  };
+
+  // Save note smoothly without delay; background upload handles attachments if present
   const handleSaveNote = async (e: React.FormEvent) => {
     e.preventDefault();
     const contentTrimmed = formContent.trim();
     if (!contentTrimmed) return;
 
-    setIsSaving(true);
     const nowIso = new Date().toISOString();
     const noteId = editingNote ? editingNote.id : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
     
@@ -562,39 +690,12 @@ export function NotesView() {
     const finalSubject = customSubject.trim() || extractKeywordsSubject(contentTrimmed);
 
     const finalAttachments: NoteAttachment[] = [...existingAttachments];
+    const pendingUploadFiles = [...newFilesToUpload];
 
-    // Upload new files to Supabase Storage bucket 'note-attachments'
-    if (newFilesToUpload.length > 0 && supabase) {
-      setUploadProgressText(`Uploading ${newFilesToUpload.length} attachment(s)...`);
-      for (let i = 0; i < newFilesToUpload.length; i++) {
-        const file = newFilesToUpload[i];
-        try {
-          const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-          const storagePath = `${noteId}/${Date.now()}_${cleanName}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from("note-attachments")
-            .upload(storagePath, file, { cacheControl: "3600", upsert: true });
-
-          if (!uploadError) {
-            const { data } = supabase.storage
-              .from("note-attachments")
-              .getPublicUrl(storagePath);
-
-            finalAttachments.push({
-              id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
-              name: file.name,
-              size: file.size,
-              type: file.type || "application/octet-stream",
-              url: data?.publicUrl || "",
-              path: storagePath,
-            });
-          }
-        } catch (err) {
-          console.error("Upload failed for file:", file.name, err);
-        }
-      }
-    }
+    // Smooth & Instant: Close the modal immediately so user never has to wait!
+    setIsModalOpen(false);
+    setNewFilesToUpload([]);
+    setUploadProgressText(null);
 
     if (editingNote) {
       // Update
@@ -613,25 +714,30 @@ export function NotesView() {
       saveNotesList(updatedList);
 
       if (supabase) {
-        try {
-          await supabase
-            .from("app_notes")
-            .update({
-              title: updatedItem.title,
-              content: updatedItem.content,
-              category: updatedItem.category,
-              target_date: updatedItem.target_date,
-              priority: updatedItem.priority,
-              attachments: finalAttachments,
-              updated_at: nowIso,
-            })
-            .eq("id", editingNote.id);
-        } catch (err) {
-          console.error("Supabase update error:", err);
-        }
+        supabase
+          .from("app_notes")
+          .update({
+            title: updatedItem.title,
+            content: updatedItem.content,
+            category: updatedItem.category,
+            target_date: updatedItem.target_date,
+            priority: updatedItem.priority,
+            attachments: finalAttachments,
+            updated_at: nowIso,
+          })
+          .eq("id", editingNote.id)
+          .then(({ error }) => {
+            if (error) console.error("Supabase update error:", error);
+          });
       }
 
-      showToast("Note Updated", `"${finalSubject}" has been saved.`, "success");
+      showToast(
+        "Note Updated",
+        pendingUploadFiles.length > 0
+          ? `"${finalSubject}" updated! Uploading ${pendingUploadFiles.length} file(s) in background...`
+          : `"${finalSubject}" has been saved.`,
+        "success"
+      );
     } else {
       // Create
       const newItem: NoteItem = {
@@ -652,8 +758,9 @@ export function NotesView() {
       saveNotesList(updatedList);
 
       if (supabase) {
-        try {
-          await supabase.from("app_notes").insert([
+        supabase
+          .from("app_notes")
+          .insert([
             {
               id: newItem.id,
               user_id: "chief",
@@ -665,18 +772,25 @@ export function NotesView() {
               is_completed: false,
               attachments: finalAttachments,
             },
-          ]);
-        } catch (err) {
-          console.error("Supabase insert error:", err);
-        }
+          ])
+          .then(({ error }) => {
+            if (error) console.error("Supabase insert error:", error);
+          });
       }
 
-      showToast("Note Created", `"${finalSubject}" added under ${formCategory}.`, "success");
+      showToast(
+        "Note Created",
+        pendingUploadFiles.length > 0
+          ? `"${finalSubject}" created! Uploading ${pendingUploadFiles.length} file(s) in background...`
+          : `"${finalSubject}" added under ${formCategory}.`,
+        "success"
+      );
     }
 
-    setIsSaving(false);
-    setUploadProgressText(null);
-    setIsModalOpen(false);
+    // Trigger background upload if files are present
+    if (pendingUploadFiles.length > 0) {
+      queueBackgroundUploads(noteId, finalSubject, pendingUploadFiles);
+    }
   };
 
   // Toggle Completed
@@ -1131,6 +1245,14 @@ export function NotesView() {
                             <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
                           </a>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Background Uploading Indicator for this Note */}
+                    {backgroundUploads.some((u) => u.noteId === note.id && u.status === "uploading") && (
+                      <div className="mt-3 flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-semibold animate-pulse">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
+                        <span className="truncate">Uploading attachment in background...</span>
                       </div>
                     )}
                   </div>
@@ -1705,6 +1827,115 @@ export function NotesView() {
             <div className="text-white text-xs font-medium mt-2.5 bg-black/50 px-3 py-1 rounded-full backdrop-blur-xs">
               {previewImage.name}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bottom-Right Background Upload Progress Bar */}
+      {backgroundUploads.length > 0 && (
+        <div className="fixed bottom-5 right-5 z-40 max-w-sm w-[92%] sm:w-96 animate-in slide-in-from-bottom-5 duration-300">
+          <div className="bg-[#0c1427]/95 border border-[#1b2b4d] rounded-2xl shadow-2xl p-4 text-white backdrop-blur-md">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {backgroundUploads.some((u) => u.status === "uploading") ? (
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>Background Upload</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono font-semibold">
+                      {backgroundUploads.filter((u) => u.status === "completed").length}/{backgroundUploads.length}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                    {backgroundUploads.some((u) => u.status === "uploading")
+                      ? "Uploading attachments seamlessly in background..."
+                      : "All attachments uploaded successfully!"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0 ml-2">
+                <button
+                  type="button"
+                  onClick={() => setIsUploadsMinimized(!isUploadsMinimized)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                  title={isUploadsMinimized ? "Expand" : "Minimize"}
+                >
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isUploadsMinimized ? "rotate-180" : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBackgroundUploads([])}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                  title="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* List of active upload jobs */}
+            {!isUploadsMinimized && (
+              <div className="mt-3 space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                {backgroundUploads.map((job) => (
+                  <div key={job.id} className="bg-[#121c33] rounded-xl p-2.5 border border-[#1b2b4d] text-xs">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <span className="font-semibold text-slate-200 truncate max-w-[170px]" title={job.fileName}>
+                          {job.fileName}
+                        </span>
+                        <span className="text-[10px] text-slate-400 shrink-0">
+                          ({formatFileSize(job.fileSize)})
+                        </span>
+                      </div>
+
+                      {job.status === "uploading" && (
+                        <span className="text-[10px] text-blue-400 font-bold shrink-0 flex items-center gap-1 font-mono">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>{job.progress}%</span>
+                        </span>
+                      )}
+                      {job.status === "completed" && (
+                        <span className="text-[10px] text-emerald-400 font-bold shrink-0 flex items-center gap-1 font-mono">
+                          <Check className="w-3 h-3" />
+                          <span>Done</span>
+                        </span>
+                      )}
+                      {job.status === "error" && (
+                        <span className="text-[10px] text-rose-400 font-bold shrink-0">Failed</span>
+                      )}
+                    </div>
+
+                    <div className="text-[10px] text-slate-400 truncate mb-2">
+                      Saved to note: <span className="text-slate-200 font-medium">"{job.noteTitle}"</span>
+                    </div>
+
+                    {/* Animated Progress Bar */}
+                    <div className="w-full bg-[#1b2b4d] rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 rounded-full ${
+                          job.status === "error"
+                            ? "bg-rose-500"
+                            : job.status === "completed"
+                            ? "bg-emerald-500"
+                            : "bg-blue-500"
+                        }`}
+                        style={{ width: `${job.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
