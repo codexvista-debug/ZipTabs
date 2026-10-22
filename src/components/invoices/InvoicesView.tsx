@@ -320,54 +320,29 @@ export function InvoicesView() {
 
   // ==========================================
   // ZOHO MAIL FORMATTED COPY GENERATOR
-  // Matches Image 3 (Deep blue header #0070C0, bold white text, clean black 1px borders)
+  // Ordered: 1. Vendor, 2. Invoice, 3. Amount Due, 4. Due Date, 5. Aging (no "days")
+  // Vivid blue header #0070C0, bold white text, clean black 1px borders
   // ==========================================
   const copyFormattedForZoho = async (targetInvoices: InvoiceRecord[]) => {
     if (targetInvoices.length === 0) return;
 
-    // Check if the original CSV had specific worker/hours columns or standard invoice columns
-    const firstRowRaw = targetInvoices[0]?.raw_data || {};
-    const hasWorkerHours =
-      Object.keys(firstRowRaw).some((k) => k.toLowerCase().includes("worker")) ||
-      Object.keys(firstRowRaw).some((k) => k.toLowerCase().includes("hours"));
+    const headers = ["Vendor", "Invoice", "Amount Due", "Due Date", "Aging"];
 
-    let headers: string[] = [];
-    let getRowValues: (inv: InvoiceRecord) => (string | number)[] = () => [];
+    const getRowValues = (inv: InvoiceRecord) => [
+      inv.vendor_name,
+      inv.invoice_number || "—",
+      `$${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      inv.due_date || "—",
+      inv.days_overdue ?? 0, // Clean number only, without "days"
+    ];
 
-    if (hasWorkerHours) {
-      headers = ["Initiated Date", "Worker Name", "Hours", "Expected Date"];
-      getRowValues = (inv) => {
-        const raw = inv.raw_data || {};
-        const findVal = (p: string[]) => {
-          const k = Object.keys(raw).find((key) =>
-            p.some((pat) => key.toLowerCase().replace(/[^a-z0-9]/g, "").includes(pat))
-          );
-          return k ? raw[k] : "";
-        };
-        return [
-          findVal(["initiat", "date"]) || inv.due_date || "—",
-          findVal(["worker", "name"]) || inv.vendor_name,
-          findVal(["hours", "hour"]) || inv.amount.toFixed(2),
-          findVal(["expect", "due"]) || inv.due_date || "—",
-        ];
-      };
-    } else {
-      headers = ["Due Date", "Vendor / Payee", "Invoice #", "Days Overdue", "Amount Due", "Status"];
-      getRowValues = (inv) => [
-        inv.due_date || "—",
-        inv.vendor_name,
-        inv.invoice_number || "—",
-        `${inv.days_overdue} days`,
-        `$${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-        inv.status || "Overdue",
-      ];
-    }
-
-    // Generate rich HTML table matching Image 3
+    // Generate rich HTML table matching Zoho Mail specs
     const headerHtml = headers
       .map(
-        (h) =>
-          `<th style="background-color: #0070C0; color: #FFFFFF; font-weight: bold; font-family: Calibri, Arial, sans-serif; font-size: 13px; border: 1px solid #000000; padding: 6px 14px; text-align: center;">${h}</th>`
+        (h, i) =>
+          `<th style="background-color: #0070C0; color: #FFFFFF; font-weight: bold; font-family: Calibri, Arial, sans-serif; font-size: 13px; border: 1px solid #000000; padding: 7px 14px; text-align: ${
+            i === 0 ? "left" : i === 2 ? "right" : "center"
+          };">${h}</th>`
       )
       .join("");
 
@@ -378,8 +353,8 @@ export function InvoicesView() {
           .map(
             (val, i) =>
               `<td style="background-color: #FFFFFF; color: #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; border: 1px solid #000000; padding: 6px 14px; text-align: ${
-                i === 1 ? "left" : "center"
-              };">${val}</td>`
+                i === 0 ? "left" : i === 2 ? "right" : "center"
+              }; font-weight: ${i === 2 || i === 4 ? "bold" : "normal"};">${val}</td>`
           )
           .join("");
         return `<tr>${cellsHtml}</tr>`;
@@ -414,7 +389,6 @@ export function InvoicesView() {
       setTimeout(() => setCopiedNotification(null), 3500);
     } catch (err) {
       console.error("Clipboard copy error:", err);
-      // Fallback
       navigator.clipboard.writeText(plainTsv);
       setCopiedNotification("✓ Copied data to clipboard!");
       setTimeout(() => setCopiedNotification(null), 2500);
@@ -753,11 +727,11 @@ export function InvoicesView() {
                       title="Select all rows"
                     />
                   </th>
-                  <th className="py-3.5 px-4">Vendor / Payee</th>
-                  <th className="py-3.5 px-4">Invoice #</th>
-                  <th className="py-3.5 px-4">Due Date</th>
-                  <th className="py-3.5 px-4">Overdue Days</th>
+                  <th className="py-3.5 px-4">Vendor</th>
+                  <th className="py-3.5 px-4">Invoice</th>
                   <th className="py-3.5 px-4 text-right">Amount Due</th>
+                  <th className="py-3.5 px-4 text-center">Due Date</th>
+                  <th className="py-3.5 px-4 text-center">Aging</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center w-20">Copy</th>
                 </tr>
@@ -792,7 +766,7 @@ export function InvoicesView() {
                         />
                       </td>
 
-                      {/* Vendor */}
+                      {/* 1. Vendor */}
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">
                           {inv.vendor_name}
@@ -804,21 +778,26 @@ export function InvoicesView() {
                         )}
                       </td>
 
-                      {/* Invoice # */}
+                      {/* 2. Invoice */}
                       <td className="py-3.5 px-4 font-mono text-slate-600">
                         {inv.invoice_number || "—"}
                       </td>
 
-                      {/* Due Date */}
-                      <td className="py-3.5 px-4 text-slate-600">
+                      {/* 3. Amount Due */}
+                      <td className="py-3.5 px-4 text-right font-black text-slate-900">
+                        ${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+
+                      {/* 4. Due Date */}
+                      <td className="py-3.5 px-4 text-center text-slate-600">
                         {inv.due_date || "—"}
                       </td>
 
-                      {/* Days Overdue Badge */}
-                      <td className="py-3.5 px-4">
+                      {/* 5. Aging (Number only, no 'days') */}
+                      <td className="py-3.5 px-4 text-center">
                         {inv.days_overdue > 0 ? (
                           <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                            className={`inline-flex items-center justify-center min-w-10 px-2.5 py-1 rounded-full text-[11px] font-bold ${
                               isHighAlert
                                 ? "bg-rose-100 text-rose-800 border border-rose-200"
                                 : isMediumAlert
@@ -826,17 +805,11 @@ export function InvoicesView() {
                                 : "bg-orange-50 text-orange-700 border border-orange-200"
                             }`}
                           >
-                            <Clock className="w-3 h-3" />
-                            <span>{inv.days_overdue} days</span>
+                            <span>{inv.days_overdue}</span>
                           </span>
                         ) : (
-                          <span className="text-slate-400">Current</span>
+                          <span className="text-slate-400">0</span>
                         )}
-                      </td>
-
-                      {/* Amount Due */}
-                      <td className="py-3.5 px-4 text-right font-black text-slate-900">
-                        ${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
 
                       {/* Status */}
