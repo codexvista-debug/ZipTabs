@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { AuthScreen } from "@/components/auth/AuthScreen";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -22,11 +22,62 @@ import {
   Loader2,
 } from "lucide-react";
 
+type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "usage";
+const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "usage"];
+
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "invoices" | "notes" | "calendar" | "usage">("dashboard");
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Synchronize and persist active tab across page refreshes and browser history
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const resolveTab = (): TabType => {
+      const hash = window.location.hash.replace("#", "").toLowerCase() as TabType;
+      if (VALID_TABS.includes(hash)) {
+        return hash;
+      }
+      try {
+        const stored = localStorage.getItem("ziptabs_active_tab") as TabType;
+        if (stored && VALID_TABS.includes(stored)) {
+          return stored;
+        }
+      } catch {}
+      return "dashboard";
+    };
+
+    const initial = resolveTab();
+    setActiveTab(initial);
+    if (window.location.hash.replace("#", "") !== initial) {
+      window.history.replaceState(null, "", `#${initial}`);
+    }
+
+    const handleHashChange = () => {
+      const current = window.location.hash.replace("#", "").toLowerCase() as TabType;
+      if (VALID_TABS.includes(current)) {
+        setActiveTab(current);
+        try {
+          localStorage.setItem("ziptabs_active_tab", current);
+        } catch {}
+      }
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem("ziptabs_active_tab", tab);
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", `#${tab}`);
+      }
+    } catch {}
+  };
 
   // 1. Loading Session State
   if (isLoading) {
@@ -51,7 +102,7 @@ export default function Home() {
       {/* Sidebar with Dashboard and Invoices tabs */}
       <Sidebar
         activeItem={activeTab}
-        onSelect={(id) => setActiveTab(id as "dashboard" | "invoices")}
+        onSelect={(id) => handleTabChange(id as TabType)}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -197,7 +248,7 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   {/* Module 1: Invoices (Clickable -> Switches to Invoices tab!) */}
                   <div
-                    onClick={() => setActiveTab("invoices")}
+                    onClick={() => handleTabChange("invoices")}
                     className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex items-center gap-3.5 cursor-pointer group"
                   >
                     <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 transition-colors shrink-0">
