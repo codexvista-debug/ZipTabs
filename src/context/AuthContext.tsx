@@ -10,11 +10,22 @@ export interface AppUser {
   role: string;
 }
 
+export interface LockoutInfo {
+  ip: string;
+  locked: boolean;
+  attempts: number;
+  remainingAttempts: number;
+  lockedUntil: string | null;
+  remainingMs: number;
+}
+
 interface AuthContextType {
   user: AppUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  lockoutInfo: LockoutInfo | null;
+  refreshLockoutStatus: () => Promise<LockoutInfo | null>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string; locked?: boolean; attempts?: number }>;
   register: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -26,8 +37,23 @@ const STORAGE_KEY = "ziptabs_logged_user";
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [lockoutInfo, setLockoutInfo] = useState<LockoutInfo | null>(null);
 
-  // Restore session from localStorage on mount
+  const refreshLockoutStatus = async (): Promise<LockoutInfo | null> => {
+    try {
+      const res = await fetch("/api/auth/lockout-status");
+      if (res.ok) {
+        const data: LockoutInfo = await res.json();
+        setLockoutInfo(data);
+        return data;
+      }
+    } catch (err) {
+      console.error("Failed to fetch lockout status:", err);
+    }
+    return null;
+  };
+
+  // Restore session from localStorage on mount and check IP lockout
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -39,6 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+
+    refreshLockoutStatus();
   }, []);
 
   const login = async (username: string, password: string) => {
@@ -49,48 +77,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: "Username and password are required." };
     }
 
-    // 1. Try Supabase app_users table with cryptographic hash verification
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from("app_users")
-          .select("*")
-          .ilike("username", cleanUsername)
-          .maybeSingle();
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: cleanUsername, password: cleanPassword }),
+      });
 
-        if (data) {
-          const isValid = await verifyPassword(cleanPassword, data.password);
-          if (isValid) {
-            // If stored as plaintext legacy, auto-upgrade to SHA-256 hash in DB
-            if (data.password === cleanPassword) {
-              const newHash = await hashPassword(cleanPassword);
-              await supabase
-                .from("app_users")
-                .update({ password: newHash })
-                .eq("id", data.id);
-            }
+      const data = await res.json();
 
-            const loggedUser: AppUser = {
-              id: data.id,
-              username: data.username,
-              role: data.role || "Administrator",
-            };
-            setUser(loggedUser);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
-            return { success: true };
-          } else {
-            return { success: false, error: "Incorrect password." };
-          }
-        }
-      } catch (err) {
-        console.warn("Supabase check error:", err);
+      if (data.locked) {
+        setLockoutInfo({
+          ip: data.ip,
+          locked: true,
+          attempts: data.attempts || 3,
+          remainingAttempts: 0,
+          lockedUntil: data.lockedUntil,
+          remainingMs: data.remainingMs || 24 * 60 * 60 * 1000,
+        });
+        return { success: false, locked: true, attempts: 3, error: data.error };
       }
-    }
 
-    return {
-      success: false,
-      error: "User not found or credentials incorrect.",
-    };
+      if (!res.ok || !data.success) {
+        if (data.attempts !== undefined) {
+          setLockoutInfo({
+            ip: data.ip,
+            locked: false,
+            attempts: data.attempts,
+            remainingAttempts: data.remainingAttempts ?? Math.max(0, 3 - data.attempts),
+            lockedUntil: null,
+            remainingMs: 0,
+          });
+        }
+        return { success: false, error: data.error, attempts: data.attempts };
+      }
+
+      // Login Successful!
+      const loggedUser: AppUser = data.user;
+      setUser(loggedUser);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
+      setLockoutInfo(null);
+      return { success: true };
+    } catch (err: any) {
+      console.error("Login request error:", err);
+      return { success: false, error: "Server connection failed. Please retry." };
+    }
   };
 
   const register = async (username: string, password: string) => {
@@ -208,6 +239,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isAuthenticated: !!user,
         isLoading,
+        lockoutInfo,
+        refreshLockoutStatus,
         login,
         register,
         changePassword,
