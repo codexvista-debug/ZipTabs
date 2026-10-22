@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   NotebookPen,
@@ -22,8 +22,23 @@ import {
   Loader2,
   Copy,
   Check,
-  Filter,
+  Paperclip,
+  FileUp,
+  FileText,
+  Image as ImageIcon,
+  ExternalLink,
+  Download,
+  AlertCircle,
 } from "lucide-react";
+
+export interface NoteAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  path: string;
+}
 
 export interface NoteItem {
   id: string;
@@ -34,6 +49,7 @@ export interface NoteItem {
   target_date?: string | null; // YYYY-MM-DD
   priority?: "normal" | "high" | "urgent";
   is_completed?: boolean;
+  attachments?: NoteAttachment[];
   created_at?: string;
   updated_at?: string;
 }
@@ -45,6 +61,14 @@ const CATEGORIES = [
   { id: "Tax & Compliance", label: "Tax & Compliance", color: "text-purple-700 bg-purple-50 border-purple-200", icon: ShieldCheck },
   { id: "Other", label: "Other", color: "text-slate-700 bg-slate-100 border-slate-200", icon: Tag },
 ];
+
+export function formatFileSize(bytes: number) {
+  if (!bytes || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
 
 export function getDateUrgency(targetDateStr?: string | null) {
   if (!targetDateStr) {
@@ -152,8 +176,38 @@ export function NotesView() {
   const [formCategory, setFormCategory] = useState("Invoices Related");
   const [formTargetDate, setFormTargetDate] = useState("");
   const [formPriority, setFormPriority] = useState<"normal" | "high" | "urgent">("normal");
+  const [existingAttachments, setExistingAttachments] = useState<NoteAttachment[]>([]);
+  const [newFilesToUpload, setNewFilesToUpload] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
+
+  // Custom Delete Confirm Dialog Modal (replacing native window.confirm)
+  const [confirmDeleteNote, setConfirmDeleteNote] = useState<NoteItem | null>(null);
+
+  // Image Preview Lightbox
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
+
+  // Custom Styled Toast Notification
+  const [toastNotification, setToastNotification] = useState<{
+    type: "success" | "error" | "info";
+    title: string;
+    description?: string;
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const showToast = (title: string, description?: string, type: "success" | "error" | "info" = "success") => {
+    setToastNotification({ title, description, type });
+  };
+
+  useEffect(() => {
+    if (toastNotification) {
+      const timer = setTimeout(() => {
+        setToastNotification(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotification]);
 
   // Load notes from Supabase (with localStorage fallback)
   const loadNotes = async () => {
@@ -192,17 +246,11 @@ export function NotesView() {
     loadNotes();
   }, []);
 
-  // Save notes helper
   const saveNotesList = (updated: NoteItem[]) => {
     setNotes(updated);
     try {
       localStorage.setItem("ziptabs_app_notes", JSON.stringify(updated));
     } catch {}
-  };
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
   };
 
   // Open modal for Create
@@ -213,6 +261,9 @@ export function NotesView() {
     setFormCategory("Invoices Related");
     setFormTargetDate(new Date().toISOString().slice(0, 10)); // Default to today
     setFormPriority("normal");
+    setExistingAttachments([]);
+    setNewFilesToUpload([]);
+    setUploadProgressText(null);
     setIsModalOpen(true);
   };
 
@@ -224,16 +275,75 @@ export function NotesView() {
     setFormCategory(note.category || "Invoices Related");
     setFormTargetDate(note.target_date || "");
     setFormPriority(note.priority || "normal");
+    setExistingAttachments(note.attachments || []);
+    setNewFilesToUpload([]);
+    setUploadProgressText(null);
     setIsModalOpen(true);
   };
 
-  // Save note (Insert or Update)
+  // Handle file selection from input
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setNewFilesToUpload((prev) => [...prev, ...filesArray]);
+    }
+  };
+
+  // Remove existing attachment during edit
+  const handleRemoveExistingAttachment = (attachmentId: string) => {
+    setExistingAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+  };
+
+  // Remove pending file before upload
+  const handleRemoveNewFile = (index: number) => {
+    setNewFilesToUpload((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Save note (Insert or Update with file uploads to Supabase Storage)
   const handleSaveNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim()) return;
 
     setIsSaving(true);
     const nowIso = new Date().toISOString();
+    const noteId = editingNote ? editingNote.id : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+
+    const finalAttachments: NoteAttachment[] = [...existingAttachments];
+
+    // Upload new files to Supabase Storage bucket 'note-attachments'
+    if (newFilesToUpload.length > 0 && supabase) {
+      setUploadProgressText(`Uploading ${newFilesToUpload.length} attachment(s)...`);
+      for (let i = 0; i < newFilesToUpload.length; i++) {
+        const file = newFilesToUpload[i];
+        try {
+          const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+          const storagePath = `${noteId}/${Date.now()}_${cleanName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("note-attachments")
+            .upload(storagePath, file, { cacheControl: "3600", upsert: true });
+
+          if (!uploadError) {
+            const { data } = supabase.storage
+              .from("note-attachments")
+              .getPublicUrl(storagePath);
+
+            finalAttachments.push({
+              id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+              name: file.name,
+              size: file.size,
+              type: file.type || "application/octet-stream",
+              url: data?.publicUrl || "",
+              path: storagePath,
+            });
+          } else {
+            console.error("File upload error:", uploadError);
+          }
+        } catch (err) {
+          console.error("Upload failed for file:", file.name, err);
+        }
+      }
+    }
 
     if (editingNote) {
       // Update
@@ -244,6 +354,7 @@ export function NotesView() {
         category: formCategory,
         target_date: formTargetDate || null,
         priority: formPriority,
+        attachments: finalAttachments,
         updated_at: nowIso,
       };
 
@@ -260,6 +371,7 @@ export function NotesView() {
               category: updatedItem.category,
               target_date: updatedItem.target_date,
               priority: updatedItem.priority,
+              attachments: finalAttachments,
               updated_at: nowIso,
             })
             .eq("id", editingNote.id);
@@ -268,11 +380,11 @@ export function NotesView() {
         }
       }
 
-      showToast("✓ Note updated successfully!");
+      showToast("Note Updated", `"${updatedItem.title}" has been saved.`, "success");
     } else {
       // Create
       const newItem: NoteItem = {
-        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        id: noteId,
         user_id: "chief",
         title: formTitle.trim(),
         content: formContent.trim(),
@@ -280,6 +392,7 @@ export function NotesView() {
         target_date: formTargetDate || null,
         priority: formPriority,
         is_completed: false,
+        attachments: finalAttachments,
         created_at: nowIso,
         updated_at: nowIso,
       };
@@ -299,6 +412,7 @@ export function NotesView() {
               target_date: newItem.target_date,
               priority: newItem.priority,
               is_completed: false,
+              attachments: finalAttachments,
             },
           ]);
         } catch (err) {
@@ -306,10 +420,11 @@ export function NotesView() {
         }
       }
 
-      showToast("✓ Note created successfully!");
+      showToast("Note Created", `"${newItem.title}" added with ${finalAttachments.length} document(s).`, "success");
     }
 
     setIsSaving(false);
+    setUploadProgressText(null);
     setIsModalOpen(false);
   };
 
@@ -331,40 +446,57 @@ export function NotesView() {
       }
     }
 
-    showToast(nextStatus ? "✓ Note marked completed" : "✓ Note reopened");
+    showToast(nextStatus ? "Marked as Completed" : "Note Reopened", note.title, "info");
   };
 
-  // Delete Note
-  const handleDeleteNote = async (id: string, e: React.MouseEvent) => {
+  // Trigger Custom Delete Confirmation Modal
+  const requestDeleteNote = (note: NoteItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this note?")) return;
+    setConfirmDeleteNote(note);
+  };
 
-    const updatedList = notes.filter((n) => n.id !== id);
+  // Execute Delete after custom confirmation
+  const executeDeleteNote = async (note: NoteItem) => {
+    const updatedList = notes.filter((n) => n.id !== note.id);
     saveNotesList(updatedList);
+    setConfirmDeleteNote(null);
 
+    // Delete associated files from storage if present
     if (supabase) {
       try {
-        await supabase.from("app_notes").delete().eq("id", id);
+        if (note.attachments && note.attachments.length > 0) {
+          const filePaths = note.attachments.map((a) => a.path).filter(Boolean);
+          if (filePaths.length > 0) {
+            await supabase.storage.from("note-attachments").remove(filePaths);
+          }
+        }
+        await supabase.from("app_notes").delete().eq("id", note.id);
       } catch (err) {
         console.error("Supabase delete error:", err);
       }
     }
 
-    showToast("✓ Note deleted");
+    showToast("Note Deleted", `"${note.title}" has been permanently removed.`, "info");
   };
 
   // Copy Note content
   const handleCopyNote = (note: NoteItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    const text = `${note.title}\n${note.category ? `[${note.category}] ` : ""}${note.target_date ? `Due: ${note.target_date}\n` : ""}\n${note.content || ""}`;
-    navigator.clipboard.writeText(text);
-    showToast("✓ Note copied to clipboard");
+    let text = `${note.title}\n`;
+    if (note.category) text += `[Category: ${note.category}]\n`;
+    if (note.target_date) text += `[Target Date: ${note.target_date}]\n`;
+    if (note.content) text += `\n${note.content}\n`;
+    if (note.attachments && note.attachments.length > 0) {
+      text += `\nAttachments:\n` + note.attachments.map((a) => `- ${a.name}: ${a.url}`).join("\n");
+    }
+
+    navigator.clipboard.writeText(text.trim());
+    showToast("Copied to Clipboard", "Ready to paste into emails or messages.", "success");
   };
 
   // Filtered & Sorted Notes
   const filteredNotes = notes
     .filter((note) => {
-      // Search
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
@@ -373,12 +505,10 @@ export function NotesView() {
 
       if (!matchesSearch) return false;
 
-      // Category
       if (activeCategory !== "all" && note.category !== activeCategory) {
         return false;
       }
 
-      // Urgency filter
       const urgency = getDateUrgency(note.target_date);
       if (urgencyFilter === "attention") {
         return (
@@ -393,12 +523,9 @@ export function NotesView() {
       return true;
     })
     .sort((a, b) => {
-      // Completed go to the bottom
       if (a.is_completed !== b.is_completed) {
         return a.is_completed ? 1 : -1;
       }
-
-      // Sort by urgency of target date (overdue and today first)
       const uA = getDateUrgency(a.target_date);
       const uB = getDateUrgency(b.target_date);
       return uA.daysDiff - uB.daysDiff;
@@ -413,16 +540,45 @@ export function NotesView() {
   }).length;
   const invoiceNotesCount = notes.filter((n) => n.category === "Invoices Related").length;
   const payrollNotesCount = notes.filter((n) => n.category === "Payroll Related").length;
-  const completedCount = notes.filter((n) => n.is_completed).length;
+  const totalAttachmentsCount = notes.reduce((acc, n) => acc + (n.attachments?.length || 0), 0);
 
   return (
     <div className="space-y-6 relative pb-16">
-      {/* Top Floating Toast */}
-      {toastMessage && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className="p-3 px-5 rounded-2xl bg-slate-900 text-white text-xs font-semibold shadow-2xl flex items-center gap-2.5 border border-slate-800">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{toastMessage}</span>
+      {/* ==================================================== */}
+      {/* THEME-MATCHED FLOATING TOP-CENTER TOAST POPUP NOTIFS */}
+      {/* ==================================================== */}
+      {toastNotification && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
+          <div
+            className={`p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 border ${
+              toastNotification.type === "error"
+                ? "bg-rose-950/95 border-rose-800 text-white"
+                : "bg-[#0c1427]/95 border-[#1b2b4d] text-white backdrop-blur-md"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {toastNotification.type === "error" ? (
+                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-white truncate">{toastNotification.title}</div>
+                {toastNotification.description && (
+                  <div className="text-[11px] text-slate-300 mt-0.5 truncate">{toastNotification.description}</div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setToastNotification(null)}
+              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
@@ -435,7 +591,7 @@ export function NotesView() {
             <span>Notes & Reminders</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Organize invoice notes, payroll reminders, and operational deadlines with automated date highlighting.
+            Store documents, PDFs, images, and track deadline reminders with automated date highlighting.
           </p>
         </div>
 
@@ -461,7 +617,7 @@ export function NotesView() {
             {totalNotesCount}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">
-            {completedCount} marked completed
+            {totalAttachmentsCount} files & images stored
           </div>
         </div>
 
@@ -474,7 +630,7 @@ export function NotesView() {
           }`}
         >
           <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider">
-            <span className={urgentCount > 0 ? "text-amber-800" : "text-slate-400"}>Due Soon / Urgent</span>
+            <span className={urgentCount > 0 ? "text-amber-800 font-bold" : "text-slate-400"}>Due Soon / Urgent</span>
             <AlertTriangle className={`w-4 h-4 ${urgentCount > 0 ? "text-amber-600" : "text-slate-400"}`} />
           </div>
           <div className={`text-2xl font-black tracking-tight mt-2 ${urgentCount > 0 ? "text-amber-700" : "text-slate-900"}`}>
@@ -529,7 +685,7 @@ export function NotesView() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search notes or reminders..."
+              placeholder="Search notes, documents, details..."
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all"
             />
           </div>
@@ -588,7 +744,7 @@ export function NotesView() {
         {isLoading ? (
           <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-            <span className="text-xs font-semibold">Loading notes & reminders...</span>
+            <span className="text-xs font-semibold">Loading notes & files from Supabase...</span>
           </div>
         ) : filteredNotes.length === 0 ? (
           <div className="py-20 px-4 flex flex-col items-center justify-center text-center">
@@ -600,7 +756,7 @@ export function NotesView() {
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mt-1">
               {notes.length === 0
-                ? "Create categorized notes for invoice follow-ups, payroll deadlines, and important reminders with date-based highlighting."
+                ? "Create categorized notes, attach invoices or receipts (PDF/images), and set date reminders."
                 : "Try clearing your search query or category filter."}
             </p>
             {notes.length === 0 && (
@@ -620,6 +776,8 @@ export function NotesView() {
               const urgency = getDateUrgency(note.target_date);
               const catConfig = CATEGORIES.find((c) => c.id === note.category) || CATEGORIES[4];
               const CatIcon = catConfig.icon;
+              const imageAttachments = (note.attachments || []).filter((a) => a.type.startsWith("image/"));
+              const docAttachments = (note.attachments || []).filter((a) => !a.type.startsWith("image/"));
 
               return (
                 <div
@@ -670,9 +828,54 @@ export function NotesView() {
 
                     {/* Note Content / Memo */}
                     {note.content && (
-                      <p className="text-xs text-slate-600 mt-2 line-clamp-4 leading-relaxed whitespace-pre-wrap break-words">
+                      <p className="text-xs text-slate-600 mt-2 line-clamp-3 leading-relaxed whitespace-pre-wrap break-words">
                         {note.content}
                       </p>
+                    )}
+
+                    {/* Image Attachments Thumbnails */}
+                    {imageAttachments.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {imageAttachments.map((img) => (
+                          <div
+                            key={img.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewImage({ url: img.url, name: img.name });
+                            }}
+                            className="relative w-14 h-14 rounded-xl border border-slate-200 overflow-hidden group/img hover:border-blue-500 transition-colors bg-slate-100 shrink-0"
+                            title={`Click to view: ${img.name}`}
+                          >
+                            <img
+                              src={img.url}
+                              alt={img.name}
+                              className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-200"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Document Attachments Chips */}
+                    {docAttachments.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {docAttachments.map((doc) => (
+                          <a
+                            key={doc.id}
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 text-[11px] font-medium transition-colors max-w-full"
+                            title={`Open / Download ${doc.name}`}
+                          >
+                            <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="truncate max-w-[130px]">{doc.name}</span>
+                            <span className="text-[10px] text-slate-400">({formatFileSize(doc.size)})</span>
+                            <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                          </a>
+                        ))}
+                      </div>
                     )}
                   </div>
 
@@ -719,7 +922,7 @@ export function NotesView() {
 
                       <button
                         type="button"
-                        onClick={(e) => handleDeleteNote(note.id, e)}
+                        onClick={(e) => requestDeleteNote(note, e)}
                         title="Delete note"
                         className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                       >
@@ -740,13 +943,13 @@ export function NotesView() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            onClick={() => setIsModalOpen(false)}
+            onClick={() => !isSaving && setIsModalOpen(false)}
             className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
           />
 
-          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <div className="flex items-center gap-2">
                 <NotebookPen className="w-5 h-5 text-blue-600" />
                 <h3 className="text-base font-bold text-slate-900">
@@ -755,15 +958,16 @@ export function NotesView() {
               </div>
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSaveNote} className="p-6 space-y-4">
+            {/* Modal Form Scrollable Body */}
+            <form onSubmit={handleSaveNote} className="p-6 space-y-4 overflow-y-auto flex-1">
               {/* Title */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -774,7 +978,7 @@ export function NotesView() {
                   required
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="e.g. Follow up on SecureIt invoice #32219"
+                  placeholder="e.g. Akash - premium deduction follow-up"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all font-medium"
                 />
               </div>
@@ -818,12 +1022,96 @@ export function NotesView() {
                   Details / Instructions (Optional)
                 </label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
-                  placeholder="Add notes, client contact info, payment terms, or email draft details..."
+                  placeholder="Akash majithia - premium amount of $2965 to be deducted from reserve..."
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all font-medium resize-none leading-relaxed"
                 />
+              </div>
+
+              {/* Documents & Images Upload Area */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Documents & Images</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">PDF, Excel, Images (up to 50MB)</span>
+                </div>
+
+                {/* Upload Button Box */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  multiple
+                  accept="image/*,.pdf,.csv,.xlsx,.xls,.doc,.docx,.txt"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-3.5 border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl bg-slate-50/70 hover:bg-blue-50/20 text-center cursor-pointer transition-colors flex items-center justify-center gap-2 text-xs font-semibold text-slate-600"
+                >
+                  <FileUp className="w-4 h-4 text-blue-600" />
+                  <span>Click to attach receipts, invoices, PDFs or photos</span>
+                </div>
+
+                {/* List of Attachments (Existing + Newly Selected) */}
+                {(existingAttachments.length > 0 || newFilesToUpload.length > 0) && (
+                  <div className="mt-2.5 space-y-1.5">
+                    {/* Existing from Supabase */}
+                    {existingAttachments.map((att) => (
+                      <div
+                        key={att.id}
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-100 border border-slate-200 text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {att.type.startsWith("image/") ? (
+                            <ImageIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          ) : (
+                            <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          )}
+                          <span className="font-medium text-slate-800 truncate max-w-xs">{att.name}</span>
+                          <span className="text-[10px] text-slate-400 shrink-0">({formatFileSize(att.size)})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExistingAttachment(att.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
+                          title="Remove file"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Newly picked files awaiting upload */}
+                    {newFilesToUpload.map((file, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 rounded-lg bg-blue-50/60 border border-blue-200 text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileUp className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="font-medium text-blue-900 truncate max-w-xs">{file.name}</span>
+                          <span className="text-[10px] text-blue-500 shrink-0">
+                            ({formatFileSize(file.size)} - pending upload)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveNewFile(idx)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
+                          title="Cancel upload"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Priority */}
@@ -854,24 +1142,117 @@ export function NotesView() {
               </div>
 
               {/* Modal Actions */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving || !formTitle.trim()}
-                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all disabled:opacity-50"
-                >
-                  {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{editingNote ? "Save Changes" : "Create Note"}</span>
-                </button>
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <div className="text-xs text-blue-600 font-semibold">
+                  {uploadProgressText}
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving || !formTitle.trim()}
+                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingNote ? "Save Changes" : "Create Note"}</span>
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* CUSTOM THEME-MATCHED DELETE CONFIRMATION MODAL       */}
+      {/* (Replaces ugly browser window.confirm seen in image) */}
+      {/* ==================================================== */}
+      {confirmDeleteNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setConfirmDeleteNote(null)}
+            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
+          />
+
+          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200/80 flex items-center justify-center text-rose-600 mb-4 shadow-xs">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-base font-bold text-slate-900 tracking-tight">
+              Delete this note?
+            </h3>
+
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-slate-800">"{confirmDeleteNote.title}"</strong>? Any attached documents or images will also be removed from Supabase storage.
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteNote(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => executeDeleteNote(confirmDeleteNote)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition-all cursor-pointer"
+              >
+                Delete Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* HIGH-RES IMAGE LIGHTBOX MODAL                        */}
+      {/* ==================================================== */}
+      {previewImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+          <div
+            onClick={() => setPreviewImage(null)}
+            className="fixed inset-0 bg-slate-950/85 backdrop-blur-md transition-opacity"
+          />
+
+          <div className="relative max-w-4xl max-h-[90vh] z-10 flex flex-col items-center">
+            <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
+              <a
+                href={previewImage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl bg-black/60 hover:bg-black/90 text-white backdrop-blur-xs transition-colors"
+                title="Open in new tab"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="p-2 rounded-xl bg-black/60 hover:bg-black/90 text-white backdrop-blur-xs transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <img
+              src={previewImage.url}
+              alt={previewImage.name}
+              className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain border border-white/10"
+            />
+            <div className="text-white text-xs font-medium mt-2.5 bg-black/50 px-3 py-1 rounded-full backdrop-blur-xs">
+              {previewImage.name}
+            </div>
           </div>
         </div>
       )}
