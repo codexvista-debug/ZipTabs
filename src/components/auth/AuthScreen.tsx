@@ -23,11 +23,13 @@ export function AuthScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setIsSubmitting(true);
 
     try {
@@ -35,6 +37,9 @@ export function AuthScreen() {
         const res = await register(name, email, password);
         if (!res.success) {
           setError(res.error || "Failed to create account.");
+        } else if (res.error) {
+          // Success with notice (e.g. email confirmation required)
+          setInfo(res.error);
         }
       } else {
         const res = await login(email, password);
@@ -129,6 +134,14 @@ export function AuthScreen() {
               Register
             </button>
           </div>
+
+          {/* Info / Confirmation Banner */}
+          {info && (
+            <div className="mb-5 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-blue-600" />
+              <span>{info}</span>
+            </div>
+          )}
 
           {/* Error Banner */}
           {error && (
