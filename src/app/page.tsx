@@ -9,7 +9,6 @@ import { NotesView } from "@/components/notes/NotesView";
 import { USCalendarView } from "@/components/calendar/USCalendarView";
 import { UsageView } from "@/components/usage/UsageView";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
-import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import {
   AlertCircle,
   ArrowRight,
@@ -62,17 +61,14 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Mobile / Tablet Top Navigation Bar */}
         <header className="lg:hidden h-14 bg-[#0c1427] border-b border-[#15203b] px-4 flex items-center justify-between shrink-0 text-white">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-              aria-label="Open navigation menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <ZipTabsLogo size="sm" showText={true} />
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
         </header>
 
         {/* Content Canvas */}
