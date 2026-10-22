@@ -216,6 +216,48 @@ export function NotesView() {
   const [newFilesToUpload, setNewFilesToUpload] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Clipboard Paste support (Ctrl+V / Cmd+V) to paste screenshots or copied documents
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const pastedFiles: File[] = [];
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) {
+            const isImage = file.type.startsWith("image/");
+            let finalFile = file;
+            if (isImage && (file.name === "image.png" || !file.name || file.name.startsWith("blob"))) {
+              const ext = file.type.split("/")[1] || "png";
+              const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+              finalFile = new File([file], `screenshot_${dateStr}.${ext}`, { type: file.type });
+            }
+            pastedFiles.push(finalFile);
+          }
+        }
+      }
+
+      if (pastedFiles.length > 0) {
+        setNewFilesToUpload((prev) => [...prev, ...pastedFiles]);
+        showToast(
+          "Pasted File Attached",
+          `${pastedFiles.length} item(s) attached from clipboard.`,
+          "success"
+        );
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [isModalOpen]);
 
   // Custom Delete Confirm Dialog Modal
   const [confirmDeleteNote, setConfirmDeleteNote] = useState<NoteItem | null>(null);
@@ -988,7 +1030,25 @@ export function NotesView() {
             className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
           />
 
-          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDraggingOver(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const droppedFiles = Array.from(e.dataTransfer.files);
+                setNewFilesToUpload((prev) => [...prev, ...droppedFiles]);
+                showToast("Files Attached", `${droppedFiles.length} file(s) dropped.`, "success");
+              }
+            }}
+            className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200"
+          >
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <div className="flex items-center gap-2">
@@ -1082,7 +1142,7 @@ export function NotesView() {
                   <span className="text-[10px] text-slate-400">PDF, Excel, Images (up to 50MB)</span>
                 </div>
 
-                {/* Upload Button Box */}
+                {/* Drag, Drop, Paste & Upload Area */}
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -1094,10 +1154,49 @@ export function NotesView() {
 
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-3.5 border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl bg-slate-50/70 hover:bg-blue-50/20 text-center cursor-pointer transition-colors flex items-center justify-center gap-2 text-xs font-semibold text-slate-600"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingOver(true);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingOver(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingOver(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingOver(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      const droppedFiles = Array.from(e.dataTransfer.files);
+                      setNewFilesToUpload((prev) => [...prev, ...droppedFiles]);
+                      showToast(
+                        "Files Attached",
+                        `${droppedFiles.length} file(s) added.`,
+                        "success"
+                      );
+                    }
+                  }}
+                  className={`p-4 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 ${
+                    isDraggingOver
+                      ? "border-[#2563eb] bg-blue-50/90 ring-4 ring-blue-500/20 scale-[1.01]"
+                      : "border-slate-300 hover:border-blue-400 bg-slate-50/70 hover:bg-blue-50/20"
+                  }`}
                 >
-                  <FileUp className="w-4 h-4 text-blue-600" />
-                  <span>Click to attach receipts, invoices, PDFs or photos</span>
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <FileUp className={`w-4 h-4 ${isDraggingOver ? "text-blue-600 animate-bounce" : "text-blue-600"}`} />
+                    <span>{isDraggingOver ? "Drop files now to attach" : "Click to browse or drag & drop files here"}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap justify-center">
+                    <span>Or paste screenshots directly with</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-semibold">Ctrl+V</kbd>
+                  </div>
                 </div>
 
                 {/* List of Attachments (Existing + Newly Selected) */}
