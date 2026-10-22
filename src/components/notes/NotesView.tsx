@@ -390,8 +390,16 @@ export function NotesView() {
     return () => window.removeEventListener("paste", handlePaste);
   }, [isModalOpen]);
 
-  // Load custom categories from Supabase (with localStorage fallback)
+  // Load custom categories from Supabase (with bidirectional localStorage sync)
   const loadCategories = async () => {
+    let storedCategories: CategoryConfig[] = [];
+    try {
+      const stored = localStorage.getItem("ziptabs_custom_categories");
+      if (stored) {
+        storedCategories = JSON.parse(stored);
+      }
+    } catch {}
+
     try {
       if (supabase) {
         const { data, error } = await supabase
@@ -399,31 +407,57 @@ export function NotesView() {
           .select("*")
           .order("created_at", { ascending: true });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           const loaded: CategoryConfig[] = data.map((d: any) => ({
             id: d.id,
             label: d.label,
             color: d.color || "text-slate-700 bg-slate-100 border-slate-200",
             icon: Tag,
           }));
-          setCustomCategories(loaded);
-          localStorage.setItem("ziptabs_custom_categories", JSON.stringify(loaded));
+
+          let mergedCategories = [...loaded];
+          if (storedCategories.length > 0) {
+            const remoteCatIds = new Set(loaded.map((c) => c.id));
+            const unsyncedCategories = storedCategories.filter((c) => !remoteCatIds.has(c.id));
+            if (unsyncedCategories.length > 0) {
+              await supabase.from("app_categories").upsert(
+                unsyncedCategories.map((c) => ({
+                  id: c.id,
+                  label: c.label,
+                  color: c.color,
+                  icon: "Tag",
+                }))
+              );
+              mergedCategories = [...unsyncedCategories, ...loaded];
+            }
+          }
+
+          setCustomCategories(mergedCategories);
+          try {
+            localStorage.setItem("ziptabs_custom_categories", JSON.stringify(mergedCategories));
+          } catch {}
           return;
         }
       }
     } catch {}
 
-    try {
-      const stored = localStorage.getItem("ziptabs_custom_categories");
-      if (stored) {
-        setCustomCategories(JSON.parse(stored));
-      }
-    } catch {}
+    if (storedCategories.length > 0) {
+      setCustomCategories(storedCategories);
+    }
   };
 
-  // Load notes from Supabase (with localStorage fallback)
+  // Load notes from Supabase (with bidirectional localStorage sync & migration)
   const loadNotes = async () => {
     setIsLoading(true);
+
+    let storedNotes: NoteItem[] = [];
+    try {
+      const stored = localStorage.getItem("ziptabs_app_notes");
+      if (stored) {
+        storedNotes = JSON.parse(stored);
+      }
+    } catch {}
+
     try {
       if (supabase) {
         const { data, error } = await supabase
@@ -432,30 +466,112 @@ export function NotesView() {
           .order("created_at", { ascending: false });
 
         if (!error && data) {
-          setNotes(data);
+          let mergedNotes: NoteItem[] = [...data];
+
+          // If local storage has notes that haven't been pushed to Supabase yet (e.g. from previous permission block),
+          // push them to Supabase cloud immediately so phone & all devices get them!
+          if (storedNotes.length > 0) {
+            const remoteIds = new Set(data.map((n: any) => n.id));
+            const unsyncedNotes = storedNotes.filter((n) => !remoteIds.has(n.id));
+
+            if (unsyncedNotes.length > 0) {
+              console.log(`Auto-syncing ${unsyncedNotes.length} offline/local notes to Supabase...`);
+              const { error: upsertErr } = await supabase.from("app_notes").upsert(
+                unsyncedNotes.map((n) => ({
+                  id: n.id,
+                  user_id: n.user_id || "chief",
+                  title: n.title,
+                  content: n.content || "",
+                  category: n.category || "Quick Notes",
+                  target_date: n.target_date || null,
+                  priority: n.priority || "normal",
+                  is_completed: n.is_completed || false,
+                  attachments: n.attachments || [],
+                  created_at: n.created_at || new Date().toISOString(),
+                  updated_at: n.updated_at || new Date().toISOString(),
+                }))
+              );
+
+              if (!upsertErr) {
+                mergedNotes = [...unsyncedNotes, ...data];
+              } else {
+                console.error("Failed to sync local notes to Supabase:", upsertErr);
+              }
+            }
+          }
+
+          setNotes(mergedNotes);
           try {
-            localStorage.setItem("ziptabs_app_notes", JSON.stringify(data));
+            localStorage.setItem("ziptabs_app_notes", JSON.stringify(mergedNotes));
           } catch {}
           setIsLoading(false);
           return;
+        } else if (error) {
+          console.error("Supabase loadNotes error:", error);
         }
       }
     } catch (e) {
       console.warn("Supabase fetch error, fallback to localStorage:", e);
     }
 
-    try {
-      const stored = localStorage.getItem("ziptabs_app_notes");
-      if (stored) {
-        setNotes(JSON.parse(stored));
-      }
-    } catch {}
+    // Fallback if offline or network issue
+    if (storedNotes.length > 0) {
+      setNotes(storedNotes);
+    }
     setIsLoading(false);
   };
 
   useEffect(() => {
     loadCategories();
     loadNotes();
+
+    // Supabase Realtime Subscription: keeps PC and Phone synced instantly without page reload
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel("realtime-notes-feed")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "app_notes" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newNote = payload.new as NoteItem;
+            setNotes((prev) => {
+              if (prev.some((n) => n.id === newNote.id)) return prev;
+              const next = [newNote, ...prev];
+              try {
+                localStorage.setItem("ziptabs_app_notes", JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+          } else if (payload.eventType === "UPDATE") {
+            const updatedNote = payload.new as NoteItem;
+            setNotes((prev) => {
+              const next = prev.map((n) => (n.id === updatedNote.id ? { ...n, ...updatedNote } : n));
+              try {
+                localStorage.setItem("ziptabs_app_notes", JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+          } else if (payload.eventType === "DELETE") {
+            const deletedId = (payload.old as { id: string })?.id;
+            if (deletedId) {
+              setNotes((prev) => {
+                const next = prev.filter((n) => n.id !== deletedId);
+                try {
+                  localStorage.setItem("ziptabs_app_notes", JSON.stringify(next));
+                } catch {}
+                return next;
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase?.removeChannel(channel);
+    };
   }, []);
 
   const saveNotesList = (updated: NoteItem[]) => {
