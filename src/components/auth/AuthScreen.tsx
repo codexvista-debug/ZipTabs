@@ -69,21 +69,9 @@ export function AuthScreen() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-zinc-300">
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    alert("Please contact your workspace administrator to reset credentials.");
-                  }}
-                  className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
-                >
-                  Forgot password?
-                </button>
-              </div>
-
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                Password
+              </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -112,7 +100,7 @@ export function AuthScreen() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full mt-3 py-2.5 px-4 rounded-lg bg-white hover:bg-zinc-200 text-black font-bold text-xs tracking-wide transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+              className="w-full mt-2 py-2.5 px-4 rounded-lg bg-white hover:bg-zinc-200 text-black font-bold text-xs tracking-wide transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
             >
               {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               <span>Secure Login</span>
@@ -122,7 +110,7 @@ export function AuthScreen() {
           {/* Subdued Bottom Portal Label */}
           <div className="mt-8 pt-5 border-t border-[#26262b] text-center">
             <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
-              PROFESSIONAL WORKSPACE PORTAL
+              ZIPTABS SECURE MANAGEMENT ENVIRONMENT
             </span>
           </div>
         </div>

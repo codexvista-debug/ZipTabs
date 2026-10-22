@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import {
   LayoutDashboard,
+  FileSpreadsheet,
   LogOut,
   KeyRound,
   X,
@@ -28,7 +29,8 @@ export function Sidebar({
   const { user, logout } = useAuth();
 
   const menuItems = [
-    { id: "dashboard", label: "Executive Dashboard", icon: LayoutDashboard },
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "invoices", label: "Invoices", icon: FileSpreadsheet },
   ];
 
   return (
@@ -61,7 +63,7 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* Menu Items (Only Executive Dashboard) */}
+        {/* Menu Items */}
         <div className="flex-1 overflow-y-auto px-3.5 py-5 space-y-2">
           <div className="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             WORKSPACE MENU
