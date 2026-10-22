@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #070c18;
-  --foreground: #f1f5f9;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -13,8 +13,8 @@
 }
 
 body {
-  background-color: #070c18;
-  color: #f1f5f9;
+  background-color: #f8fafc;
+  color: #0f172a;
   font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh;
   margin: 0;
@@ -22,14 +22,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbars for the executive dark theme */
+/* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #070c18;
+  background: #090e1a;
 }
 
 ::-webkit-scrollbar-thumb {
