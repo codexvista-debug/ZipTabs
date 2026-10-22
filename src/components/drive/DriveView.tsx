@@ -29,7 +29,10 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  Shield,
+  Eye,
 } from "lucide-react";
+import { UniversalFileViewer } from "./UniversalFileViewer";
 
 export interface DriveFolder {
   id: string;
@@ -50,6 +53,8 @@ export interface DriveFile {
   type: string;
   storage_path: string;
   public_url?: string;
+  retention_type?: "permanent" | "temporary";
+  expires_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -82,6 +87,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Storage Retention Category & Filter: 'all' | 'permanent' (Vault) | 'temporary' (Temp Stash)
+  const [storageCategoryFilter, setStorageCategoryFilter] = useState<"all" | "permanent" | "temporary">("all");
+  const [uploadRetention, setUploadRetention] = useState<"permanent" | "temporary">("permanent");
+
   // Search & View Toggle
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -100,8 +109,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<DriveFolder | null>(null);
   const [confirmDeleteFile, setConfirmDeleteFile] = useState<DriveFile | null>(null);
 
-  // Preview Lightbox
-  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
+  // Universal File Preview Modal (Supports Word, Excel, CSV, PDF, Images, Code, etc.)
+  const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);
 
   // Toast Notification
   const [toast, setToast] = useState<{ title: string; description?: string; type: "success" | "error" | "info" } | null>(null);
@@ -113,10 +122,28 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     setTimeout(() => setToast(null), 3500);
   };
 
+  // Auto-purge any expired temporary files (runs silently in the background)
+  const purgeExpiredFiles = async () => {
+    if (!supabase) return;
+    try {
+      const { data: purged } = await supabase.rpc("purge_expired_drive_files");
+      if (purged && purged.length > 0) {
+        const storagePaths = purged.map((p: any) => p.purged_storage_path).filter(Boolean);
+        if (storagePaths.length > 0) {
+          await supabase.storage.from("note-attachments").remove(storagePaths);
+        }
+      }
+    } catch (err) {
+      console.warn("Auto-purge warning:", err);
+    }
+  };
+
   // Fetch folders and files from Supabase
   const loadDriveData = async () => {
     setIsLoading(true);
     try {
+      await purgeExpiredFiles();
+
       if (supabase) {
         const [foldersRes, filesRes] = await Promise.all([
           supabase.from("drive_folders").select("*").order("name", { ascending: true }),
@@ -285,6 +312,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           .from("note-attachments")
           .getPublicUrl(storagePath);
 
+        const isTemp = uploadRetention === "temporary";
         const newFileItem: DriveFile = {
           id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
           user_id: "chief",
@@ -294,6 +322,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           type: file.type || "application/octet-stream",
           storage_path: storagePath,
           public_url: urlData?.publicUrl || "",
+          retention_type: uploadRetention,
+          expires_at: isTemp ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -310,7 +340,51 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
     setIsUploading(false);
     setUploadProgressText(null);
-    showToast("Upload Complete", `${filesToUpload.length} file(s) saved to Drive.`, "success");
+    showToast(
+      "Upload Complete",
+      `${filesToUpload.length} file(s) saved to ${uploadRetention === "temporary" ? "Temp Stash (30 Days)" : "Vault (Permanent)"}.`,
+      "success"
+    );
+  };
+
+  // Toggle File Retention between Vault (Permanent) and Temp Stash (30-day auto-purge)
+  const handleToggleRetention = async (file: DriveFile) => {
+    const isCurrentlyTemp = file.retention_type === "temporary";
+    const newType: "permanent" | "temporary" = isCurrentlyTemp ? "permanent" : "temporary";
+    const newExpiresAt = isCurrentlyTemp
+      ? null
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Optimistic UI updates
+    setFiles((prev) =>
+      prev.map((f) => (f.id === file.id ? { ...f, retention_type: newType, expires_at: newExpiresAt } : f))
+    );
+    if (previewFile && previewFile.id === file.id) {
+      setPreviewFile((prev) =>
+        prev ? { ...prev, retention_type: newType, expires_at: newExpiresAt } : null
+      );
+    }
+
+    if (isCurrentlyTemp) {
+      showToast("Moved to Vault", `"${file.name}" is now safely in your permanent Vault.`, "success");
+    } else {
+      showToast("Moved to Temp Stash", `"${file.name}" will auto-purge in 30 days.`, "info");
+    }
+
+    if (supabase) {
+      try {
+        await supabase
+          .from("drive_files")
+          .update({
+            retention_type: newType,
+            expires_at: newExpiresAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", file.id);
+      } catch (err) {
+        console.error("Failed to update file retention:", err);
+      }
+    }
   };
 
   // Delete File
@@ -384,10 +458,29 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     ? folders.filter((f) => f.name.toLowerCase().includes(normalizedQuery))
     : folders.filter((f) => (f.parent_id || null) === currentFolderId);
 
+  // Category file counts
+  const vaultFilesCount = files.filter((f) => f.retention_type !== "temporary").length;
+  const tempFilesCount = files.filter((f) => f.retention_type === "temporary").length;
+
+  // Temp files expiring within 3 days
+  const expiringFilesCount = files.filter((f) => {
+    if (f.retention_type !== "temporary" || !f.expires_at) return false;
+    const diffMs = new Date(f.expires_at).getTime() - Date.now();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return diffDays <= 3;
+  }).length;
+
   // Files to show:
-  const visibleFiles = isSearching
+  let candidateFiles = isSearching
     ? files.filter((f) => f.name.toLowerCase().includes(normalizedQuery))
     : files.filter((f) => (f.folder_id || null) === currentFolderId);
+
+  if (storageCategoryFilter === "permanent") {
+    candidateFiles = candidateFiles.filter((f) => f.retention_type !== "temporary");
+  } else if (storageCategoryFilter === "temporary") {
+    candidateFiles = candidateFiles.filter((f) => f.retention_type === "temporary");
+  }
+  const visibleFiles = candidateFiles;
 
   // Overall Drive Storage Metric
   const totalDriveBytes = files.reduce((acc, f) => acc + (f.size || 0), 0);
@@ -500,8 +593,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           </p>
         </div>
 
-        {/* Action Controls: New Folder & Upload */}
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+        {/* Action Controls: New Folder, Retention Selector & Upload */}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {/* Hidden File Input */}
           <input
             type="file"
@@ -516,6 +609,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
             }}
           />
 
+          {/* New Folder Button */}
           <button
             type="button"
             onClick={() => {
@@ -528,6 +622,37 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
             <span>New Folder</span>
           </button>
 
+          {/* Target Upload Retention Selector Pill */}
+          <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setUploadRetention("permanent")}
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                uploadRetention === "permanent"
+                  ? "bg-white text-indigo-700 shadow-xs border border-indigo-200"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+              title="Upload files to permanent Vault storage (won't be deleted)"
+            >
+              <Shield className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Vault</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setUploadRetention("temporary")}
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                uploadRetention === "temporary"
+                  ? "bg-white text-amber-700 shadow-xs border border-amber-200"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+              title="Upload files to 30-Day Temp Stash (auto-purged after 30 days)"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>Temp (30d)</span>
+            </button>
+          </div>
+
+          {/* Upload Button */}
           <button
             type="button"
             disabled={isUploading}
@@ -542,6 +667,60 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
             <span>{isUploading ? (uploadProgressText || "Uploading...") : "Upload Files"}</span>
           </button>
         </div>
+      </div>
+
+      {/* Storage Category Filter Bar & Warning Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Category Pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setStorageCategoryFilter("all")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              storageCategoryFilter === "all"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            All Items ({files.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStorageCategoryFilter("permanent")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              storageCategoryFilter === "permanent"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Vault · Permanent ({vaultFilesCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStorageCategoryFilter("temporary")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              storageCategoryFilter === "temporary"
+                ? "bg-amber-600 text-white shadow-xs"
+                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
+            <span>Temp Stash · 30 Days ({tempFilesCount})</span>
+          </button>
+        </div>
+
+        {/* Expiring Soon Alert Pill */}
+        {expiringFilesCount > 0 && (
+          <div
+            onClick={() => setStorageCategoryFilter("temporary")}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold cursor-pointer hover:bg-rose-100 transition-colors"
+            title="Click to view files expiring soon"
+          >
+            <AlertCircle className="w-4 h-4 text-rose-500 animate-pulse shrink-0" />
+            <span>{expiringFilesCount} file(s) auto-purging within 3 days</span>
+          </div>
+        )}
       </div>
 
       {/* Breadcrumb Navigation & Stats Bar */}
@@ -741,6 +920,14 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                   const iconInfo = getFileIcon(file.name, file.type);
                   const Icon = iconInfo.icon;
                   const isImage = file.type.startsWith("image/");
+                  const isTemp = file.retention_type === "temporary";
+                  let daysLeft = 30;
+                  let isUrgent = false;
+                  if (isTemp && file.expires_at) {
+                    const diffMs = new Date(file.expires_at).getTime() - Date.now();
+                    daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+                    isUrgent = daysLeft <= 3;
+                  }
 
                   return (
                     <div
@@ -749,13 +936,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                     >
                       {/* Thumbnail or Icon Preview Header */}
                       <div
-                        onClick={() => {
-                          if (isImage && file.public_url) {
-                            setPreviewImage({ url: file.public_url, name: file.name });
-                          } else if (file.public_url) {
-                            window.open(file.public_url, "_blank");
-                          }
-                        }}
+                        onClick={() => setPreviewFile(file)}
                         className="relative w-full aspect-4/3 bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer group/preview"
                       >
                         {isImage && file.public_url ? (
@@ -770,34 +951,95 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                           </div>
                         )}
 
-                        {/* Hover Overlay */}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center text-white">
-                          <ExternalLink className="w-4 h-4" />
+                        {/* Hover Overlay with Open Preview Cue */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center text-white gap-2">
+                          <Eye className="w-4 h-4" />
+                          <span className="text-[11px] font-bold">Open</span>
                         </div>
                       </div>
 
                       {/* File Details Footer */}
                       <div className="p-3">
-                        <div className="font-bold text-xs text-slate-900 truncate" title={file.name}>
+                        <div
+                          onClick={() => setPreviewFile(file)}
+                          className="font-bold text-xs text-slate-900 truncate hover:text-blue-600 cursor-pointer"
+                          title={file.name}
+                        >
                           {file.name}
                         </div>
+
                         <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
                           <span>{formatBytes(file.size)}</span>
                           <span className="font-mono uppercase">{iconInfo.label}</span>
                         </div>
 
+                        {/* Retention Badge */}
+                        <div className="mt-1.5 flex items-center justify-between">
+                          {isTemp ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleRetention(file);
+                              }}
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
+                                isUrgent
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 animate-pulse"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                              }`}
+                              title="30-Day Temp Stash. Click to keep permanently in Vault."
+                            >
+                              <Clock className="w-2.5 h-2.5" />
+                              <span>{daysLeft}d left</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleRetention(file);
+                              }}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors"
+                              title="Permanent Vault. Click to set 30-Day auto-purge."
+                            >
+                              <Shield className="w-2.5 h-2.5" />
+                              <span>Vault</span>
+                            </button>
+                          )}
+                        </div>
+
                         {/* File Action Buttons */}
                         <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
-                          <a
-                            href={file.public_url}
-                            download={file.name}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Download file"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </a>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewFile(file)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                              title="Open in Document Viewer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleRetention(file)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                              title={isTemp ? "Promote to Vault (Permanent)" : "Move to Temp Stash (30 Days)"}
+                            >
+                              <Shield className="w-3.5 h-3.5" />
+                            </button>
+
+                            <a
+                              href={file.public_url}
+                              download={file.name}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                              title="Download file"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
 
                           <button
                             type="button"
@@ -821,6 +1063,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                     <thead>
                       <tr className="border-b border-slate-200/70 bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th className="py-3 px-4">Name</th>
+                        <th className="py-3 px-4">Storage Category</th>
                         <th className="py-3 px-4">Size</th>
                         <th className="py-3 px-4">Type</th>
                         <th className="py-3 px-4">Uploaded</th>
@@ -831,7 +1074,14 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                       {visibleFiles.map((file) => {
                         const iconInfo = getFileIcon(file.name, file.type);
                         const Icon = iconInfo.icon;
-                        const isImage = file.type.startsWith("image/");
+                        const isTemp = file.retention_type === "temporary";
+                        let daysLeft = 30;
+                        let isUrgent = false;
+                        if (isTemp && file.expires_at) {
+                          const diffMs = new Date(file.expires_at).getTime() - Date.now();
+                          daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+                          isUrgent = daysLeft <= 3;
+                        }
                         const dateStr = file.created_at ? new Date(file.created_at).toLocaleDateString() : "-";
 
                         return (
@@ -842,13 +1092,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                                   <Icon className="w-4 h-4" />
                                 </div>
                                 <span
-                                  onClick={() => {
-                                    if (isImage && file.public_url) {
-                                      setPreviewImage({ url: file.public_url, name: file.name });
-                                    } else if (file.public_url) {
-                                      window.open(file.public_url, "_blank");
-                                    }
-                                  }}
+                                  onClick={() => setPreviewFile(file)}
                                   className="font-bold text-slate-900 hover:text-blue-600 cursor-pointer truncate max-w-xs md:max-w-md"
                                   title={file.name}
                                 >
@@ -856,6 +1100,36 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                                 </span>
                               </div>
                             </td>
+
+                            {/* Storage Category Badge */}
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {isTemp ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleRetention(file)}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                    isUrgent
+                                      ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 animate-pulse"
+                                      : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                                  }`}
+                                  title="30-Day Temp Stash. Click to keep permanently in Vault."
+                                >
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  <span>Temp ({daysLeft}d left)</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleRetention(file)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors"
+                                  title="Permanent Vault. Click to switch to 30-Day Temp Stash."
+                                >
+                                  <Shield className="w-3 h-3 text-indigo-600" />
+                                  <span>Vault</span>
+                                </button>
+                              )}
+                            </td>
+
                             <td className="py-3 px-4 text-slate-500 font-medium whitespace-nowrap">
                               {formatBytes(file.size)}
                             </td>
@@ -867,6 +1141,22 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                             </td>
                             <td className="py-3 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewFile(file)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                  title="Open Document Viewer"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleRetention(file)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                  title={isTemp ? "Keep in Vault (Permanent)" : "Move to Temp Stash (30 Days)"}
+                                >
+                                  <Shield className="w-3.5 h-3.5" />
+                                </button>
                                 <a
                                   href={file.public_url}
                                   download={file.name}
@@ -1083,45 +1373,14 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         </div>
       )}
 
-      {/* Image Lightbox Preview */}
-      {previewImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-          <div
-            onClick={() => setPreviewImage(null)}
-            className="fixed inset-0 bg-slate-950/85 backdrop-blur-md transition-opacity"
-          />
-
-          <div className="relative max-w-4xl max-h-[90vh] z-10 flex flex-col items-center">
-            <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
-              <a
-                href={previewImage.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-xl bg-black/60 hover:bg-black/90 text-white backdrop-blur-xs transition-colors"
-                title="Open in new tab"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
-              <button
-                type="button"
-                onClick={() => setPreviewImage(null)}
-                className="p-2 rounded-xl bg-black/60 hover:bg-black/90 text-white backdrop-blur-xs transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <img
-              src={previewImage.url}
-              alt={previewImage.name}
-              className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain border border-white/10"
-            />
-            <div className="text-white text-xs font-medium mt-2.5 bg-black/50 px-3 py-1 rounded-full backdrop-blur-xs">
-              {previewImage.name}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Universal Document & File Viewer Modal (Word, Excel, CSV, PDF, Image, Code) */}
+      <UniversalFileViewer
+        file={previewFile}
+        isOpen={Boolean(previewFile)}
+        onClose={() => setPreviewFile(null)}
+        onToggleRetention={handleToggleRetention}
+        onDeleteFile={executeDeleteFile}
+      />
     </div>
   );
 }

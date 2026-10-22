@@ -22,10 +22,23 @@ import {
   AlertCircle,
   ExternalLink,
   FolderOpen,
+  Shield,
+  Trash2,
 } from "lucide-react";
 
 interface DashboardViewProps {
   onNavigate: (tab: "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "usage") => void;
+}
+
+interface ExpiringDriveFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  storage_path: string;
+  expires_at: string;
+  days_left: number;
+  hours_left: number;
 }
 
 interface InvoiceSummaryItem {
@@ -93,6 +106,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const [storageFilesCount, setStorageFilesCount] = useState(0);
   const [databaseSizeBytes, setDatabaseSizeBytes] = useState(0);
   const [driveFilesCount, setDriveFilesCount] = useState(0);
+  const [expiringDriveFiles, setExpiringDriveFiles] = useState<ExpiringDriveFile[]>([]);
 
   // Calendar Calculations for Current Real Month
   const now = new Date();
@@ -146,7 +160,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     try {
       if (!supabase) return;
 
-      const [invRes, notesRes, usageRes] = await Promise.all([
+      const [invRes, notesRes, usageRes, driveRes] = await Promise.all([
         supabase
           .from("invoices")
           .select("id, vendor_name, invoice_number, amount, days_overdue, status, due_date")
@@ -156,6 +170,11 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           .select("id, title, category, target_date, priority, is_completed, content, attachments")
           .order("created_at", { ascending: false }),
         supabase.rpc("get_workspace_usage"),
+        supabase
+          .from("drive_files")
+          .select("id, name, size, type, storage_path, expires_at")
+          .eq("retention_type", "temporary")
+          .order("expires_at", { ascending: true }),
       ]);
 
       // 1. Process Invoices
@@ -223,11 +242,73 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         setDatabaseSizeBytes(usageRes.data.database_size_bytes || 0);
         setDriveFilesCount(usageRes.data.drive_files_count || 0);
       }
+
+      // 4. Process Expiring Temp Stash Drive Files (Starting 3 days before auto-purge)
+      if (driveRes.data) {
+        const expiring: ExpiringDriveFile[] = [];
+        const nowMs = Date.now();
+        driveRes.data.forEach((f: any) => {
+          if (!f.expires_at) return;
+          const expMs = new Date(f.expires_at).getTime();
+          const diffMs = expMs - nowMs;
+          const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          const diffHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+
+          // Notify starting 3 days before deletion (diffDays <= 3)
+          if (diffDays <= 3) {
+            expiring.push({
+              id: f.id,
+              name: f.name,
+              size: f.size || 0,
+              type: f.type || "",
+              storage_path: f.storage_path || "",
+              expires_at: f.expires_at,
+              days_left: Math.max(0, diffDays),
+              hours_left: diffHours,
+            });
+          }
+        });
+        setExpiringDriveFiles(expiring);
+      }
     } catch (err) {
       console.error("Dashboard data load error:", err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+    }
+  };
+
+  // Keep expiring file in Vault (Permanent)
+  const handleKeepInVault = async (fileId: string) => {
+    setExpiringDriveFiles((prev) => prev.filter((f) => f.id !== fileId));
+    if (supabase) {
+      try {
+        await supabase
+          .from("drive_files")
+          .update({
+            retention_type: "permanent",
+            expires_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", fileId);
+      } catch (err) {
+        console.error("Keep in vault error:", err);
+      }
+    }
+  };
+
+  // Delete expiring file immediately
+  const handleDeleteExpiringNow = async (file: ExpiringDriveFile) => {
+    setExpiringDriveFiles((prev) => prev.filter((f) => f.id !== file.id));
+    if (supabase) {
+      try {
+        if (file.storage_path) {
+          await supabase.storage.from("note-attachments").remove([file.storage_path]);
+        }
+        await supabase.from("drive_files").delete().eq("id", file.id);
+      } catch (err) {
+        console.error("Delete expiring file error:", err);
+      }
     }
   };
 
@@ -283,6 +364,75 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Expiring Temp Stash Drive Files Alert (Notifies 3 days before auto-purge) */}
+      {expiringDriveFiles.length > 0 && (
+        <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden animate-in fade-in duration-300">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-amber-500/20">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-600 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                  <span>Drive Temp Stash Warning</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500 text-white">
+                    {expiringDriveFiles.length} file{expiringDriveFiles.length > 1 ? "s" : ""} auto-purging within 3 days
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Temporary files are retained for 30 days then deleted. Click <strong>Keep in Vault</strong> to prevent permanent deletion.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onNavigate("drive")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs self-start md:self-auto cursor-pointer"
+            >
+              <span>Manage in Drive</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* List of Expiring Files */}
+          <div className="mt-2 divide-y divide-amber-500/15">
+            {expiringDriveFiles.slice(0, 5).map((file) => (
+              <div key={file.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0" />
+                  <span className="font-bold text-xs text-slate-900 truncate max-w-xs sm:max-w-md">{file.name}</span>
+                  <span className="text-[11px] text-slate-500">({formatBytes(file.size)})</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 shrink-0">
+                    {file.hours_left < 24 ? `Purges in ${file.hours_left}h` : `Purges in ${file.days_left}d`}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleKeepInVault(file.id)}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                    title="Promote to permanent Vault storage"
+                  >
+                    <Shield className="w-3 h-3" />
+                    <span>Keep in Vault</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteExpiringNow(file)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Delete immediately"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Section 1: ACTION REQUIRED / WORKSPACE PULSE */}
       <section>
