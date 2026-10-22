@@ -610,7 +610,7 @@ export function InvoicesView() {
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs">
+        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>Total Overdue</span>
             <DollarSign className="w-4 h-4 text-slate-400" />
@@ -623,7 +623,7 @@ export function InvoicesView() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs">
+        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>Past Due Invoices</span>
             <Clock className="w-4 h-4 text-slate-400" />
@@ -636,7 +636,7 @@ export function InvoicesView() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs">
+        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>Unique Vendors</span>
             <Users className="w-4 h-4 text-slate-400" />
@@ -649,7 +649,7 @@ export function InvoicesView() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs">
+        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>Critical (60+ Days)</span>
             <AlertCircle className="w-4 h-4 text-rose-500" />

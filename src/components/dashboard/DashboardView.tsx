@@ -294,18 +294,18 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Action Card 1: Overdue Invoices */}
           <div
             onClick={() => onNavigate("invoices")}
-            className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
+            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
           >
             <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
                   OVERDUE INVOICES
                 </span>
-                <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-full border border-amber-200 shrink-0 whitespace-nowrap">
                   {uniqueVendorsCount} Vendors
                 </span>
               </div>
-              <div className="text-3xl font-black text-slate-900 mt-2 sm:mt-3">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-2 sm:mt-3">
                 {isLoading ? "..." : overdueCount}
               </div>
               <div className="text-xs text-amber-700 font-semibold mt-1">
@@ -328,18 +328,18 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Action Card 2: Notes & Urgent Deadlines */}
           <div
             onClick={() => onNavigate("notes")}
-            className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-rose-500 flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
+            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-rose-500 flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
           >
             <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
                   NOTES & DEADLINES
                 </span>
-                <span className="text-[10px] bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded-full border border-rose-200">
+                <span className="text-[10px] bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded-full border border-rose-200 shrink-0 whitespace-nowrap">
                   {urgentNotesCount} Due Soon
                 </span>
               </div>
-              <div className="text-3xl font-black text-slate-900 mt-2 sm:mt-3">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-2 sm:mt-3">
                 {isLoading ? "..." : notesCount}
               </div>
               <div className="text-xs text-rose-700 font-semibold mt-1">
@@ -362,18 +362,18 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Action Card 3: US Payroll Cycle & Working Hours */}
           <div
             onClick={() => onNavigate("calendar")}
-            className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-[#4f46e5] flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group md:col-span-2 xl:col-span-1"
+            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-[#4f46e5] flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group md:col-span-2 xl:col-span-1"
           >
             <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">
                   US PAYROLL CYCLE
                 </span>
-                <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200 shrink-0 whitespace-nowrap">
                   Active {activePeriodLabel}
                 </span>
               </div>
-              <div className="text-3xl font-black text-slate-900 mt-2 sm:mt-3">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-2 sm:mt-3">
                 {activePeriodHours}h
               </div>
               <div className="text-xs text-indigo-700 font-semibold mt-1">

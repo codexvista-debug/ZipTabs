@@ -239,12 +239,12 @@ export function USCalendarView() {
       {/* KPI Cards: Total Hours, P1 Hours (1-15), P2 Hours (16-End), US Holidays */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Working Hours */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs relative overflow-hidden">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>Total Working Hours</span>
             <Clock className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-3xl font-black text-slate-900 tracking-tight mt-2 flex items-baseline gap-1">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-2 flex items-baseline gap-1">
             <span>{totalWorkingHours}</span>
             <span className="text-sm font-bold text-slate-400">hrs</span>
           </div>
@@ -255,14 +255,14 @@ export function USCalendarView() {
         </div>
 
         {/* P1 Hours (Days 1–15) */}
-        <div className="bg-white rounded-2xl p-5 border border-blue-200/80 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-blue-50/30">
-          <div className="flex items-center justify-between text-blue-600 text-xs font-bold uppercase tracking-wider">
-            <span>P1 Hours (1–15)</span>
-            <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-extrabold">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-blue-200/80 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-blue-50/30">
+          <div className="flex items-center justify-between gap-2 text-blue-600 text-xs font-bold uppercase tracking-wider">
+            <span className="truncate">P1 Hours (1–15)</span>
+            <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-extrabold shrink-0 whitespace-nowrap">
               Days 1–15
             </span>
           </div>
-          <div className="text-3xl font-black text-blue-950 tracking-tight mt-2 flex items-baseline gap-1">
+          <div className="text-2xl sm:text-3xl font-black text-blue-950 tracking-tight mt-2 flex items-baseline gap-1">
             <span>{p1TotalHours}</span>
             <span className="text-sm font-bold text-blue-500">hrs</span>
           </div>
@@ -277,14 +277,14 @@ export function USCalendarView() {
         </div>
 
         {/* P2 Hours (Days 16–30/31) */}
-        <div className="bg-white rounded-2xl p-5 border border-indigo-200/80 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/30">
-          <div className="flex items-center justify-between text-indigo-600 text-xs font-bold uppercase tracking-wider">
-            <span>P2 Hours (16–{daysInCurrentMonth})</span>
-            <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 text-[10px] font-extrabold">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-indigo-200/80 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/30">
+          <div className="flex items-center justify-between gap-2 text-indigo-600 text-xs font-bold uppercase tracking-wider">
+            <span className="truncate">P2 Hours (16–{daysInCurrentMonth})</span>
+            <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 text-[10px] font-extrabold shrink-0 whitespace-nowrap">
               Days 16–{daysInCurrentMonth}
             </span>
           </div>
-          <div className="text-3xl font-black text-indigo-950 tracking-tight mt-2 flex items-baseline gap-1">
+          <div className="text-2xl sm:text-3xl font-black text-indigo-950 tracking-tight mt-2 flex items-baseline gap-1">
             <span>{p2TotalHours}</span>
             <span className="text-sm font-bold text-indigo-500">hrs</span>
           </div>
@@ -299,12 +299,12 @@ export function USCalendarView() {
         </div>
 
         {/* US Holidays in Month */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs relative overflow-hidden">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>US Federal Holidays</span>
             <Flag className="w-4 h-4 text-rose-600" />
           </div>
-          <div className="text-3xl font-black text-slate-900 tracking-tight mt-2 flex items-baseline gap-1">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-2 flex items-baseline gap-1">
             <span>{totalHolidaysInMonth}</span>
             <span className="text-sm font-bold text-slate-400">holiday{totalHolidaysInMonth !== 1 ? "s" : ""}</span>
           </div>

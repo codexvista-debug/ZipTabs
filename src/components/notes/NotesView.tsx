@@ -1287,7 +1287,7 @@ export function NotesView() {
                     {/* Top Row: Category Pill & Target Date */}
                     <div className="flex items-center justify-between gap-2 mb-2.5">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${catConfig.color}`}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${catConfig.color} shrink-0 whitespace-nowrap`}
                       >
                         <CatIcon className="w-3 h-3" />
                         <span>{normalizedCat}</span>
@@ -1295,7 +1295,7 @@ export function NotesView() {
 
                       {note.target_date && (
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] border ${urgency.badgeClass}`}
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] border ${urgency.badgeClass} shrink-0 whitespace-nowrap`}
                         >
                           <CalendarClock className="w-3 h-3" />
                           <span>{urgency.label}</span>
