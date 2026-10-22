@@ -29,6 +29,10 @@ import {
   ExternalLink,
   Download,
   AlertCircle,
+  Wallet,
+  Sparkles,
+  BookOpen,
+  Briefcase,
 } from "lucide-react";
 
 export interface NoteAttachment {
@@ -45,7 +49,7 @@ export interface NoteItem {
   user_id?: string;
   title: string;
   content?: string;
-  category: "Invoices Related" | "Payroll Related" | "Quick Notes" | "Tax & Compliance" | "Other" | string;
+  category: "Invoices" | "Payments" | "Payroll" | "Leopard" | "Quickbooks" | "Paychex" | string;
   target_date?: string | null; // YYYY-MM-DD
   priority?: "normal" | "high" | "urgent";
   is_completed?: boolean;
@@ -54,13 +58,47 @@ export interface NoteItem {
   updated_at?: string;
 }
 
-const CATEGORIES = [
-  { id: "Invoices Related", label: "Invoices Related", color: "text-blue-700 bg-blue-50 border-blue-200", icon: FileSpreadsheet },
-  { id: "Payroll Related", label: "Payroll Related", color: "text-emerald-700 bg-emerald-50 border-emerald-200", icon: DollarSign },
-  { id: "Quick Notes", label: "Quick Notes", color: "text-amber-700 bg-amber-50 border-amber-200", icon: Zap },
-  { id: "Tax & Compliance", label: "Tax & Compliance", color: "text-purple-700 bg-purple-50 border-purple-200", icon: ShieldCheck },
-  { id: "Other", label: "Other", color: "text-slate-700 bg-slate-100 border-slate-200", icon: Tag },
+// Exactly 6 categories requested by user:
+// Invoices, Payments, Payroll, Leopard, Quickbooks, Paychex
+export const CATEGORIES = [
+  { id: "Invoices", label: "Invoices", color: "text-blue-700 bg-blue-50 border-blue-200", icon: FileSpreadsheet },
+  { id: "Payments", label: "Payments", color: "text-emerald-700 bg-emerald-50 border-emerald-200", icon: DollarSign },
+  { id: "Payroll", label: "Payroll", color: "text-indigo-700 bg-indigo-50 border-indigo-200", icon: Wallet },
+  { id: "Leopard", label: "Leopard", color: "text-amber-700 bg-amber-50 border-amber-200", icon: Sparkles },
+  { id: "Quickbooks", label: "Quickbooks", color: "text-teal-700 bg-teal-50 border-teal-200", icon: BookOpen },
+  { id: "Paychex", label: "Paychex", color: "text-cyan-700 bg-cyan-50 border-cyan-200", icon: Briefcase },
 ];
+
+export function normalizeCategory(cat?: string): string {
+  if (!cat) return "Invoices";
+  const lower = cat.toLowerCase();
+  if (lower.includes("invoice")) return "Invoices";
+  if (lower.includes("payment")) return "Payments";
+  if (lower.includes("payroll")) return "Payroll";
+  if (lower.includes("leopard")) return "Leopard";
+  if (lower.includes("quickbook")) return "Quickbooks";
+  if (lower.includes("paychex")) return "Paychex";
+  return cat;
+}
+
+// Automatically generate concise, clean subject from note details text
+export function generateSubject(details: string): string {
+  if (!details || !details.trim()) return "New Note";
+
+  const clean = details.trim();
+  const firstLine = clean.split("\n")[0].trim();
+
+  // If first line is under 60 chars, use it directly
+  if (firstLine.length <= 60) {
+    return firstLine.charAt(0).toUpperCase() + firstLine.slice(1);
+  }
+
+  // If longer than 60 chars, trim at a natural word boundary
+  const sub = firstLine.substring(0, 58);
+  const lastSpace = sub.lastIndexOf(" ");
+  const truncated = lastSpace > 20 ? sub.substring(0, lastSpace) : sub;
+  return truncated.charAt(0).toUpperCase() + truncated.slice(1) + "...";
+}
 
 export function formatFileSize(bytes: number) {
   if (!bytes || bytes === 0) return "0 B";
@@ -82,7 +120,6 @@ export function getDateUrgency(targetDateStr?: string | null) {
     };
   }
 
-  // Parse YYYY-MM-DD
   const parts = targetDateStr.split("-").map(Number);
   if (parts.length < 3 || isNaN(parts[0])) {
     return {
@@ -170,10 +207,9 @@ export function NotesView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
 
-  // Form State
-  const [formTitle, setFormTitle] = useState("");
+  // Form State (Subject is generated automatically from content)
   const [formContent, setFormContent] = useState("");
-  const [formCategory, setFormCategory] = useState("Invoices Related");
+  const [formCategory, setFormCategory] = useState("Invoices");
   const [formTargetDate, setFormTargetDate] = useState("");
   const [formPriority, setFormPriority] = useState<"normal" | "high" | "urgent">("normal");
   const [existingAttachments, setExistingAttachments] = useState<NoteAttachment[]>([]);
@@ -181,7 +217,7 @@ export function NotesView() {
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
 
-  // Custom Delete Confirm Dialog Modal (replacing native window.confirm)
+  // Custom Delete Confirm Dialog Modal
   const [confirmDeleteNote, setConfirmDeleteNote] = useState<NoteItem | null>(null);
 
   // Image Preview Lightbox
@@ -232,7 +268,6 @@ export function NotesView() {
       console.warn("Supabase fetch error, fallback to localStorage:", e);
     }
 
-    // LocalStorage fallback
     try {
       const stored = localStorage.getItem("ziptabs_app_notes");
       if (stored) {
@@ -256,9 +291,8 @@ export function NotesView() {
   // Open modal for Create
   const handleOpenCreate = () => {
     setEditingNote(null);
-    setFormTitle("");
     setFormContent("");
-    setFormCategory("Invoices Related");
+    setFormCategory("Invoices");
     setFormTargetDate(new Date().toISOString().slice(0, 10)); // Default to today
     setFormPriority("normal");
     setExistingAttachments([]);
@@ -270,9 +304,8 @@ export function NotesView() {
   // Open modal for Edit
   const handleOpenEdit = (note: NoteItem) => {
     setEditingNote(note);
-    setFormTitle(note.title);
-    setFormContent(note.content || "");
-    setFormCategory(note.category || "Invoices Related");
+    setFormContent(note.content || note.title || "");
+    setFormCategory(normalizeCategory(note.category));
     setFormTargetDate(note.target_date || "");
     setFormPriority(note.priority || "normal");
     setExistingAttachments(note.attachments || []);
@@ -299,14 +332,16 @@ export function NotesView() {
     setNewFilesToUpload((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Save note (Insert or Update with file uploads to Supabase Storage)
+  // Save note (Automatically generates subject from details)
   const handleSaveNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formTitle.trim()) return;
+    const contentTrimmed = formContent.trim();
+    if (!contentTrimmed) return;
 
     setIsSaving(true);
     const nowIso = new Date().toISOString();
     const noteId = editingNote ? editingNote.id : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+    const autoSubject = generateSubject(contentTrimmed);
 
     const finalAttachments: NoteAttachment[] = [...existingAttachments];
 
@@ -336,8 +371,6 @@ export function NotesView() {
               url: data?.publicUrl || "",
               path: storagePath,
             });
-          } else {
-            console.error("File upload error:", uploadError);
           }
         } catch (err) {
           console.error("Upload failed for file:", file.name, err);
@@ -349,8 +382,8 @@ export function NotesView() {
       // Update
       const updatedItem: NoteItem = {
         ...editingNote,
-        title: formTitle.trim(),
-        content: formContent.trim(),
+        title: autoSubject,
+        content: contentTrimmed,
         category: formCategory,
         target_date: formTargetDate || null,
         priority: formPriority,
@@ -380,14 +413,14 @@ export function NotesView() {
         }
       }
 
-      showToast("Note Updated", `"${updatedItem.title}" has been saved.`, "success");
+      showToast("Note Updated", `"${autoSubject}" has been saved.`, "success");
     } else {
       // Create
       const newItem: NoteItem = {
         id: noteId,
         user_id: "chief",
-        title: formTitle.trim(),
-        content: formContent.trim(),
+        title: autoSubject,
+        content: contentTrimmed,
         category: formCategory,
         target_date: formTargetDate || null,
         priority: formPriority,
@@ -420,7 +453,7 @@ export function NotesView() {
         }
       }
 
-      showToast("Note Created", `"${newItem.title}" added with ${finalAttachments.length} document(s).`, "success");
+      showToast("Note Created", `"${autoSubject}" added under ${formCategory}.`, "success");
     }
 
     setIsSaving(false);
@@ -461,7 +494,6 @@ export function NotesView() {
     saveNotesList(updatedList);
     setConfirmDeleteNote(null);
 
-    // Delete associated files from storage if present
     if (supabase) {
       try {
         if (note.attachments && note.attachments.length > 0) {
@@ -476,16 +508,16 @@ export function NotesView() {
       }
     }
 
-    showToast("Note Deleted", `"${note.title}" has been permanently removed.`, "info");
+    showToast("Note Deleted", `"${note.title}" permanently removed.`, "info");
   };
 
   // Copy Note content
   const handleCopyNote = (note: NoteItem, e: React.MouseEvent) => {
     e.stopPropagation();
     let text = `${note.title}\n`;
-    if (note.category) text += `[Category: ${note.category}]\n`;
+    if (note.category) text += `[Category: ${normalizeCategory(note.category)}]\n`;
     if (note.target_date) text += `[Target Date: ${note.target_date}]\n`;
-    if (note.content) text += `\n${note.content}\n`;
+    if (note.content && note.content !== note.title) text += `\n${note.content}\n`;
     if (note.attachments && note.attachments.length > 0) {
       text += `\nAttachments:\n` + note.attachments.map((a) => `- ${a.name}: ${a.url}`).join("\n");
     }
@@ -505,8 +537,12 @@ export function NotesView() {
 
       if (!matchesSearch) return false;
 
-      if (activeCategory !== "all" && note.category !== activeCategory) {
-        return false;
+      // Category matching with normalization
+      if (activeCategory !== "all") {
+        const normalized = normalizeCategory(note.category);
+        if (normalized !== activeCategory) {
+          return false;
+        }
       }
 
       const urgency = getDateUrgency(note.target_date);
@@ -538,9 +574,12 @@ export function NotesView() {
     const u = getDateUrgency(n.target_date);
     return u.status === "overdue" || u.status === "today" || u.status === "urgent";
   }).length;
-  const invoiceNotesCount = notes.filter((n) => n.category === "Invoices Related").length;
-  const payrollNotesCount = notes.filter((n) => n.category === "Payroll Related").length;
+  const invoiceNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Invoices").length;
+  const payrollNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Payroll").length;
   const totalAttachmentsCount = notes.reduce((acc, n) => acc + (n.attachments?.length || 0), 0);
+
+  // Live auto-generated preview of subject while typing
+  const liveSubjectPreview = generateSubject(formContent);
 
   return (
     <div className="space-y-6 relative pb-16">
@@ -591,7 +630,7 @@ export function NotesView() {
             <span>Notes & Reminders</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Store documents, PDFs, images, and track deadline reminders with automated date highlighting.
+            Categorized tracking across Invoices, Payments, Payroll, Leopard, Quickbooks, and Paychex.
           </p>
         </div>
 
@@ -642,11 +681,11 @@ export function NotesView() {
         </div>
 
         <div
-          onClick={() => setActiveCategory(activeCategory === "Invoices Related" ? "all" : "Invoices Related")}
+          onClick={() => setActiveCategory(activeCategory === "Invoices" ? "all" : "Invoices")}
           className="cursor-pointer bg-white hover:border-blue-300 rounded-xl p-5 border border-slate-200/80 shadow-xs transition-colors"
         >
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Invoices Notes</span>
+            <span>Invoices</span>
             <FileSpreadsheet className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
@@ -658,12 +697,12 @@ export function NotesView() {
         </div>
 
         <div
-          onClick={() => setActiveCategory(activeCategory === "Payroll Related" ? "all" : "Payroll Related")}
-          className="cursor-pointer bg-white hover:border-emerald-300 rounded-xl p-5 border border-slate-200/80 shadow-xs transition-colors"
+          onClick={() => setActiveCategory(activeCategory === "Payroll" ? "all" : "Payroll")}
+          className="cursor-pointer bg-white hover:border-indigo-300 rounded-xl p-5 border border-slate-200/80 shadow-xs transition-colors"
         >
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Payroll Notes</span>
-            <DollarSign className="w-4 h-4 text-emerald-500" />
+            <span>Payroll</span>
+            <Wallet className="w-4 h-4 text-indigo-500" />
           </div>
           <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
             {payrollNotesCount}
@@ -676,7 +715,7 @@ export function NotesView() {
 
       {/* Main Container */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        {/* Filters Toolbar */}
+        {/* Filters Toolbar with the 6 Clean Categories */}
         <div className="p-4 border-b border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
           {/* Search */}
           <div className="relative flex-1 max-w-sm">
@@ -690,7 +729,7 @@ export function NotesView() {
             />
           </div>
 
-          {/* Category Pills */}
+          {/* 6 Category Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
@@ -704,7 +743,7 @@ export function NotesView() {
               All ({notes.length})
             </button>
             {CATEGORIES.map((cat) => {
-              const count = notes.filter((n) => n.category === cat.id).length;
+              const count = notes.filter((n) => normalizeCategory(n.category) === cat.id).length;
               const isActive = activeCategory === cat.id;
               return (
                 <button
@@ -756,7 +795,7 @@ export function NotesView() {
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mt-1">
               {notes.length === 0
-                ? "Create categorized notes, attach invoices or receipts (PDF/images), and set date reminders."
+                ? "Type your note instructions or attach receipts/invoices. The subject is generated automatically from your note details."
                 : "Try clearing your search query or category filter."}
             </p>
             {notes.length === 0 && (
@@ -774,7 +813,8 @@ export function NotesView() {
           <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredNotes.map((note) => {
               const urgency = getDateUrgency(note.target_date);
-              const catConfig = CATEGORIES.find((c) => c.id === note.category) || CATEGORIES[4];
+              const normalizedCat = normalizeCategory(note.category);
+              const catConfig = CATEGORIES.find((c) => c.id === normalizedCat) || CATEGORIES[0];
               const CatIcon = catConfig.icon;
               const imageAttachments = (note.attachments || []).filter((a) => a.type.startsWith("image/"));
               const docAttachments = (note.attachments || []).filter((a) => !a.type.startsWith("image/"));
@@ -804,7 +844,7 @@ export function NotesView() {
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${catConfig.color}`}
                       >
                         <CatIcon className="w-3 h-3" />
-                        <span>{note.category}</span>
+                        <span>{normalizedCat}</span>
                       </span>
 
                       {note.target_date && (
@@ -817,16 +857,16 @@ export function NotesView() {
                       )}
                     </div>
 
-                    {/* Note Title */}
+                    {/* Note Title (Auto-Generated Subject) */}
                     <h3
                       className={`text-sm font-bold text-slate-900 leading-snug break-words ${
                         note.is_completed ? "line-through text-slate-500" : ""
                       }`}
                     >
-                      {note.title}
+                      {note.title || generateSubject(note.content || "")}
                     </h3>
 
-                    {/* Note Content / Memo */}
+                    {/* Note Content / Full Details (only if different or longer than title) */}
                     {note.content && (
                       <p className="text-xs text-slate-600 mt-2 line-clamp-3 leading-relaxed whitespace-pre-wrap break-words">
                         {note.content}
@@ -939,6 +979,7 @@ export function NotesView() {
 
       {/* ==================================================== */}
       {/* CREATE / EDIT NOTE MODAL                             */}
+      {/* (No separate subject entry: generated automatically) */}
       {/* ==================================================== */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -968,21 +1009,6 @@ export function NotesView() {
 
             {/* Modal Form Scrollable Body */}
             <form onSubmit={handleSaveNote} className="p-6 space-y-4 overflow-y-auto flex-1">
-              {/* Title */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Title / Subject *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="e.g. Akash - premium deduction follow-up"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all font-medium"
-                />
-              </div>
-
               {/* Category & Target Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1016,18 +1042,34 @@ export function NotesView() {
                 </div>
               </div>
 
-              {/* Content / Memo */}
+              {/* Note Details (Primary Input: Subject will auto-generate from here) */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Details / Instructions (Optional)
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Note Details *</span>
+                  <span className="text-[10px] text-slate-400 normal-case font-normal">
+                    Subject is auto-generated from your text
+                  </span>
                 </label>
                 <textarea
-                  rows={3}
+                  rows={4}
+                  required
+                  autoFocus
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
-                  placeholder="Akash majithia - premium amount of $2965 to be deducted from reserve..."
+                  placeholder="e.g. Akash majithia - premium amount of $2965 to be deducted from reserve..."
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all font-medium resize-none leading-relaxed"
                 />
+
+                {/* Live Auto-Generated Subject Preview Pill */}
+                {formContent.trim() && (
+                  <div className="mt-2 flex items-center gap-2 p-2 px-3 rounded-xl bg-blue-50/70 border border-blue-200/80 text-xs text-blue-900 animate-in fade-in duration-150">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 shrink-0">
+                      Subject:
+                    </span>
+                    <span className="font-semibold truncate">{liveSubjectPreview}</span>
+                  </div>
+                )}
               </div>
 
               {/* Documents & Images Upload Area */}
@@ -1157,7 +1199,7 @@ export function NotesView() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSaving || !formTitle.trim()}
+                    disabled={isSaving || !formContent.trim()}
                     className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -1172,7 +1214,6 @@ export function NotesView() {
 
       {/* ==================================================== */}
       {/* CUSTOM THEME-MATCHED DELETE CONFIRMATION MODAL       */}
-      {/* (Replaces ugly browser window.confirm seen in image) */}
       {/* ==================================================== */}
       {confirmDeleteNote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
