@@ -26,9 +26,9 @@ export default function Home() {
   // 1. Loading Session State
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#070c18] flex flex-col items-center justify-center text-slate-400 gap-3">
+      <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center text-slate-700 gap-3">
         <Loader2 className="w-6 h-6 animate-spin text-[#2563eb]" />
-        <span className="text-xs font-bold tracking-widest uppercase text-slate-500">
+        <span className="text-xs font-bold tracking-widest uppercase text-slate-400">
           VERIFYING CREDENTIALS...
         </span>
       </div>
