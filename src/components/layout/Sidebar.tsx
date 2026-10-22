@@ -6,6 +6,7 @@ import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import {
   LayoutDashboard,
   FileSpreadsheet,
+  NotebookPen,
   LogOut,
   KeyRound,
   X,
@@ -31,6 +32,7 @@ export function Sidebar({
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "invoices", label: "Invoices", icon: FileSpreadsheet },
+    { id: "notes", label: "Notes & Reminders", icon: NotebookPen },
   ];
 
   return (

@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { AuthScreen } from "@/components/auth/AuthScreen";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { InvoicesView } from "@/components/invoices/InvoicesView";
+import { NotesView } from "@/components/notes/NotesView";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import {
@@ -18,12 +19,11 @@ import {
   Menu,
   ShieldCheck,
   Loader2,
-  KeyRound,
 } from "lucide-react";
 
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "invoices">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "invoices" | "notes">("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -71,26 +71,14 @@ export default function Home() {
             </button>
             <ZipTabsLogo size="sm" showText={true} />
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800"
-              title="Change Password"
-            >
-              <KeyRound className="w-4 h-4" />
-            </button>
-            <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center uppercase">
-              {user?.username ? user.username.charAt(0) : "C"}
-            </div>
-          </div>
         </header>
 
         {/* Content Canvas */}
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
           {activeTab === "invoices" ? (
             <InvoicesView />
+          ) : activeTab === "notes" ? (
+            <NotesView />
           ) : (
             <div>
               {/* Top Header Row */}
