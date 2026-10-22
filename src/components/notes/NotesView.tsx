@@ -33,6 +33,7 @@ import {
   Sparkles,
   BookOpen,
   Briefcase,
+  Edit,
 } from "lucide-react";
 
 export interface NoteAttachment {
@@ -49,7 +50,7 @@ export interface NoteItem {
   user_id?: string;
   title: string;
   content?: string;
-  category: "Invoices" | "Payments" | "Payroll" | "Leopard" | "Quickbooks" | "Paychex" | string;
+  category: string;
   target_date?: string | null; // YYYY-MM-DD
   priority?: "normal" | "high" | "urgent";
   is_completed?: boolean;
@@ -58,20 +59,28 @@ export interface NoteItem {
   updated_at?: string;
 }
 
-// Exactly 6 categories requested by user:
-// Invoices, Payments, Payroll, Leopard, Quickbooks, Paychex
-export const CATEGORIES = [
+export interface CategoryConfig {
+  id: string;
+  label: string;
+  color: string;
+  icon: any;
+}
+
+// Quick Notes at the top, followed by other categories
+export const DEFAULT_CATEGORIES: CategoryConfig[] = [
+  { id: "Quick Notes", label: "Quick Notes", color: "text-amber-700 bg-amber-50 border-amber-200", icon: Zap },
   { id: "Invoices", label: "Invoices", color: "text-blue-700 bg-blue-50 border-blue-200", icon: FileSpreadsheet },
   { id: "Payments", label: "Payments", color: "text-emerald-700 bg-emerald-50 border-emerald-200", icon: DollarSign },
   { id: "Payroll", label: "Payroll", color: "text-indigo-700 bg-indigo-50 border-indigo-200", icon: Wallet },
-  { id: "Leopard", label: "Leopard", color: "text-amber-700 bg-amber-50 border-amber-200", icon: Sparkles },
+  { id: "Leopard", label: "Leopard", color: "text-orange-700 bg-orange-50 border-orange-200", icon: Sparkles },
   { id: "Quickbooks", label: "Quickbooks", color: "text-teal-700 bg-teal-50 border-teal-200", icon: BookOpen },
   { id: "Paychex", label: "Paychex", color: "text-cyan-700 bg-cyan-50 border-cyan-200", icon: Briefcase },
 ];
 
 export function normalizeCategory(cat?: string): string {
-  if (!cat) return "Invoices";
+  if (!cat) return "Quick Notes";
   const lower = cat.toLowerCase();
+  if (lower === "quick notes" || lower === "quick note" || lower.includes("quick")) return "Quick Notes";
   if (lower.includes("invoice")) return "Invoices";
   if (lower.includes("payment")) return "Payments";
   if (lower.includes("payroll")) return "Payroll";
@@ -81,23 +90,98 @@ export function normalizeCategory(cat?: string): string {
   return cat;
 }
 
-// Automatically generate concise, clean subject from note details text
-export function generateSubject(details: string): string {
-  if (!details || !details.trim()) return "New Note";
+// Focus on 2-3 key words: entity/person name + business term + amount/number (e.g. "Akash Premium $2965")
+export function extractKeywordsSubject(details: string): string {
+  if (!details || !details.trim()) return "Quick Note";
 
   const clean = details.trim();
   const firstLine = clean.split("\n")[0].trim();
 
-  // If first line is under 60 chars, use it directly
-  if (firstLine.length <= 60) {
-    return firstLine.charAt(0).toUpperCase() + firstLine.slice(1);
+  // 1. Find currency / dollar amount: e.g. "$2965", "$2,965", "$2965.00"
+  const amountMatch = firstLine.match(/\$[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{2})?|\b[0-9]+(?:,[0-9]{3})*(?:\.[0-9]{2})?\s*(?:usd|dollars)/i);
+  const amount = amountMatch ? amountMatch[0] : "";
+
+  // 2. Find invoice number: e.g. "INV-102", "#32219"
+  const invMatch = firstLine.match(/(?:inv(?:oice)?\.?\s*#?\s*|#)([0-9a-zA-Z-]+)/i);
+  const invNum = invMatch ? (invMatch[0].startsWith("#") ? invMatch[0] : `Inv #${invMatch[1]}`) : "";
+
+  // Priority business / finance keywords
+  const priorityKeywords = new Set([
+    "premium", "deposit", "invoice", "payment", "refund", "salary", "bonus", 
+    "tax", "license", "reconciliation", "audit", "fee", "bill", "balance", 
+    "deduction", "payout", "wire", "vendor", "contract", "client", "overdue", "rates",
+    "payroll", "quickbooks", "paychex", "leopard", "invoices", "payments"
+  ]);
+
+  // Common stop/filler words to skip
+  const stopWords = new Set([
+    "the", "is", "at", "which", "on", "a", "an", "and", "or", "in", "with", "to", "for", "of", "from", 
+    "be", "been", "by", "this", "that", "it", "amount", "need", "please", "call", "send", "have", "has", 
+    "do", "does", "deducted", "deduct", "added", "updated", "checked", "check", "note", "reminder", "follow", 
+    "up", "about", "pay", "paid", "will", "would", "should", "can", "could", "into", "reserve", "majithia", "also"
+  ]);
+
+  let beforeDash = "";
+  if (firstLine.includes(" - ")) {
+    beforeDash = firstLine.split(" - ")[0].trim();
   }
 
-  // If longer than 60 chars, trim at a natural word boundary
-  const sub = firstLine.substring(0, 58);
-  const lastSpace = sub.lastIndexOf(" ");
-  const truncated = lastSpace > 20 ? sub.substring(0, lastSpace) : sub;
-  return truncated.charAt(0).toUpperCase() + truncated.slice(1) + "...";
+  const tokens = firstLine
+    .replace(/[,\/#!$%\^&\*;:{}=\_`~()\-]/g, " ")
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter(Boolean);
+
+  let firstEntity = "";
+  let businessTerm = "";
+  const otherKeywords: string[] = [];
+
+  if (beforeDash) {
+    const beforeWords = beforeDash.split(/\s+/).filter((w) => !stopWords.has(w.toLowerCase()));
+    if (beforeWords.length > 0) {
+      firstEntity = beforeWords[0].charAt(0).toUpperCase() + beforeWords[0].slice(1);
+    }
+  }
+
+  for (let i = 0; i < tokens.length; i++) {
+    const word = tokens[i];
+    const lower = word.toLowerCase();
+
+    if (amount && (word.includes("$") || word === amount.replace("$", ""))) continue;
+    if (invNum && word.includes(invNum.replace(/[^0-9]/g, ""))) continue;
+    if (/^[0-9]+$/.test(word) && !amount) continue;
+
+    if (priorityKeywords.has(lower)) {
+      if (!businessTerm) businessTerm = word.charAt(0).toUpperCase() + word.slice(1);
+      continue;
+    }
+
+    if (stopWords.has(lower)) continue;
+
+    if (!firstEntity) {
+      firstEntity = word.charAt(0).toUpperCase() + word.slice(1);
+    } else if (otherKeywords.length < 2 && word.toLowerCase() !== firstEntity.toLowerCase()) {
+      otherKeywords.push(word.charAt(0).toUpperCase() + word.slice(1));
+    }
+  }
+
+  const resultParts: string[] = [];
+  if (firstEntity) resultParts.push(firstEntity);
+  if (businessTerm) resultParts.push(businessTerm);
+  if (amount) {
+    resultParts.push(amount);
+  } else if (invNum) {
+    resultParts.push(invNum);
+  } else if (!businessTerm && otherKeywords.length > 0) {
+    resultParts.push(...otherKeywords.slice(0, 1));
+  }
+
+  if (resultParts.length === 0) {
+    const words = firstLine.split(/\s+/).slice(0, 3).join(" ");
+    return words || firstLine.substring(0, 25);
+  }
+
+  return resultParts.join(" ");
 }
 
 export function formatFileSize(bytes: number) {
@@ -198,6 +282,7 @@ export function getDateUrgency(targetDateStr?: string | null) {
 
 export function NotesView() {
   const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [customCategories, setCustomCategories] = useState<CategoryConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -207,9 +292,9 @@ export function NotesView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
 
-  // Form State (Subject is generated automatically from content)
+  // Form State
   const [formContent, setFormContent] = useState("");
-  const [formCategory, setFormCategory] = useState("Invoices");
+  const [formCategory, setFormCategory] = useState("Quick Notes");
   const [formTargetDate, setFormTargetDate] = useState("");
   const [formPriority, setFormPriority] = useState<"normal" | "high" | "urgent">("normal");
   const [existingAttachments, setExistingAttachments] = useState<NoteAttachment[]>([]);
@@ -217,6 +302,45 @@ export function NotesView() {
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Category Creation State
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+
+  // Custom Subject Override State
+  const [isEditingSubject, setIsEditingSubject] = useState(false);
+  const [customSubject, setCustomSubject] = useState("");
+
+  // Custom Delete Confirm Dialog Modal
+  const [confirmDeleteNote, setConfirmDeleteNote] = useState<NoteItem | null>(null);
+
+  // Image Preview Lightbox
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
+
+  // Custom Styled Toast Notification
+  const [toastNotification, setToastNotification] = useState<{
+    type: "success" | "error" | "info";
+    title: string;
+    description?: string;
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const showToast = (title: string, description?: string, type: "success" | "error" | "info" = "success") => {
+    setToastNotification({ title, description, type });
+  };
+
+  useEffect(() => {
+    if (toastNotification) {
+      const timer = setTimeout(() => {
+        setToastNotification(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotification]);
+
+  // Combined categories list: Quick Notes first, followed by others, then custom
+  const allCategories: CategoryConfig[] = [...DEFAULT_CATEGORIES, ...customCategories];
 
   // Clipboard Paste support (Ctrl+V / Cmd+V) to paste screenshots or copied documents
   useEffect(() => {
@@ -259,33 +383,36 @@ export function NotesView() {
     return () => window.removeEventListener("paste", handlePaste);
   }, [isModalOpen]);
 
-  // Custom Delete Confirm Dialog Modal
-  const [confirmDeleteNote, setConfirmDeleteNote] = useState<NoteItem | null>(null);
+  // Load custom categories from Supabase (with localStorage fallback)
+  const loadCategories = async () => {
+    try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from("app_categories")
+          .select("*")
+          .order("created_at", { ascending: true });
 
-  // Image Preview Lightbox
-  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
+        if (!error && data && data.length > 0) {
+          const loaded: CategoryConfig[] = data.map((d: any) => ({
+            id: d.id,
+            label: d.label,
+            color: d.color || "text-slate-700 bg-slate-100 border-slate-200",
+            icon: Tag,
+          }));
+          setCustomCategories(loaded);
+          localStorage.setItem("ziptabs_custom_categories", JSON.stringify(loaded));
+          return;
+        }
+      }
+    } catch {}
 
-  // Custom Styled Toast Notification
-  const [toastNotification, setToastNotification] = useState<{
-    type: "success" | "error" | "info";
-    title: string;
-    description?: string;
-  } | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const showToast = (title: string, description?: string, type: "success" | "error" | "info" = "success") => {
-    setToastNotification({ title, description, type });
+    try {
+      const stored = localStorage.getItem("ziptabs_custom_categories");
+      if (stored) {
+        setCustomCategories(JSON.parse(stored));
+      }
+    } catch {}
   };
-
-  useEffect(() => {
-    if (toastNotification) {
-      const timer = setTimeout(() => {
-        setToastNotification(null);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastNotification]);
 
   // Load notes from Supabase (with localStorage fallback)
   const loadNotes = async () => {
@@ -320,6 +447,7 @@ export function NotesView() {
   };
 
   useEffect(() => {
+    loadCategories();
     loadNotes();
   }, []);
 
@@ -330,16 +458,65 @@ export function NotesView() {
     } catch {}
   };
 
+  // Add a new custom category (persistent to Supabase + localStorage)
+  const handleAddNewCategory = async () => {
+    const raw = newCategoryName.trim();
+    if (!raw) return;
+
+    const existing = allCategories.find((c) => c.label.toLowerCase() === raw.toLowerCase());
+    if (existing) {
+      setFormCategory(existing.id);
+      setIsCreatingCategory(false);
+      setNewCategoryName("");
+      showToast("Category Exists", `Selected "${existing.label}".`, "info");
+      return;
+    }
+
+    const newCat: CategoryConfig = {
+      id: raw,
+      label: raw,
+      color: "text-slate-800 bg-slate-100 border-slate-300",
+      icon: Tag,
+    };
+
+    const updated = [...customCategories, newCat];
+    setCustomCategories(updated);
+    setFormCategory(newCat.id);
+    setIsCreatingCategory(false);
+    setNewCategoryName("");
+
+    try {
+      localStorage.setItem("ziptabs_custom_categories", JSON.stringify(updated));
+      if (supabase) {
+        await supabase.from("app_categories").insert([
+          {
+            id: newCat.id,
+            label: newCat.label,
+            color: newCat.color,
+            icon: "Tag",
+          },
+        ]);
+      }
+    } catch (e) {
+      console.error("Save category error:", e);
+    }
+
+    showToast("Category Created", `"${raw}" has been added.`, "success");
+  };
+
   // Open modal for Create
   const handleOpenCreate = () => {
     setEditingNote(null);
     setFormContent("");
-    setFormCategory("Invoices");
+    setFormCategory("Quick Notes");
     setFormTargetDate(new Date().toISOString().slice(0, 10)); // Default to today
     setFormPriority("normal");
     setExistingAttachments([]);
     setNewFilesToUpload([]);
     setUploadProgressText(null);
+    setIsCreatingCategory(false);
+    setIsEditingSubject(false);
+    setCustomSubject("");
     setIsModalOpen(true);
   };
 
@@ -347,12 +524,15 @@ export function NotesView() {
   const handleOpenEdit = (note: NoteItem) => {
     setEditingNote(note);
     setFormContent(note.content || note.title || "");
-    setFormCategory(normalizeCategory(note.category));
+    setFormCategory(note.category || "Quick Notes");
     setFormTargetDate(note.target_date || "");
     setFormPriority(note.priority || "normal");
     setExistingAttachments(note.attachments || []);
     setNewFilesToUpload([]);
     setUploadProgressText(null);
+    setIsCreatingCategory(false);
+    setIsEditingSubject(false);
+    setCustomSubject(note.title || "");
     setIsModalOpen(true);
   };
 
@@ -371,10 +551,14 @@ export function NotesView() {
 
   // Remove pending file before upload
   const handleRemoveNewFile = (index: number) => {
-    setNewFilesToUpload((prev) => prev.filter((_, i) => i !== index));
+    setNewFilesToUpload((prev) => [...prev, ...indexMatches(index)]);
   };
 
-  // Save note (Automatically generates subject from details)
+  const indexMatches = (index: number) => {
+    return newFilesToUpload.filter((_, i) => i !== index);
+  };
+
+  // Save note (Focuses on 2-3 key words: e.g. "Akash Premium $2965")
   const handleSaveNote = async (e: React.FormEvent) => {
     e.preventDefault();
     const contentTrimmed = formContent.trim();
@@ -383,7 +567,9 @@ export function NotesView() {
     setIsSaving(true);
     const nowIso = new Date().toISOString();
     const noteId = editingNote ? editingNote.id : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
-    const autoSubject = generateSubject(contentTrimmed);
+    
+    // Use user-customized subject if entered, or smartly extract 2-3 key words
+    const finalSubject = customSubject.trim() || extractKeywordsSubject(contentTrimmed);
 
     const finalAttachments: NoteAttachment[] = [...existingAttachments];
 
@@ -424,7 +610,7 @@ export function NotesView() {
       // Update
       const updatedItem: NoteItem = {
         ...editingNote,
-        title: autoSubject,
+        title: finalSubject,
         content: contentTrimmed,
         category: formCategory,
         target_date: formTargetDate || null,
@@ -455,13 +641,13 @@ export function NotesView() {
         }
       }
 
-      showToast("Note Updated", `"${autoSubject}" has been saved.`, "success");
+      showToast("Note Updated", `"${finalSubject}" has been saved.`, "success");
     } else {
       // Create
       const newItem: NoteItem = {
         id: noteId,
         user_id: "chief",
-        title: autoSubject,
+        title: finalSubject,
         content: contentTrimmed,
         category: formCategory,
         target_date: formTargetDate || null,
@@ -495,7 +681,7 @@ export function NotesView() {
         }
       }
 
-      showToast("Note Created", `"${autoSubject}" added under ${formCategory}.`, "success");
+      showToast("Note Created", `"${finalSubject}" added under ${formCategory}.`, "success");
     }
 
     setIsSaving(false);
@@ -620,14 +806,12 @@ export function NotesView() {
   const payrollNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Payroll").length;
   const totalAttachmentsCount = notes.reduce((acc, n) => acc + (n.attachments?.length || 0), 0);
 
-  // Live auto-generated preview of subject while typing
-  const liveSubjectPreview = generateSubject(formContent);
+  // Live 2-3 keyword subject generated from content
+  const liveSubjectPreview = extractKeywordsSubject(formContent);
 
   return (
     <div className="space-y-6 relative pb-16">
-      {/* ==================================================== */}
-      {/* THEME-MATCHED FLOATING TOP-CENTER TOAST POPUP NOTIFS */}
-      {/* ==================================================== */}
+      {/* Toast Notification */}
       {toastNotification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
           <div
@@ -672,7 +856,7 @@ export function NotesView() {
             <span>Notes & Reminders</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Categorized tracking across Invoices, Payments, Payroll, Leopard, Quickbooks, and Paychex.
+            Store documents, screenshots, and track deadlines with 2–3 keyword auto-subjects.
           </p>
         </div>
 
@@ -757,7 +941,7 @@ export function NotesView() {
 
       {/* Main Container */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        {/* Filters Toolbar with the 6 Clean Categories */}
+        {/* Filters Toolbar with Categories & Create Category Button */}
         <div className="p-4 border-b border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
           {/* Search */}
           <div className="relative flex-1 max-w-sm">
@@ -771,7 +955,7 @@ export function NotesView() {
             />
           </div>
 
-          {/* 6 Category Pills */}
+          {/* Category Filter Pills (Quick Notes at top) */}
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
@@ -784,7 +968,7 @@ export function NotesView() {
             >
               All ({notes.length})
             </button>
-            {CATEGORIES.map((cat) => {
+            {allCategories.map((cat) => {
               const count = notes.filter((n) => normalizeCategory(n.category) === cat.id).length;
               const isActive = activeCategory === cat.id;
               return (
@@ -837,7 +1021,7 @@ export function NotesView() {
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mt-1">
               {notes.length === 0
-                ? "Type your note instructions or attach receipts/invoices. The subject is generated automatically from your note details."
+                ? "Type your note instructions or attach receipts/invoices. The subject automatically highlights 2–3 key words like 'Akash Premium $2965'."
                 : "Try clearing your search query or category filter."}
             </p>
             {notes.length === 0 && (
@@ -856,8 +1040,8 @@ export function NotesView() {
             {filteredNotes.map((note) => {
               const urgency = getDateUrgency(note.target_date);
               const normalizedCat = normalizeCategory(note.category);
-              const catConfig = CATEGORIES.find((c) => c.id === normalizedCat) || CATEGORIES[0];
-              const CatIcon = catConfig.icon;
+              const catConfig = allCategories.find((c) => c.id === normalizedCat) || allCategories[0];
+              const CatIcon = catConfig.icon || Tag;
               const imageAttachments = (note.attachments || []).filter((a) => a.type.startsWith("image/"));
               const docAttachments = (note.attachments || []).filter((a) => !a.type.startsWith("image/"));
 
@@ -899,16 +1083,16 @@ export function NotesView() {
                       )}
                     </div>
 
-                    {/* Note Title (Auto-Generated Subject) */}
+                    {/* Note Title (2-3 Keyword Subject) */}
                     <h3
-                      className={`text-sm font-bold text-slate-900 leading-snug break-words ${
+                      className={`text-sm font-black text-slate-900 leading-snug break-words tracking-tight ${
                         note.is_completed ? "line-through text-slate-500" : ""
                       }`}
                     >
-                      {note.title || generateSubject(note.content || "")}
+                      {note.title || extractKeywordsSubject(note.content || "")}
                     </h3>
 
-                    {/* Note Content / Full Details (only if different or longer than title) */}
+                    {/* Note Content / Full Details */}
                     {note.content && (
                       <p className="text-xs text-slate-600 mt-2 line-clamp-3 leading-relaxed whitespace-pre-wrap break-words">
                         {note.content}
@@ -1021,7 +1205,6 @@ export function NotesView() {
 
       {/* ==================================================== */}
       {/* CREATE / EDIT NOTE MODAL                             */}
-      {/* (No separate subject entry: generated automatically) */}
       {/* ==================================================== */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1069,23 +1252,74 @@ export function NotesView() {
 
             {/* Modal Form Scrollable Body */}
             <form onSubmit={handleSaveNote} className="p-6 space-y-4 overflow-y-auto flex-1">
-              {/* Category & Target Date */}
+              {/* Category & Target Date with '+ New Category' Creator */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Category
-                  </label>
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 transition-all font-medium"
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Category
+                    </label>
+                    {!isCreatingCategory ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingCategory(true);
+                          setNewCategoryName("");
+                        }}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>New Category</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingCategory(false)}
+                        className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+
+                  {isCreatingCategory ? (
+                    <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="New category name..."
+                        className="flex-1 px-3 py-2 bg-white border border-blue-400 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddNewCategory();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddNewCategory}
+                        disabled={!newCategoryName.trim()}
+                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 transition-all font-medium"
+                    >
+                      {allCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -1102,12 +1336,12 @@ export function NotesView() {
                 </div>
               </div>
 
-              {/* Note Details (Primary Input: Subject will auto-generate from here) */}
+              {/* Note Details (Primary Input: Subject will auto-extract 2-3 key words) */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                   <span>Note Details *</span>
                   <span className="text-[10px] text-slate-400 normal-case font-normal">
-                    Subject is auto-generated from your text
+                    Subject focuses on 2–3 key words
                   </span>
                 </label>
                 <textarea
@@ -1120,19 +1354,45 @@ export function NotesView() {
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all font-medium resize-none leading-relaxed"
                 />
 
-                {/* Live Auto-Generated Subject Preview Pill */}
+                {/* Live 2-3 Keyword Subject Preview Pill with Quick Edit Button */}
                 {formContent.trim() && (
-                  <div className="mt-2 flex items-center gap-2 p-2 px-3 rounded-xl bg-blue-50/70 border border-blue-200/80 text-xs text-blue-900 animate-in fade-in duration-150">
-                    <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 shrink-0">
-                      Subject:
-                    </span>
-                    <span className="font-semibold truncate">{liveSubjectPreview}</span>
+                  <div className="mt-2 flex items-center justify-between p-2.5 px-3.5 rounded-xl bg-blue-50/80 border border-blue-200/90 text-xs text-blue-900 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 shrink-0">
+                        Subject:
+                      </span>
+                      {isEditingSubject ? (
+                        <input
+                          type="text"
+                          value={customSubject}
+                          onChange={(e) => setCustomSubject(e.target.value)}
+                          className="px-2 py-0.5 bg-white border border-blue-300 rounded text-xs font-bold text-blue-950 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full max-w-sm"
+                          placeholder="e.g. Akash Premium $2965"
+                        />
+                      ) : (
+                        <span className="font-black text-blue-950 tracking-tight truncate">
+                          {customSubject.trim() || liveSubjectPreview}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isEditingSubject && !customSubject) {
+                          setCustomSubject(liveSubjectPreview);
+                        }
+                        setIsEditingSubject(!isEditingSubject);
+                      }}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline shrink-0 ml-3 cursor-pointer"
+                    >
+                      {isEditingSubject ? "Done" : "Edit"}
+                    </button>
                   </div>
                 )}
               </div>
 
-              {/* Documents & Images Upload Area */}
+              {/* Documents & Images Upload Area (Drag-Drop + Paste Ctrl+V) */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -1142,7 +1402,7 @@ export function NotesView() {
                   <span className="text-[10px] text-slate-400">PDF, Excel, Images (up to 50MB)</span>
                 </div>
 
-                {/* Drag, Drop, Paste & Upload Area */}
+                {/* Upload Button Box */}
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -1311,9 +1571,7 @@ export function NotesView() {
         </div>
       )}
 
-      {/* ==================================================== */}
-      {/* CUSTOM THEME-MATCHED DELETE CONFIRMATION MODAL       */}
-      {/* ==================================================== */}
+      {/* Delete Confirmation Modal */}
       {confirmDeleteNote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -1355,9 +1613,7 @@ export function NotesView() {
         </div>
       )}
 
-      {/* ==================================================== */}
-      {/* HIGH-RES IMAGE LIGHTBOX MODAL                        */}
-      {/* ==================================================== */}
+      {/* High-Res Image Lightbox Modal */}
       {previewImage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
           <div
