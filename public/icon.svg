@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="ztGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded squircle -->
+  <rect width="48" height="48" rx="13" fill="url(#ztGrad)" />
+  
+  <!-- Back Tab shape -->
+  <path d="M12 18C12 15.7909 13.7909 14 16 14H24L28 18H32C34.2091 18 36 19.7909 36 22V30C36 32.2091 34.2091 34 32 34H16C13.7909 34 12 32.2091 12 30V18Z" fill="#1E40AF" opacity="0.45"/>
+  
+  <!-- Front Tab shape -->
+  <path d="M14 20C14 18.3431 15.3431 17 17 17H25L28 20H31C32.6569 20 34 21.3431 34 23V31C34 32.6569 32.6569 34 31 34H17C15.3431 34 14 32.6569 14 31V20Z" fill="white" opacity="0.95"/>
+  
+  <!-- Lightning / Fast "Z" slash accent in front -->
+  <path d="M26.5 22L20.5 27H25L21.5 32L27.5 27H23.5L26.5 22Z" fill="#1D4ED8"/>
+</svg>
