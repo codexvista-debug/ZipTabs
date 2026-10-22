@@ -6,6 +6,7 @@ import { AuthScreen } from "@/components/auth/AuthScreen";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { InvoicesView } from "@/components/invoices/InvoicesView";
 import { NotesView } from "@/components/notes/NotesView";
+import { UsageView } from "@/components/usage/UsageView";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import {
@@ -23,7 +24,7 @@ import {
 
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "invoices" | "notes">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "invoices" | "notes" | "usage">("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -79,6 +80,8 @@ export default function Home() {
             <InvoicesView />
           ) : activeTab === "notes" ? (
             <NotesView />
+          ) : activeTab === "usage" ? (
+            <UsageView />
           ) : (
             <div>
               {/* Top Header Row */}
