@@ -80,7 +80,7 @@ export default function Home() {
             >
               <KeyRound className="w-4 h-4" />
             </button>
-            <div className="w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center uppercase">
+            <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center uppercase">
               {user?.username ? user.username.charAt(0) : "C"}
             </div>
           </div>

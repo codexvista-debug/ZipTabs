@@ -5,19 +5,6 @@ import { useAuth } from "@/context/AuthContext";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import {
   LayoutDashboard,
-  TrendingUp,
-  Receipt,
-  DollarSign,
-  Users,
-  Clock,
-  Briefcase,
-  CreditCard,
-  Shield,
-  Home,
-  UserPlus,
-  Users2,
-  Building2,
-  FileText,
   LogOut,
   KeyRound,
   X,
@@ -42,19 +29,6 @@ export function Sidebar({
 
   const menuItems = [
     { id: "dashboard", label: "Executive Dashboard", icon: LayoutDashboard },
-    { id: "unbilled", label: "Unbilled WIP", icon: TrendingUp },
-    { id: "invoices", label: "Invoices & A/R", icon: Receipt },
-    { id: "payroll", label: "Payroll & Salaries", icon: DollarSign },
-    { id: "employees", label: "Employees", icon: Users },
-    { id: "timesheets", label: "Timesheets & Leave", icon: Clock },
-    { id: "projects", label: "Projects & Rates", icon: Briefcase },
-    { id: "expenses", label: "Expenses", icon: CreditCard },
-    { id: "immigration", label: "Immigration Ledger", icon: Shield },
-    { id: "housing", label: "Housing Ledger", icon: Home },
-    { id: "recruitment", label: "Recruitment Ledger", icon: UserPlus },
-    { id: "reserve-bench", label: "Reserve & Bench Ledger", icon: Users2 },
-    { id: "secondary-reserve", label: "Secondary Reserve", icon: Building2 },
-    { id: "receivables-aging", label: "Receivables & Aging", icon: FileText },
   ];
 
   return (
@@ -87,10 +61,10 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* Menu Items */}
+        {/* Menu Items (Only Executive Dashboard) */}
         <div className="flex-1 overflow-y-auto px-3.5 py-5 space-y-2">
           <div className="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            ACCOUNTING MENU
+            WORKSPACE MENU
           </div>
 
           <nav className="space-y-1">
@@ -127,7 +101,7 @@ export function Sidebar({
         <div className="p-4 border-t border-[#15203b] bg-[#090e1a]/50">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-xs font-bold text-blue-400 shrink-0 uppercase">
+              <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-200 shrink-0 uppercase">
                 {user?.username ? user.username.charAt(0) : "C"}
               </div>
               <div className="min-w-0">
@@ -147,7 +121,7 @@ export function Sidebar({
               title="Change Password & Security"
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             >
-              <KeyRound className="w-4 h-4 text-slate-400 hover:text-blue-400 transition-colors" />
+              <KeyRound className="w-4 h-4 text-slate-400 hover:text-white transition-colors" />
             </button>
           </div>
 
