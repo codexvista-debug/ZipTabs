@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { hashPassword, verifyPassword } from "@/lib/crypto";
 
 export interface AppUser {
   id: string;
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: "Username and password are required." };
     }
 
-    // 1. Try Supabase app_users table
+    // 1. Try Supabase app_users table with cryptographic hash verification
     if (supabase) {
       try {
         const { data, error } = await supabase
@@ -58,7 +59,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (data) {
-          if (data.password === cleanPassword) {
+          const isValid = await verifyPassword(cleanPassword, data.password);
+          if (isValid) {
+            // If stored as plaintext legacy, auto-upgrade to SHA-256 hash in DB
+            if (data.password === cleanPassword) {
+              const newHash = await hashPassword(cleanPassword);
+              await supabase
+                .from("app_users")
+                .update({ password: newHash })
+                .eq("id", data.id);
+            }
+
             const loggedUser: AppUser = {
               id: data.id,
               username: data.username,
@@ -72,25 +83,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err) {
-        console.warn("Supabase check error, checking fallback:", err);
+        console.warn("Supabase check error:", err);
       }
-    }
-
-    // 2. Built-in Chief fallback (if database query is pending or offline)
-    if (cleanUsername === "chief" && cleanPassword === "123") {
-      const chiefUser: AppUser = {
-        id: "chief-admin-id",
-        username: "chief",
-        role: "Chief Administrator",
-      };
-      setUser(chiefUser);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(chiefUser));
-      return { success: true };
     }
 
     return {
       success: false,
-      error: "User not found. Use 'chief' with password '123' or register a new user.",
+      error: "User not found or credentials incorrect.",
     };
   };
 
@@ -107,7 +106,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (supabase) {
       try {
-        // Check if username already exists
         const { data: existing } = await supabase
           .from("app_users")
           .select("id")
@@ -118,13 +116,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: `Username '${cleanUsername}' is already taken.` };
         }
 
-        // Insert new user
+        // HASH PASSWORD BEFORE STORING IN DATABASE
+        const securePasswordHash = await hashPassword(cleanPassword);
+
         const { data: newUser, error: insertError } = await supabase
           .from("app_users")
           .insert([
             {
               username: cleanUsername,
-              password: cleanPassword,
+              password: securePasswordHash,
               role: "Administrator",
             },
           ])
@@ -163,21 +163,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (supabase) {
       try {
-        // Verify old password
         const { data, error } = await supabase
           .from("app_users")
           .select("*")
           .ilike("username", user.username.toLowerCase())
           .maybeSingle();
 
-        if (data && data.password !== cleanOld) {
-          return { success: false, error: "Current password does not match." };
+        if (data) {
+          const isValidOld = await verifyPassword(cleanOld, data.password);
+          if (!isValidOld) {
+            return { success: false, error: "Current password does not match." };
+          }
         }
 
-        // Update password in Supabase
+        // HASH NEW PASSWORD BEFORE SAVING IN SUPABASE
+        const secureNewHash = await hashPassword(cleanNew);
+
         const { error: updateError } = await supabase
           .from("app_users")
-          .update({ password: cleanNew })
+          .update({ password: secureNewHash })
           .ilike("username", user.username.toLowerCase());
 
         if (updateError) {

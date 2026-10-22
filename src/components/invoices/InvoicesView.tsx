@@ -8,9 +8,7 @@ import {
   Upload,
   FileSpreadsheet,
   Trash2,
-  Download,
   Search,
-  Filter,
   AlertCircle,
   Clock,
   DollarSign,
@@ -19,7 +17,9 @@ import {
   Loader2,
   RefreshCw,
   FileDown,
-  ArrowUpDown,
+  Copy,
+  Check,
+  Sparkles,
 } from "lucide-react";
 
 export interface InvoiceRecord {
@@ -31,6 +31,7 @@ export interface InvoiceRecord {
   days_overdue: number;
   status?: string;
   notes?: string;
+  raw_data?: Record<string, any>;
   created_at?: string;
 }
 
@@ -44,6 +45,10 @@ export function InvoicesView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [agingFilter, setAgingFilter] = useState<"all" | "30" | "60" | "90+">("all");
   const [sortBy, setSortBy] = useState<"days_desc" | "amount_desc" | "vendor_asc">("days_desc");
+
+  // Selection State (for Excel-like multi-row select & copy)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,7 +97,6 @@ export function InvoicesView() {
     if (val && !isNaN(parseInt(val, 10))) {
       return Math.max(0, parseInt(val, 10));
     }
-    // Calculate from due date if available
     if (dueDateVal) {
       const parsedDate = new Date(dueDateVal);
       if (!isNaN(parsedDate.getTime())) {
@@ -117,17 +121,17 @@ export function InvoicesView() {
     };
 
     const vendor =
-      findVal(["vendor", "client", "customer", "company", "supplier", "payee", "name"]) ||
+      findVal(["vendor", "worker", "client", "customer", "company", "supplier", "payee", "name"]) ||
       row[keys[0]] ||
       "Unknown Vendor";
 
     const invoiceNum =
       findVal(["invoice", "inv", "bill", "number", "num", "id", "ref"]) || "";
 
-    const rawAmount = findVal(["amount", "balance", "open", "due", "total", "net", "payable", "sum"]);
+    const rawAmount = findVal(["amount", "balance", "open", "due", "total", "net", "payable", "sum", "hours"]);
     const amount = parseAmount(rawAmount);
 
-    const rawDueDate = findVal(["duedate", "due", "paymentdue", "date", "expiry"]);
+    const rawDueDate = findVal(["duedate", "expecteddate", "due", "paymentdue", "date", "expiry"]);
     const dueDateStr = rawDueDate ? String(rawDueDate).trim() : "";
 
     const rawDays = findVal(["overdue", "aging", "days", "pastdue"]);
@@ -141,8 +145,9 @@ export function InvoicesView() {
       amount: amount,
       due_date: dueDateStr,
       days_overdue: daysOverdue,
-      status: daysOverdue > 0 ? "Overdue" : "Pending",
+      status: daysOverdue > 0 ? "Overdue" : "Current",
       notes: String(notes).trim(),
+      raw_data: row,
     };
   };
 
@@ -156,12 +161,10 @@ export function InvoicesView() {
       let parsedRows: Record<string, any>[] = [];
 
       if (fileName.endsWith(".csv")) {
-        // Parse CSV
         const text = await file.text();
         const result = Papa.parse(text, { header: true, skipEmptyLines: true });
         parsedRows = result.data as Record<string, any>[];
       } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-        // Parse Excel
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: "array" });
         const sheetName = workbook.SheetNames[0];
@@ -175,7 +178,6 @@ export function InvoicesView() {
         throw new Error("No data rows found in the uploaded file.");
       }
 
-      // Map rows
       const recordsToInsert: InvoiceRecord[] = [];
       for (const raw of parsedRows) {
         const item = normalizeRow(raw);
@@ -193,14 +195,10 @@ export function InvoicesView() {
       }
 
       // 1. PURGE ALL OLD INVOICE DATA from Supabase
-      const { error: purgeError } = await supabase
+      await supabase
         .from("invoices")
         .delete()
         .neq("id", "00000000-0000-0000-0000-000000000000");
-
-      if (purgeError) {
-        console.error("Purge error:", purgeError);
-      }
 
       // 2. INSERT NEW FRESH INVOICES in batches of 100
       const batchSize = 100;
@@ -214,6 +212,7 @@ export function InvoicesView() {
           days_overdue: r.days_overdue,
           status: r.status || "Overdue",
           notes: r.notes || null,
+          raw_data: r.raw_data || null,
         }));
 
         const { error: insertError } = await supabase.from("invoices").insert(batch);
@@ -224,6 +223,7 @@ export function InvoicesView() {
 
       // 3. Reload from Supabase
       await loadInvoices();
+      setSelectedIds(new Set());
       setStatusMessage({
         type: "success",
         text: `Successfully purged previous data and imported ${recordsToInsert.length} fresh invoices!`,
@@ -255,6 +255,7 @@ export function InvoicesView() {
           .neq("id", "00000000-0000-0000-0000-000000000000");
       }
       setInvoices([]);
+      setSelectedIds(new Set());
       setStatusMessage({
         type: "success",
         text: "All invoice records have been purged from database.",
@@ -268,6 +269,177 @@ export function InvoicesView() {
       setIsProcessing(false);
     }
   };
+
+  // Filter & Sort Logic
+  const filteredInvoices = invoices
+    .filter((inv) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        inv.vendor_name.toLowerCase().includes(q) ||
+        (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q));
+
+      if (!matchesSearch) return false;
+
+      if (agingFilter === "30") return inv.days_overdue <= 30;
+      if (agingFilter === "60") return inv.days_overdue > 30 && inv.days_overdue <= 60;
+      if (agingFilter === "90+") return inv.days_overdue > 60;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "days_desc") return b.days_overdue - a.days_overdue;
+      if (sortBy === "amount_desc") return b.amount - a.amount;
+      if (sortBy === "vendor_asc") return a.vendor_name.localeCompare(b.vendor_name);
+      return 0;
+    });
+
+  // Calculate Metrics
+  const totalOverdueAmount = invoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+  const totalOverdueCount = invoices.filter((inv) => inv.days_overdue > 0).length;
+  const uniqueVendorsCount = new Set(invoices.map((inv) => inv.vendor_name.toLowerCase())).size;
+  const criticalOverdueCount = invoices.filter((inv) => inv.days_overdue > 60).length;
+
+  // Selection handlers
+  const toggleSelectRow = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredInvoices.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredInvoices.map((inv) => inv.id || inv.invoice_number || inv.vendor_name)));
+    }
+  };
+
+  // ==========================================
+  // ZOHO MAIL FORMATTED COPY GENERATOR
+  // Matches Image 3 (Deep blue header #0070C0, bold white text, clean black 1px borders)
+  // ==========================================
+  const copyFormattedForZoho = async (targetInvoices: InvoiceRecord[]) => {
+    if (targetInvoices.length === 0) return;
+
+    // Check if the original CSV had specific worker/hours columns or standard invoice columns
+    const firstRowRaw = targetInvoices[0]?.raw_data || {};
+    const hasWorkerHours =
+      Object.keys(firstRowRaw).some((k) => k.toLowerCase().includes("worker")) ||
+      Object.keys(firstRowRaw).some((k) => k.toLowerCase().includes("hours"));
+
+    let headers: string[] = [];
+    let getRowValues: (inv: InvoiceRecord) => (string | number)[] = () => [];
+
+    if (hasWorkerHours) {
+      headers = ["Initiated Date", "Worker Name", "Hours", "Expected Date"];
+      getRowValues = (inv) => {
+        const raw = inv.raw_data || {};
+        const findVal = (p: string[]) => {
+          const k = Object.keys(raw).find((key) =>
+            p.some((pat) => key.toLowerCase().replace(/[^a-z0-9]/g, "").includes(pat))
+          );
+          return k ? raw[k] : "";
+        };
+        return [
+          findVal(["initiat", "date"]) || inv.due_date || "—",
+          findVal(["worker", "name"]) || inv.vendor_name,
+          findVal(["hours", "hour"]) || inv.amount.toFixed(2),
+          findVal(["expect", "due"]) || inv.due_date || "—",
+        ];
+      };
+    } else {
+      headers = ["Due Date", "Vendor / Payee", "Invoice #", "Days Overdue", "Amount Due", "Status"];
+      getRowValues = (inv) => [
+        inv.due_date || "—",
+        inv.vendor_name,
+        inv.invoice_number || "—",
+        `${inv.days_overdue} days`,
+        `$${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        inv.status || "Overdue",
+      ];
+    }
+
+    // Generate rich HTML table matching Image 3
+    const headerHtml = headers
+      .map(
+        (h) =>
+          `<th style="background-color: #0070C0; color: #FFFFFF; font-weight: bold; font-family: Calibri, Arial, sans-serif; font-size: 13px; border: 1px solid #000000; padding: 6px 14px; text-align: center;">${h}</th>`
+      )
+      .join("");
+
+    const rowsHtml = targetInvoices
+      .map((inv) => {
+        const vals = getRowValues(inv);
+        const cellsHtml = vals
+          .map(
+            (val, i) =>
+              `<td style="background-color: #FFFFFF; color: #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; border: 1px solid #000000; padding: 6px 14px; text-align: ${
+                i === 1 ? "left" : "center"
+              };">${val}</td>`
+          )
+          .join("");
+        return `<tr>${cellsHtml}</tr>`;
+      })
+      .join("");
+
+    const fullHtml = `<table style="border-collapse: collapse; border: 1px solid #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 8px 0;"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+
+    // Plain text TSV fallback for Excel/Notepad
+    const plainTsv = [
+      headers.join("\t"),
+      ...targetInvoices.map((inv) => getRowValues(inv).join("\t")),
+    ].join("\n");
+
+    try {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        const htmlBlob = new Blob([fullHtml], { type: "text/html" });
+        const textBlob = new Blob([plainTsv], { type: "text/plain" });
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": htmlBlob,
+            "text/plain": textBlob,
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(plainTsv);
+      }
+
+      setCopiedNotification(
+        `✓ Copied ${targetInvoices.length} row${targetInvoices.length > 1 ? "s" : ""} formatted for Zoho Mail!`
+      );
+      setTimeout(() => setCopiedNotification(null), 3500);
+    } catch (err) {
+      console.error("Clipboard copy error:", err);
+      // Fallback
+      navigator.clipboard.writeText(plainTsv);
+      setCopiedNotification("✓ Copied data to clipboard!");
+      setTimeout(() => setCopiedNotification(null), 2500);
+    }
+  };
+
+  // Keyboard shortcut Ctrl+C / Cmd+C when rows are selected
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        if (selectedIds.size > 0 && !window.getSelection()?.toString()) {
+          const selectedInvoices = invoices.filter((inv) =>
+            selectedIds.has(inv.id || inv.invoice_number || inv.vendor_name)
+          );
+          if (selectedInvoices.length > 0) {
+            e.preventDefault();
+            copyFormattedForZoho(selectedInvoices);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIds, invoices]);
 
   // Export current view to CSV
   const exportToCSV = () => {
@@ -293,39 +465,12 @@ export function InvoicesView() {
     document.body.removeChild(link);
   };
 
-  // Filter & Sort Logic
-  const filteredInvoices = invoices
-    .filter((inv) => {
-      // Search
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        inv.vendor_name.toLowerCase().includes(q) ||
-        (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q));
-
-      if (!matchesSearch) return false;
-
-      // Aging filter
-      if (agingFilter === "30") return inv.days_overdue <= 30;
-      if (agingFilter === "60") return inv.days_overdue > 30 && inv.days_overdue <= 60;
-      if (agingFilter === "90+") return inv.days_overdue > 60;
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === "days_desc") return b.days_overdue - a.days_overdue;
-      if (sortBy === "amount_desc") return b.amount - a.amount;
-      if (sortBy === "vendor_asc") return a.vendor_name.localeCompare(b.vendor_name);
-      return 0;
-    });
-
-  // Calculate Metrics
-  const totalOverdueAmount = invoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
-  const totalOverdueCount = invoices.filter((inv) => inv.days_overdue > 0).length;
-  const uniqueVendorsCount = new Set(invoices.map((inv) => inv.vendor_name.toLowerCase())).size;
-  const criticalOverdueCount = invoices.filter((inv) => inv.days_overdue > 60).length;
+  const selectedRowsList = invoices.filter((inv) =>
+    selectedIds.has(inv.id || inv.invoice_number || inv.vendor_name)
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative pb-16">
       {/* Top Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
         <div>
@@ -396,6 +541,21 @@ export function InvoicesView() {
           </button>
         </div>
       </div>
+
+      {/* Copied Success Toast Notice */}
+      {copiedNotification && (
+        <div className="fixed top-5 right-5 z-50 p-4 rounded-xl bg-slate-900 text-white text-xs font-medium shadow-2xl flex items-center gap-3 border border-slate-800 animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Check className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="font-bold text-white">{copiedNotification}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">
+              Ready to paste directly into Zoho Mail with blue headers and borders.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status Notice Banner */}
       {statusMessage && (
@@ -571,7 +731,7 @@ export function InvoicesView() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all"
+                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
                 <span>Upload CSV or Excel File</span>
@@ -583,26 +743,57 @@ export function InvoicesView() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-5">Vendor / Payee</th>
-                  <th className="py-3.5 px-5">Invoice #</th>
-                  <th className="py-3.5 px-5">Due Date</th>
-                  <th className="py-3.5 px-5">Overdue Days</th>
-                  <th className="py-3.5 px-5 text-right">Amount Due</th>
-                  <th className="py-3.5 px-5 text-center">Status</th>
+                  {/* Select All Checkbox */}
+                  <th className="py-3.5 px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size > 0 && selectedIds.size === filteredInvoices.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      title="Select all rows"
+                    />
+                  </th>
+                  <th className="py-3.5 px-4">Vendor / Payee</th>
+                  <th className="py-3.5 px-4">Invoice #</th>
+                  <th className="py-3.5 px-4">Due Date</th>
+                  <th className="py-3.5 px-4">Overdue Days</th>
+                  <th className="py-3.5 px-4 text-right">Amount Due</th>
+                  <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-4 text-center w-20">Copy</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-medium">
                 {filteredInvoices.map((inv, idx) => {
+                  const rowId = inv.id || inv.invoice_number || inv.vendor_name;
+                  const isSelected = selectedIds.has(rowId);
                   const isHighAlert = inv.days_overdue > 60;
                   const isMediumAlert = inv.days_overdue > 30 && inv.days_overdue <= 60;
 
                   return (
                     <tr
-                      key={inv.id || idx}
-                      className="hover:bg-slate-50/80 transition-colors"
+                      key={rowId || idx}
+                      onClick={() => toggleSelectRow(rowId)}
+                      className={`cursor-pointer transition-colors ${
+                        isSelected
+                          ? "bg-blue-50/70 hover:bg-blue-100/60"
+                          : "hover:bg-slate-50/80"
+                      }`}
                     >
+                      {/* Checkbox */}
+                      <td
+                        className="py-3.5 px-4 text-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectRow(rowId)}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
+
                       {/* Vendor */}
-                      <td className="py-3.5 px-5">
+                      <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">
                           {inv.vendor_name}
                         </div>
@@ -614,17 +805,17 @@ export function InvoicesView() {
                       </td>
 
                       {/* Invoice # */}
-                      <td className="py-3.5 px-5 font-mono text-slate-600">
+                      <td className="py-3.5 px-4 font-mono text-slate-600">
                         {inv.invoice_number || "—"}
                       </td>
 
                       {/* Due Date */}
-                      <td className="py-3.5 px-5 text-slate-600">
+                      <td className="py-3.5 px-4 text-slate-600">
                         {inv.due_date || "—"}
                       </td>
 
                       {/* Days Overdue Badge */}
-                      <td className="py-3.5 px-5">
+                      <td className="py-3.5 px-4">
                         {inv.days_overdue > 0 ? (
                           <span
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
@@ -644,12 +835,12 @@ export function InvoicesView() {
                       </td>
 
                       {/* Amount Due */}
-                      <td className="py-3.5 px-5 text-right font-black text-slate-900">
+                      <td className="py-3.5 px-4 text-right font-black text-slate-900">
                         ${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
 
                       {/* Status */}
-                      <td className="py-3.5 px-5 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         <span
                           className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             inv.days_overdue > 0
@@ -659,6 +850,21 @@ export function InvoicesView() {
                         >
                           {inv.status || "Overdue"}
                         </span>
+                      </td>
+
+                      {/* Quick 1-Click Copy Row for Zoho Mail */}
+                      <td
+                        className="py-3.5 px-4 text-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => copyFormattedForZoho([inv])}
+                          title="Copy this row formatted for Zoho Mail"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -670,16 +876,52 @@ export function InvoicesView() {
 
         {/* Table Footer */}
         {filteredInvoices.length > 0 && (
-          <div className="p-4 border-t border-slate-200/70 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
+          <div className="p-4 border-t border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
             <span>
               Showing <strong>{filteredInvoices.length}</strong> of <strong>{invoices.length}</strong> records
+              {selectedIds.size > 0 && (
+                <span className="ml-2 font-semibold text-blue-600">
+                  ({selectedIds.size} selected)
+                </span>
+              )}
             </span>
             <span className="text-[11px] text-slate-400">
-              Synced with Supabase database
+              💡 Tip: Select rows and press <kbd className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px]">Ctrl+C</kbd> to copy for Zoho Mail
             </span>
           </div>
         )}
       </div>
+
+      {/* Floating Bottom Action Bar when Rows are Selected */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+            <span>
+              <strong>{selectedIds.size}</strong> {selectedIds.size === 1 ? "row" : "rows"} selected
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-700"></div>
+
+          <button
+            type="button"
+            onClick={() => copyFormattedForZoho(selectedRowsList)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0070C0] hover:bg-blue-600 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>Copy for Zoho Mail</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-slate-400 hover:text-white transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   );
 }
