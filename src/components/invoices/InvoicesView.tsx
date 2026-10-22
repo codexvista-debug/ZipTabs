@@ -551,6 +551,9 @@ export function InvoicesView() {
             ref={fileInputRef}
             accept=".csv, .xlsx, .xls"
             className="hidden"
+            onClick={(e) => {
+              (e.target as HTMLInputElement).value = "";
+            }}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) handleFileUpload(file);
@@ -560,7 +563,12 @@ export function InvoicesView() {
           <button
             type="button"
             disabled={isProcessing}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+                fileInputRef.current.click();
+              }
+            }}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all cursor-pointer disabled:opacity-50"
           >
             {isProcessing ? (
@@ -568,7 +576,7 @@ export function InvoicesView() {
             ) : (
               <Upload className="w-4 h-4" />
             )}
-            <span>{isProcessing ? "Importing..." : "Import File (.csv / .xlsx)"}</span>
+            <span>{isProcessing ? "Processing & Importing..." : "Import File (.csv / .xlsx)"}</span>
           </button>
 
           {invoices.length > 0 && (
