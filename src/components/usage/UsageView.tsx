@@ -23,7 +23,9 @@ import {
   X,
   Search,
   Filter,
+  Eye,
 } from "lucide-react";
+import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 
 export interface StoredFile {
   id: string;
@@ -69,6 +71,7 @@ export function UsageView() {
   const [fileTypeFilter, setFileTypeFilter] = useState<"all" | "images" | "docs">("all");
   const [confirmDeleteFile, setConfirmDeleteFile] = useState<StoredFile | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<AttachmentViewerFile | null>(null);
 
   // Free Tier Constants
   const STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024; // 1 GB in bytes
@@ -503,18 +506,30 @@ export function UsageView() {
                     <tr key={file.id || file.name} className="hover:bg-slate-50/80 transition-colors">
                       {/* Name & Icon */}
                       <td className="py-3.5 px-5">
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className="flex items-center gap-2.5 min-w-0 cursor-pointer group/name"
+                          onClick={() => {
+                            if (file.url) {
+                              setPreviewFile({
+                                name: cleanDisplayName,
+                                url: file.url,
+                                size: file.size,
+                                mimetype: file.mimetype,
+                              });
+                            }
+                          }}
+                        >
                           {isImage ? (
-                            <div className="w-7 h-7 rounded-lg bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-lg bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center shrink-0 group-hover/name:bg-purple-100 transition-colors">
                               <ImageIcon className="w-3.5 h-3.5" />
                             </div>
                           ) : (
-                            <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0 group-hover/name:bg-blue-100 transition-colors">
                               <FileText className="w-3.5 h-3.5" />
                             </div>
                           )}
                           <div className="min-w-0 flex items-center gap-2">
-                            <span className="font-bold text-slate-800 truncate max-w-xs sm:max-w-sm">
+                            <span className="font-bold text-slate-800 truncate max-w-xs sm:max-w-sm group-hover/name:text-blue-600 transition-colors">
                               {cleanDisplayName}
                             </span>
                             <span
@@ -551,21 +566,27 @@ export function UsageView() {
                       <td className="py-3.5 px-5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {file.url && (
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                              title="Open / View File"
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewFile({
+                                  name: cleanDisplayName,
+                                  url: file.url!,
+                                  size: file.size,
+                                  mimetype: file.mimetype,
+                                })
+                              }
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                              title="Preview File in Full Workspace"
                             >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
                           )}
 
                           <button
                             type="button"
                             onClick={() => setConfirmDeleteFile(file)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Delete file to free storage space"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -622,6 +643,13 @@ export function UsageView() {
           </div>
         </div>
       )}
+
+      {/* Full Workspace Attachment Viewer */}
+      <FullAttachmentViewer
+        file={previewFile}
+        isOpen={Boolean(previewFile)}
+        onClose={() => setPreviewFile(null)}
+      />
     </div>
   );
 }

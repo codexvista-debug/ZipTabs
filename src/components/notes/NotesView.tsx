@@ -37,6 +37,7 @@ import {
   ChevronDown,
   UploadCloud,
 } from "lucide-react";
+import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 
 export interface NoteAttachment {
   id: string;
@@ -320,8 +321,8 @@ export function NotesView() {
   // Read-Only View Note Modal State
   const [viewingNote, setViewingNote] = useState<NoteItem | null>(null);
 
-  // Image Preview Lightbox
-  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
+  // Full-Space Attachment Viewer State
+  const [previewAttachment, setPreviewAttachment] = useState<AttachmentViewerFile | null>(null);
 
   // Background Uploads State
   const [backgroundUploads, setBackgroundUploads] = useState<BackgroundUploadJob[]>([]);
@@ -1330,9 +1331,9 @@ export function NotesView() {
                             key={img.id}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setPreviewImage({ url: img.url, name: img.name });
+                              setPreviewAttachment(img);
                             }}
-                            className="relative w-14 h-14 rounded-xl border border-slate-200 overflow-hidden group/img hover:border-blue-500 transition-colors bg-slate-100 shrink-0"
+                            className="relative w-14 h-14 rounded-xl border border-slate-200 overflow-hidden group/img hover:border-blue-500 transition-colors bg-slate-100 shrink-0 cursor-pointer shadow-2xs"
                             title={`Click to view: ${img.name}`}
                           >
                             <img
@@ -1349,20 +1350,20 @@ export function NotesView() {
                     {docAttachments.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {docAttachments.map((doc) => (
-                          <a
+                          <button
                             key={doc.id}
-                            href={doc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 text-[11px] font-medium transition-colors max-w-full"
-                            title={`Open / Download ${doc.name}`}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewAttachment(doc);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 text-[11px] font-medium transition-colors max-w-full cursor-pointer"
+                            title={`Open ${doc.name}`}
                           >
                             <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                             <span className="truncate max-w-[130px]">{doc.name}</span>
                             <span className="text-[10px] text-slate-400">({formatFileSize(doc.size)})</span>
-                            <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
-                          </a>
+                          </button>
                         ))}
                       </div>
                     )}
@@ -1704,9 +1705,9 @@ export function NotesView() {
                           <div className="flex items-center gap-2.5 min-w-0">
                             {isImage ? (
                               <div
-                                onClick={() => setPreviewImage({ url: att.url, name: att.name })}
+                                onClick={() => setPreviewAttachment(att)}
                                 className="relative w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
-                                title="Click to view full preview"
+                                title="Click to view attachment"
                               >
                                 <img
                                   src={att.url}
@@ -1718,13 +1719,20 @@ export function NotesView() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0">
+                              <div
+                                onClick={() => setPreviewAttachment(att)}
+                                className="w-10 h-10 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0 cursor-pointer"
+                                title="Click to view attachment"
+                              >
                                 <FileText className="w-5 h-5" />
                               </div>
                             )}
 
-                            <div className="min-w-0">
-                              <span className="font-bold text-slate-800 truncate block max-w-xs">
+                            <div
+                              onClick={() => setPreviewAttachment(att)}
+                              className="min-w-0 cursor-pointer group/title"
+                            >
+                              <span className="font-bold text-slate-800 group-hover/title:text-blue-600 truncate block max-w-xs transition-colors">
                                 {att.name}
                               </span>
                               <div className="flex items-center gap-2 mt-0.5">
@@ -1763,9 +1771,9 @@ export function NotesView() {
                           <div className="flex items-center gap-2.5 min-w-0">
                             {isImage && previewUrl ? (
                               <div
-                                onClick={() => setPreviewImage({ url: previewUrl, name: file.name })}
+                                onClick={() => setPreviewAttachment({ url: previewUrl, name: file.name, size: file.size, type: file.type })}
                                 className="relative w-12 h-12 rounded-lg border border-blue-300 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
-                                title="Click to view full preview"
+                                title="Click to view attachment"
                               >
                                 <img
                                   src={previewUrl}
@@ -1969,9 +1977,9 @@ export function NotesView() {
                             {imgs.map((img) => (
                               <div
                                 key={img.id}
-                                onClick={() => setPreviewImage({ url: img.url, name: img.name })}
+                                onClick={() => setPreviewAttachment(img)}
                                 className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video cursor-pointer hover:border-blue-500 transition-colors shadow-2xs"
-                                title="Click to view full preview"
+                                title="Click to view attachment"
                               >
                                 <img
                                   src={img.url}
@@ -1993,18 +2001,17 @@ export function NotesView() {
                         {docs.length > 0 && (
                           <div className="flex flex-wrap gap-2">
                             {docs.map((doc) => (
-                              <a
+                              <button
                                 key={doc.id}
-                                href={doc.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-medium transition-colors"
+                                type="button"
+                                onClick={() => setPreviewAttachment(doc)}
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-medium transition-colors cursor-pointer"
+                                title={`Click to view: ${doc.name}`}
                               >
                                 <FileText className="w-4 h-4 text-blue-600 shrink-0" />
                                 <span className="truncate max-w-[160px] font-semibold">{doc.name}</span>
                                 <span className="text-[10px] text-slate-500">({formatFileSize(doc.size)})</span>
-                                <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              </a>
+                              </button>
                             ))}
                           </div>
                         )}
@@ -2114,45 +2121,12 @@ export function NotesView() {
         </div>
       )}
 
-      {/* High-Res Image Lightbox Modal */}
-      {previewImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
-          <div
-            onClick={() => setPreviewImage(null)}
-            className="fixed inset-0 bg-slate-950/85 backdrop-blur-md transition-opacity"
-          />
-
-          <div className="relative max-w-4xl max-h-[90vh] z-10 flex flex-col items-center">
-            <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
-              <a
-                href={previewImage.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-xl bg-black/60 hover:bg-black/90 text-white backdrop-blur-xs transition-colors"
-                title="Open in new tab"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
-              <button
-                type="button"
-                onClick={() => setPreviewImage(null)}
-                className="p-2 rounded-xl bg-black/60 hover:bg-black/90 text-white backdrop-blur-xs transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <img
-              src={previewImage.url}
-              alt={previewImage.name}
-              className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain border border-white/10"
-            />
-            <div className="text-white text-xs font-medium mt-2.5 bg-black/50 px-3 py-1 rounded-full backdrop-blur-xs">
-              {previewImage.name}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Full-Space Attachment Viewer (Image, Excel, Word, PDF, CSV, etc.) */}
+      <FullAttachmentViewer
+        file={previewAttachment}
+        isOpen={Boolean(previewAttachment)}
+        onClose={() => setPreviewAttachment(null)}
+      />
 
       {/* Floating Bottom-Right Background Upload Progress Bar */}
       {backgroundUploads.length > 0 && (
