@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Component, ReactNode } from "react";
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 import {
@@ -58,6 +58,65 @@ export function formatBytes(bytes?: number, decimals = 1): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+// Error Boundary to prevent any child render failure from crashing the entire app
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  fileName: string;
+  fileUrl?: string;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  errorMessage?: string;
+}
+
+class ViewerErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: any): ErrorBoundaryState {
+    return { hasError: true, errorMessage: error?.message || "Failed to render document preview" };
+  }
+
+  componentDidCatch(error: any, info: any) {
+    console.error("ViewerErrorBoundary caught an error:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <h3 className="text-base font-bold text-white">Preview unavailable</h3>
+          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            This document format cannot be rendered live in the current browser window. You can download the file to view it directly on your device.
+          </p>
+          <div className="mt-5 flex items-center gap-3">
+            {this.props.fileUrl && (
+              <a
+                href={this.props.fileUrl}
+                download={this.props.fileName}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download File</span>
+              </a>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export function FullAttachmentViewer({
   file,
   isOpen,
@@ -84,24 +143,11 @@ export function FullAttachmentViewer({
   // Image Zoom State
   const [zoomLevel, setZoomLevel] = useState(1);
 
-  // Keyboard shortcut Esc to close
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !file) return null;
-
-  const fileName = file.name || "Attachment";
+  // File metadata calculations (derived safely with optional chaining)
+  const fileName = file?.name || "Attachment";
   const ext = fileName.split(".").pop()?.toLowerCase() || "";
-  const fileUrl = file.url || file.public_url || "";
-  const mimeType = (file.type || file.mimetype || "").toLowerCase();
+  const fileUrl = file?.url || file?.public_url || "";
+  const mimeType = (file?.type || file?.mimetype || "").toLowerCase();
 
   const isImage = mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "ico"].includes(ext);
   const isPdf = ext === "pdf" || mimeType === "application/pdf";
@@ -115,8 +161,25 @@ export function FullAttachmentViewer({
   const isVideo = mimeType.startsWith("video/") || ["mp4", "webm", "ogg"].includes(ext);
   const isAudio = mimeType.startsWith("audio/") || ["mp3", "wav", "aac"].includes(ext);
 
-  // Load and parse document contents based on type
+  // 1. Esc key listener (Always runs unconditionally)
   useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // 2. Load and parse document contents based on type (Always runs unconditionally)
+  useEffect(() => {
+    if (!isOpen || !file) {
+      setIsLoading(false);
+      return;
+    }
+
     let isCancelled = false;
 
     // Reset states
@@ -134,13 +197,13 @@ export function FullAttachmentViewer({
       return;
     }
 
-    // 1. Images, PDFs, Audio, Video render directly
+    // A. Images, PDFs, Audio, Video render directly
     if (isImage || isPdf || isVideo || isAudio) {
       setIsLoading(false);
       return;
     }
 
-    // 2. Excel Spreadsheets (.xlsx, .xls)
+    // B. Excel Spreadsheets (.xlsx, .xls)
     if (isExcel) {
       fetch(fileUrl)
         .then((res) => {
@@ -150,21 +213,28 @@ export function FullAttachmentViewer({
         .then((buffer) => {
           if (isCancelled) return;
           try {
-            const wb = XLSX.read(buffer, { type: "array" });
+            const readFn = XLSX?.read || (XLSX as any)?.default?.read;
+            if (typeof readFn !== "function") {
+              throw new Error("Spreadsheet engine is not ready in this browser.");
+            }
+            const wb = readFn(buffer, { type: "array" });
             const sheetNames = wb.SheetNames || [];
             if (sheetNames.length === 0) {
               throw new Error("No worksheets found in this workbook.");
             }
 
             const sheetsData: { [name: string]: (string | number)[][] } = {};
-            sheetNames.forEach((name) => {
+            sheetNames.forEach((name: string) => {
               const sheet = wb.Sheets[name];
-              const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+              const utils = XLSX?.utils || (XLSX as any)?.default?.utils;
+              const rawRows: any[][] = utils?.sheet_to_json
+                ? utils.sheet_to_json(sheet, { header: 1, defval: "" })
+                : [];
               sheetsData[name] = rawRows;
             });
 
             setWorkbook({ sheetNames, sheetsData });
-            setActiveSheetName(sheetNames[0]);
+            setActiveSheetName(sheetNames[0] || "");
           } catch (err: any) {
             console.error("XLSX parse error:", err);
             setLoadError(err.message || "Failed to parse Excel workbook.");
@@ -182,7 +252,7 @@ export function FullAttachmentViewer({
       return () => { isCancelled = true; };
     }
 
-    // 3. Word Documents (.docx)
+    // C. Word Documents (.docx)
     if (isWord) {
       if (ext === "docx") {
         fetch(fileUrl)
@@ -190,18 +260,28 @@ export function FullAttachmentViewer({
             if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to download Word document`);
             return res.arrayBuffer();
           })
-          .then((arrayBuffer) => {
+          .then(async (arrayBuffer) => {
             if (isCancelled) return;
-            return mammoth.convertToHtml({ arrayBuffer });
-          })
-          .then((result) => {
-            if (isCancelled || !result) return;
-            setDocxHtml(result.value || "<p>Document is empty.</p>");
+            try {
+              const convertFn = mammoth?.convertToHtml || (mammoth as any)?.default?.convertToHtml;
+              if (typeof convertFn !== "function") {
+                throw new Error("Mammoth HTML converter function not available");
+              }
+              const result = await convertFn({
+                arrayBuffer,
+                buffer: arrayBuffer as any,
+              });
+              if (isCancelled) return;
+              setDocxHtml(result?.value || "<p>Document is empty.</p>");
+            } catch (err: any) {
+              console.error("Mammoth conversion error:", err);
+              setLoadError("Unable to extract document layout. You can still download the original document.");
+            }
           })
           .catch((err: any) => {
             if (!isCancelled) {
               console.error("Word document preview error:", err);
-              setLoadError("Unable to extract document layout. You can still download the original document.");
+              setLoadError("Unable to download Word document. Please use the Download button.");
             }
           })
           .finally(() => {
@@ -214,7 +294,7 @@ export function FullAttachmentViewer({
       return () => { isCancelled = true; };
     }
 
-    // 4. CSV Files
+    // D. CSV Files
     if (isCsv) {
       fetch(fileUrl)
         .then((res) => {
@@ -224,9 +304,14 @@ export function FullAttachmentViewer({
         .then((text) => {
           if (isCancelled) return;
           try {
-            const wb = XLSX.read(text, { type: "string" });
-            const sheetName = wb.SheetNames[0] || "CSV";
-            const rawRows: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" });
+            const readFn = XLSX?.read || (XLSX as any)?.default?.read;
+            const wb = readFn ? readFn(text, { type: "string" }) : null;
+            const sheetName = wb?.SheetNames?.[0] || "CSV";
+            const utils = XLSX?.utils || (XLSX as any)?.default?.utils;
+            const rawRows: any[][] = (wb && utils?.sheet_to_json)
+              ? utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" })
+              : text.split(/\r?\n/).map((l) => l.split(","));
+
             setWorkbook({
               sheetNames: [sheetName],
               sheetsData: { [sheetName]: rawRows },
@@ -253,7 +338,7 @@ export function FullAttachmentViewer({
       return () => { isCancelled = true; };
     }
 
-    // 5. Code & Text Files
+    // E. Code & Text Files
     if (isTextOrCode) {
       fetch(fileUrl)
         .then((res) => {
@@ -277,7 +362,7 @@ export function FullAttachmentViewer({
 
     setIsLoading(false);
     return () => { isCancelled = true; };
-  }, [file.id, fileUrl, ext, isExcel, isWord, isCsv, isTextOrCode, isImage, isPdf, isVideo, isAudio]);
+  }, [isOpen, file?.id, fileUrl, ext, isExcel, isWord, isCsv, isTextOrCode, isImage, isPdf, isVideo, isAudio]);
 
   // Copy text to clipboard
   const handleCopyText = () => {
@@ -286,6 +371,12 @@ export function FullAttachmentViewer({
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
+
+  // ALL HOOKS HAVE BEEN CALLED ABOVE.
+  // It is now 100% safe to return null if closed or file is absent.
+  if (!isOpen || !file) {
+    return null;
+  }
 
   // Retention Details (if applicable)
   const isTemporary = file.retention_type === "temporary";
@@ -306,7 +397,6 @@ export function FullAttachmentViewer({
   });
 
   return (
-    /* The viewer takes up the WHOLE space on the right side of the left sidebar */
     <aside
       className="fixed inset-y-0 right-0 left-0 lg:left-[260px] z-50 flex flex-col bg-[#070c18] border-l border-[#15203b] shadow-2xl text-slate-200 animate-in fade-in duration-200 select-none"
       aria-label="Attachment Preview Canvas"
@@ -421,7 +511,7 @@ export function FullAttachmentViewer({
             </button>
           )}
 
-          {/* Open Raw in New Window (Optional) */}
+          {/* Open Raw in New Window */}
           {fileUrl && (
             <a
               href={fileUrl}
@@ -462,249 +552,251 @@ export function FullAttachmentViewer({
         </div>
       </header>
 
-      {/* Main Full-Space Canvas */}
-      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col relative bg-[#050811]">
-        {/* Loading Spinner */}
-        {isLoading && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-slate-400 p-6">
-            <Loader2 className="w-9 h-9 animate-spin text-blue-500" />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              Opening attachment...
-            </span>
-          </div>
-        )}
-
-        {/* Fallback Notice Card */}
-        {!isLoading && loadError && (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mb-3">
-              <AlertCircle className="w-8 h-8" />
+      {/* Main Full-Space Canvas wrapped in ViewerErrorBoundary */}
+      <ViewerErrorBoundary fileName={fileName} fileUrl={fileUrl}>
+        <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col relative bg-[#050811]">
+          {/* Loading Spinner */}
+          {isLoading && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-slate-400 p-6">
+              <Loader2 className="w-9 h-9 animate-spin text-blue-500" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                Opening attachment...
+              </span>
             </div>
-            <h3 className="text-base font-bold text-white">Preview Notice</h3>
-            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{loadError}</p>
-            <div className="mt-5 flex items-center gap-3">
-              <a
-                href={fileUrl}
-                download={fileName}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download File</span>
-              </a>
-              <a
-                href={fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span>Open Raw Link</span>
-              </a>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* 1. Full-Space Image Viewer */}
-        {!isLoading && !loadError && isImage && (
-          <div className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-4 sm:p-8 select-none">
-            <img
-              src={fileUrl}
-              alt={fileName}
-              style={{ transform: `scale(${zoomLevel})`, transition: "transform 0.15s ease-out" }}
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl origin-center"
-            />
-          </div>
-        )}
-
-        {/* 2. Full-Space Native Excel & CSV Spreadsheet Grid */}
-        {!isLoading && !loadError && (isExcel || isCsv) && workbook && (
-          <div className="flex-1 flex flex-col bg-white text-slate-900 overflow-hidden min-h-0 select-text">
-            {/* Spreadsheet Toolbar */}
-            <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              {/* Search in Sheet */}
-              <div className="relative flex-1 max-w-xs">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={sheetSearch}
-                  onChange={(e) => setSheetSearch(e.target.value)}
-                  placeholder="Search in sheet..."
-                  className="w-full pl-8 pr-3 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 font-medium"
-                />
+          {/* Fallback Notice Card */}
+          {!isLoading && loadError && (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mb-3">
+                <AlertCircle className="w-8 h-8" />
               </div>
-
-              <div className="text-[11px] text-slate-500 font-medium flex items-center gap-3">
-                <span>
-                  <strong>{filteredRows.length}</strong> rows
-                  {sheetSearch ? ` (filtered from ${activeRows.length})` : ""}
-                </span>
-                <span>•</span>
-                <span>Sheet: <strong>{activeSheetName}</strong></span>
+              <h3 className="text-base font-bold text-white">Preview Notice</h3>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{loadError}</p>
+              <div className="mt-5 flex items-center gap-3">
+                <a
+                  href={fileUrl}
+                  download={fileName}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download File</span>
+                </a>
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Open Raw Link</span>
+                </a>
               </div>
             </div>
+          )}
 
-            {/* Scrollable Spreadsheet Table */}
-            <div className="flex-1 overflow-auto bg-white select-text">
-              <table className="w-full border-collapse text-xs font-sans">
-                <tbody>
-                  {filteredRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="p-8 text-center text-slate-400">
-                        {sheetSearch ? "No matching rows found." : "This worksheet is empty."}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRows.map((row, rIdx) => {
-                      const isHeaderRow = rIdx === 0 && !sheetSearch;
-                      return (
-                        <tr
-                          key={rIdx}
-                          className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${
-                            isHeaderRow ? "bg-slate-100 font-bold text-slate-800 sticky top-0 z-10 shadow-2xs" : ""
-                          }`}
-                        >
-                          {/* Row Number */}
-                          <td className="py-2 px-3 text-[10px] text-center font-mono text-slate-400 bg-slate-50 border-r border-slate-200 w-12 shrink-0 select-none">
-                            {rIdx + 1}
-                          </td>
+          {/* 1. Full-Space Image Viewer */}
+          {!isLoading && !loadError && isImage && (
+            <div className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-4 sm:p-8 select-none">
+              <img
+                src={fileUrl}
+                alt={fileName}
+                style={{ transform: `scale(${zoomLevel})`, transition: "transform 0.15s ease-out" }}
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl origin-center"
+              />
+            </div>
+          )}
 
-                          {/* Cells */}
-                          {row.map((cell, cIdx) => (
-                            <td
-                              key={cIdx}
-                              className={`py-2 px-3 border-r border-slate-100 truncate max-w-[300px] ${
-                                typeof cell === "number" ? "text-right font-mono text-slate-800" : "text-slate-700"
-                              }`}
-                              title={String(cell || "")}
-                            >
-                              {cell !== null && cell !== undefined ? String(cell) : ""}
+          {/* 2. Full-Space Native Excel & CSV Spreadsheet Grid */}
+          {!isLoading && !loadError && (isExcel || isCsv) && workbook && (
+            <div className="flex-1 flex flex-col bg-white text-slate-900 overflow-hidden min-h-0 select-text">
+              {/* Spreadsheet Toolbar */}
+              <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                {/* Search in Sheet */}
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={sheetSearch}
+                    onChange={(e) => setSheetSearch(e.target.value)}
+                    placeholder="Search in sheet..."
+                    className="w-full pl-8 pr-3 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 font-medium"
+                  />
+                </div>
+
+                <div className="text-[11px] text-slate-500 font-medium flex items-center gap-3">
+                  <span>
+                    <strong>{filteredRows.length}</strong> rows
+                    {sheetSearch ? ` (filtered from ${activeRows.length})` : ""}
+                  </span>
+                  <span>•</span>
+                  <span>Sheet: <strong>{activeSheetName}</strong></span>
+                </div>
+              </div>
+
+              {/* Scrollable Spreadsheet Table */}
+              <div className="flex-1 overflow-auto bg-white select-text">
+                <table className="w-full border-collapse text-xs font-sans">
+                  <tbody>
+                    {filteredRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="p-8 text-center text-slate-400">
+                          {sheetSearch ? "No matching rows found." : "This worksheet is empty."}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRows.map((row, rIdx) => {
+                        const isHeaderRow = rIdx === 0 && !sheetSearch;
+                        return (
+                          <tr
+                            key={rIdx}
+                            className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${
+                              isHeaderRow ? "bg-slate-100 font-bold text-slate-800 sticky top-0 z-10 shadow-2xs" : ""
+                            }`}
+                          >
+                            {/* Row Number */}
+                            <td className="py-2 px-3 text-[10px] text-center font-mono text-slate-400 bg-slate-50 border-r border-slate-200 w-12 shrink-0 select-none">
+                              {rIdx + 1}
                             </td>
-                          ))}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
 
-            {/* Worksheet Tabs Bar */}
-            {workbook.sheetNames.length > 1 && (
-              <div className="px-3 py-1.5 bg-slate-200 border-t border-slate-300 flex items-center gap-1 overflow-x-auto shrink-0 select-none">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
-                  Sheets:
-                </span>
-                {workbook.sheetNames.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => {
-                      setActiveSheetName(name);
-                      setSheetSearch("");
-                    }}
-                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                      activeSheetName === name
-                        ? "bg-white text-blue-700 shadow-xs border-b-2 border-blue-600"
-                        : "text-slate-600 hover:bg-slate-300/80 hover:text-slate-900"
-                    }`}
-                  >
-                    {name}
-                  </button>
-                ))}
+                            {/* Cells */}
+                            {row.map((cell, cIdx) => (
+                              <td
+                                key={cIdx}
+                                className={`py-2 px-3 border-r border-slate-100 truncate max-w-[300px] ${
+                                  typeof cell === "number" ? "text-right font-mono text-slate-800" : "text-slate-700"
+                                }`}
+                                title={String(cell || "")}
+                              >
+                                {cell !== null && cell !== undefined ? String(cell) : ""}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* 3. Full-Space Word Document Canvas (.docx) */}
-        {!isLoading && !loadError && isWord && docxHtml && (
-          <div className="flex-1 overflow-auto p-4 sm:p-10 bg-[#080d1a] select-text">
-            <div
-              className="max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl shadow-2xl p-6 sm:p-14 min-h-full border border-slate-200 font-serif leading-relaxed prose prose-slate max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2 [&_th]:bg-slate-100 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3"
-              dangerouslySetInnerHTML={{ __html: docxHtml }}
-            />
-          </div>
-        )}
-
-        {/* 4. Full-Space PDF Viewer */}
-        {!isLoading && !loadError && isPdf && (
-          <div className="flex-1 w-full h-full relative bg-slate-900">
-            <iframe
-              src={`${fileUrl}#toolbar=1`}
-              title={fileName}
-              className="w-full h-full border-0 bg-slate-900"
-            />
-          </div>
-        )}
-
-        {/* 5. Full-Space Code & Text Viewer */}
-        {!isLoading && !loadError && isTextOrCode && !isCsv && (
-          <div className="flex-1 w-full h-full overflow-auto p-4 sm:p-8 bg-[#070b16] font-mono text-xs sm:text-[13px] text-slate-200 leading-relaxed select-text">
-            <pre className="whitespace-pre-wrap break-words">{textContent || "Document is empty."}</pre>
-          </div>
-        )}
-
-        {/* 6. Full-Space Video Viewer */}
-        {!isLoading && !loadError && isVideo && (
-          <div className="flex-1 w-full h-full flex items-center justify-center p-4">
-            <video controls autoPlay className="max-w-full max-h-full rounded-2xl shadow-2xl" src={fileUrl}>
-              Your browser does not support HTML5 video preview.
-            </video>
-          </div>
-        )}
-
-        {/* 7. Full-Space Audio Viewer */}
-        {!isLoading && !loadError && isAudio && (
-          <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-6 gap-4">
-            <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shadow-lg">
-              <FileCode className="w-10 h-10" />
+              {/* Worksheet Tabs Bar */}
+              {workbook.sheetNames.length > 1 && (
+                <div className="px-3 py-1.5 bg-slate-200 border-t border-slate-300 flex items-center gap-1 overflow-x-auto shrink-0 select-none">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
+                    Sheets:
+                  </span>
+                  {workbook.sheetNames.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        setActiveSheetName(name);
+                        setSheetSearch("");
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                        activeSheetName === name
+                          ? "bg-white text-blue-700 shadow-xs border-b-2 border-blue-600"
+                          : "text-slate-600 hover:bg-slate-300/80 hover:text-slate-900"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="text-center">
-              <div className="font-bold text-base text-white">{fileName}</div>
-              <div className="text-xs text-slate-400 mt-1">{formatBytes(file.size)}</div>
-            </div>
-            <audio controls autoPlay className="w-full max-w-md mt-2" src={fileUrl}>
-              Your browser does not support HTML5 audio.
-            </audio>
-          </div>
-        )}
+          )}
 
-        {/* 8. Generic / Unsupported Binary Format */}
-        {!isLoading && !loadError && !isImage && !isPdf && !isCsv && !isExcel && !isWord && !isTextOrCode && !isVideo && !isAudio && (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
-            <div className="w-20 h-20 rounded-3xl bg-slate-800/80 border border-slate-700 text-slate-400 flex items-center justify-center mb-4 shadow-xl">
-              <FileArchive className="w-10 h-10" />
+          {/* 3. Full-Space Word Document Canvas (.docx) */}
+          {!isLoading && !loadError && isWord && docxHtml && (
+            <div className="flex-1 overflow-auto p-4 sm:p-10 bg-[#080d1a] select-text">
+              <div
+                className="max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl shadow-2xl p-6 sm:p-14 min-h-full border border-slate-200 font-serif leading-relaxed prose prose-slate max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2 [&_th]:bg-slate-100 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3"
+                dangerouslySetInnerHTML={{ __html: docxHtml }}
+              />
             </div>
-            <h3 className="text-base font-bold text-white">{fileName}</h3>
-            <p className="text-xs text-slate-400 mt-1.5">
-              Direct in-browser preview is not available for this binary format ({ext.toUpperCase() || "unknown"}).
-            </p>
-            <div className="mt-5 flex items-center gap-3">
-              <a
-                href={fileUrl}
-                download={fileName}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download File</span>
-              </a>
-              <a
-                href={fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span>Open Raw Link</span>
-              </a>
+          )}
+
+          {/* 4. Full-Space PDF Viewer */}
+          {!isLoading && !loadError && isPdf && (
+            <div className="flex-1 w-full h-full relative bg-slate-900">
+              <iframe
+                src={`${fileUrl}#toolbar=1`}
+                title={fileName}
+                className="w-full h-full border-0 bg-slate-900"
+              />
             </div>
-          </div>
-        )}
-      </div>
+          )}
+
+          {/* 5. Full-Space Code & Text Viewer */}
+          {!isLoading && !loadError && isTextOrCode && !isCsv && (
+            <div className="flex-1 w-full h-full overflow-auto p-4 sm:p-8 bg-[#070b16] font-mono text-xs sm:text-[13px] text-slate-200 leading-relaxed select-text">
+              <pre className="whitespace-pre-wrap break-words">{textContent || "Document is empty."}</pre>
+            </div>
+          )}
+
+          {/* 6. Full-Space Video Viewer */}
+          {!isLoading && !loadError && isVideo && (
+            <div className="flex-1 w-full h-full flex items-center justify-center p-4">
+              <video controls autoPlay className="max-w-full max-h-full rounded-2xl shadow-2xl" src={fileUrl}>
+                Your browser does not support HTML5 video preview.
+              </video>
+            </div>
+          )}
+
+          {/* 7. Full-Space Audio Viewer */}
+          {!isLoading && !loadError && isAudio && (
+            <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-6 gap-4">
+              <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shadow-lg">
+                <FileCode className="w-10 h-10" />
+              </div>
+              <div className="text-center">
+                <div className="font-bold text-base text-white">{fileName}</div>
+                <div className="text-xs text-slate-400 mt-1">{formatBytes(file.size)}</div>
+              </div>
+              <audio controls autoPlay className="w-full max-w-md mt-2" src={fileUrl}>
+                Your browser does not support HTML5 audio.
+              </audio>
+            </div>
+          )}
+
+          {/* 8. Generic / Unsupported Binary Format */}
+          {!isLoading && !loadError && !isImage && !isPdf && !isCsv && !isExcel && !isWord && !isTextOrCode && !isVideo && !isAudio && (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
+              <div className="w-20 h-20 rounded-3xl bg-slate-800/80 border border-slate-700 text-slate-400 flex items-center justify-center mb-4 shadow-xl">
+                <FileArchive className="w-10 h-10" />
+              </div>
+              <h3 className="text-base font-bold text-white">{fileName}</h3>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Direct in-browser preview is not available for this binary format ({ext.toUpperCase() || "unknown"}).
+              </p>
+              <div className="mt-5 flex items-center gap-3">
+                <a
+                  href={fileUrl}
+                  download={fileName}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download File</span>
+                </a>
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Open Raw Link</span>
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      </ViewerErrorBoundary>
     </aside>
   );
 }
