@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Component, ReactNode } from "react";
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
+import { downloadFileDirectly } from "@/lib/download";
 import {
   X,
   Download,
@@ -97,16 +98,14 @@ class ViewerErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
           </p>
           <div className="mt-5 flex items-center gap-3">
             {this.props.fileUrl && (
-              <a
-                href={this.props.fileUrl}
-                download={this.props.fileName}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all"
+              <button
+                type="button"
+                onClick={() => downloadFileDirectly(this.props.fileUrl!, this.props.fileName)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Download File</span>
-              </a>
+              </button>
             )}
           </div>
         </div>
@@ -142,6 +141,9 @@ export function FullAttachmentViewer({
 
   // Image Zoom State
   const [zoomLevel, setZoomLevel] = useState(1);
+
+  // Download in progress state
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // File metadata calculations (derived safely with optional chaining)
   const fileName = file?.name || "Attachment";
@@ -372,6 +374,19 @@ export function FullAttachmentViewer({
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  // Direct download handler (never opens new tab)
+  const handleDownload = async () => {
+    if (!fileUrl || isDownloading) return;
+    try {
+      setIsDownloading(true);
+      await downloadFileDirectly(fileUrl, fileName);
+    } catch (err) {
+      console.error("Direct download failed:", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   // ALL HOOKS HAVE BEEN CALLED ABOVE.
   // It is now 100% safe to return null if closed or file is absent.
   if (!isOpen || !file) {
@@ -526,17 +541,22 @@ export function FullAttachmentViewer({
 
           {/* PROMINENT DOWNLOAD BUTTON */}
           {fileUrl && (
-            <a
-              href={fileUrl}
-              download={fileName}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 cursor-pointer"
-              title="Download file"
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 disabled:opacity-75 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 cursor-pointer"
+              title="Download file directly"
             >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Download</span>
-            </a>
+              {isDownloading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">
+                {isDownloading ? "Downloading..." : "Download"}
+              </span>
+            </button>
           )}
 
           {/* PROMINENT CLOSE BUTTON */}
@@ -574,16 +594,15 @@ export function FullAttachmentViewer({
               <h3 className="text-base font-bold text-white">Preview Notice</h3>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{loadError}</p>
               <div className="mt-5 flex items-center gap-3">
-                <a
-                  href={fileUrl}
-                  download={fileName}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all"
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-75 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Download File</span>
-                </a>
+                  {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span>{isDownloading ? "Downloading..." : "Download File"}</span>
+                </button>
                 <a
                   href={fileUrl}
                   target="_blank"
@@ -773,16 +792,15 @@ export function FullAttachmentViewer({
                 Direct in-browser preview is not available for this binary format ({ext.toUpperCase() || "unknown"}).
               </p>
               <div className="mt-5 flex items-center gap-3">
-                <a
-                  href={fileUrl}
-                  download={fileName}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20"
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-75 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 cursor-pointer"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Download File</span>
-                </a>
+                  {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span>{isDownloading ? "Downloading..." : "Download File"}</span>
+                </button>
                 <a
                   href={fileUrl}
                   target="_blank"

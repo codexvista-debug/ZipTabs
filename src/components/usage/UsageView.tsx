@@ -24,8 +24,10 @@ import {
   Search,
   Filter,
   Eye,
+  Download,
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
+import { downloadFileDirectly } from "@/lib/download";
 
 export interface StoredFile {
   id: string;
@@ -566,21 +568,32 @@ export function UsageView() {
                       <td className="py-3.5 px-5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {file.url && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setPreviewFile({
-                                  name: cleanDisplayName,
-                                  url: file.url!,
-                                  size: file.size,
-                                  mimetype: file.mimetype,
-                                })
-                              }
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                              title="Preview File in Full Workspace"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewFile({
+                                    name: cleanDisplayName,
+                                    url: file.url!,
+                                    size: file.size,
+                                    mimetype: file.mimetype,
+                                  })
+                                }
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                title="Preview File in Full Workspace"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => downloadFileDirectly(file.url!, cleanDisplayName)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                                title="Download File Directly"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
 
                           <button

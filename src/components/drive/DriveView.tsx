@@ -33,6 +33,7 @@ import {
   Eye,
 } from "lucide-react";
 import { UniversalFileViewer } from "./UniversalFileViewer";
+import { downloadFileDirectly } from "@/lib/download";
 
 export interface DriveFolder {
   id: string;
@@ -1029,16 +1030,17 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                               <Shield className="w-3.5 h-3.5" />
                             </button>
 
-                            <a
-                              href={file.public_url}
-                              download={file.name}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                              title="Download file"
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadFileDirectly(file.public_url, file.name);
+                              }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                              title="Download file directly"
                             >
                               <Download className="w-3.5 h-3.5" />
-                            </a>
+                            </button>
                           </div>
 
                           <button
@@ -1157,16 +1159,17 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                                 >
                                   <Shield className="w-3.5 h-3.5" />
                                 </button>
-                                <a
-                                  href={file.public_url}
-                                  download={file.name}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                  title="Download"
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadFileDirectly(file.public_url, file.name);
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                  title="Download directly"
                                 >
                                   <Download className="w-3.5 h-3.5" />
-                                </a>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => setConfirmDeleteFile(file)}
