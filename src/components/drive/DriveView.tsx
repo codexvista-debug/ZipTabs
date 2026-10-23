@@ -919,7 +919,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                 {visibleFiles.map((file) => {
                   const iconInfo = getFileIcon(file.name, file.type);
                   const Icon = iconInfo.icon;
-                  const isImage = file.type.startsWith("image/");
+                  const isImage = (file.type || "").startsWith("image/");
                   const isTemp = file.retention_type === "temporary";
                   let daysLeft = 30;
                   let isUrgent = false;

@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
+import mammoth from "mammoth";
 import {
   X,
   Download,
@@ -18,10 +20,10 @@ import {
   Copy,
   Check,
   Loader2,
-  AlertTriangle,
-  Monitor,
+  AlertCircle,
   Search,
-  Maximize2,
+  ChevronRight,
+  Eye,
 } from "lucide-react";
 import { DriveFile, formatBytes } from "./DriveView";
 
@@ -33,6 +35,11 @@ interface UniversalFileViewerProps {
   onDeleteFile: (file: DriveFile) => void;
 }
 
+interface ParsedWorkbook {
+  sheetNames: string[];
+  sheetsData: { [sheetName: string]: (string | number)[][] };
+}
+
 export function UniversalFileViewer({
   file,
   isOpen,
@@ -40,103 +47,210 @@ export function UniversalFileViewer({
   onToggleRetention,
   onDeleteFile,
 }: UniversalFileViewerProps) {
-  // Viewer Engine State for Office docs: 'office' | 'google'
-  const [officeViewerEngine, setOfficeViewerEngine] = useState<"office" | "google">("office");
-  const [isIframeLoading, setIsIframeLoading] = useState(true);
+  // Global loading and error states
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Excel / Spreadsheet State
+  const [workbook, setWorkbook] = useState<ParsedWorkbook | null>(null);
+  const [activeSheetName, setActiveSheetName] = useState<string>("");
+  const [sheetSearch, setSheetSearch] = useState("");
+
+  // Word Document (.docx) HTML State
+  const [docxHtml, setDocxHtml] = useState<string | null>(null);
+
+  // Text / Code Content State
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   // Image Zoom State
   const [zoomLevel, setZoomLevel] = useState(1);
-
-  // Text / CSV Content State
-  const [textContent, setTextContent] = useState<string | null>(null);
-  const [isTextLoading, setIsTextLoading] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
-
-  // CSV Spreadsheet State
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [csvRows, setCsvRows] = useState<string[][]>([]);
-  const [csvSearch, setCsvSearch] = useState("");
 
   if (!isOpen || !file) return null;
 
   const fileName = file.name || "Untitled";
   const ext = fileName.split(".").pop()?.toLowerCase() || "";
   const publicUrl = file.public_url || "";
-  const isImage = file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "ico"].includes(ext);
-  const isPdf = ext === "pdf" || file.type === "application/pdf";
-  const isExcel = ["xlsx", "xls"].includes(ext);
+  const mimeType = file.type || "";
+
+  const isImage = mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "ico"].includes(ext);
+  const isPdf = ext === "pdf" || mimeType === "application/pdf";
+  const isExcel = ["xlsx", "xls"].includes(ext) || mimeType.includes("spreadsheetml") || mimeType.includes("excel");
   const isCsv = ext === "csv";
-  const isWord = ["docx", "doc", "rtf"].includes(ext);
-  const isPowerPoint = ["pptx", "ppt"].includes(ext);
-  const isOfficeDoc = isExcel || isWord || isPowerPoint;
+  const isWord = ["docx", "doc"].includes(ext) || mimeType.includes("wordprocessingml") || mimeType.includes("msword");
   const isTextOrCode = [
     "txt", "md", "json", "js", "ts", "tsx", "jsx", "html", "css",
-    "py", "sql", "xml", "log", "yaml", "yml", "env", "sh"
-  ].includes(ext) || file.type.startsWith("text/");
-  const isVideo = file.type.startsWith("video/") || ["mp4", "webm", "ogg"].includes(ext);
-  const isAudio = file.type.startsWith("audio/") || ["mp3", "wav", "aac"].includes(ext);
+    "py", "sql", "xml", "log", "yaml", "yml", "env", "sh", "rtf"
+  ].includes(ext) || mimeType.startsWith("text/");
+  const isVideo = mimeType.startsWith("video/") || ["mp4", "webm", "ogg"].includes(ext);
+  const isAudio = mimeType.startsWith("audio/") || ["mp3", "wav", "aac"].includes(ext);
 
-  // Parse CSV
-  const parseCSVData = (text: string) => {
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    if (lines.length === 0) {
-      setCsvHeaders([]);
-      setCsvRows([]);
+  // Load and parse document contents based on type
+  useEffect(() => {
+    let isCancelled = false;
+
+    // Reset states
+    setIsLoading(true);
+    setLoadError(null);
+    setWorkbook(null);
+    setDocxHtml(null);
+    setTextContent(null);
+    setZoomLevel(1);
+    setSheetSearch("");
+
+    if (!publicUrl) {
+      setIsLoading(false);
+      setLoadError("No download URL available for this file.");
       return;
     }
 
-    const parseLine = (line: string): string[] => {
-      const result: string[] = [];
-      let cur = "";
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (c === '"') {
-          inQuotes = !inQuotes;
-        } else if (c === "," && !inQuotes) {
-          result.push(cur.trim());
-          cur = "";
-        } else {
-          cur += c;
-        }
-      }
-      result.push(cur.trim());
-      return result;
-    };
-
-    const headers = parseLine(lines[0]);
-    const rows = lines.slice(1, 300).map(parseLine);
-    setCsvHeaders(headers);
-    setCsvRows(rows);
-  };
-
-  // Fetch text/csv data
-  useEffect(() => {
-    if ((isTextOrCode || isCsv) && publicUrl) {
-      setIsTextLoading(true);
-      fetch(publicUrl)
-        .then((res) => res.text())
-        .then((text) => {
-          setTextContent(text);
-          if (isCsv) {
-            parseCSVData(text);
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to load text preview:", err);
-          setTextContent("Error loading preview content.");
-        })
-        .finally(() => setIsTextLoading(false));
-    } else {
-      setTextContent(null);
-      setCsvHeaders([]);
-      setCsvRows([]);
+    // 1. Images, PDFs, Audio, Video don't require pre-parsing
+    if (isImage || isPdf || isVideo || isAudio) {
+      setIsLoading(false);
+      return;
     }
 
-    // Reset iframe loading when switching files
-    setIsIframeLoading(true);
-    setZoomLevel(1);
-  }, [file.id, publicUrl, isTextOrCode, isCsv]);
+    // 2. Excel Spreadsheets (.xlsx, .xls)
+    if (isExcel) {
+      fetch(publicUrl)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to download spreadsheet`);
+          return res.arrayBuffer();
+        })
+        .then((buffer) => {
+          if (isCancelled) return;
+          try {
+            const wb = XLSX.read(buffer, { type: "array" });
+            const sheetNames = wb.SheetNames || [];
+            if (sheetNames.length === 0) {
+              throw new Error("No worksheets found in this workbook.");
+            }
+
+            const sheetsData: { [name: string]: (string | number)[][] } = {};
+            sheetNames.forEach((name) => {
+              const sheet = wb.Sheets[name];
+              const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+              sheetsData[name] = rawRows;
+            });
+
+            setWorkbook({ sheetNames, sheetsData });
+            setActiveSheetName(sheetNames[0]);
+          } catch (err: any) {
+            console.error("XLSX parse error:", err);
+            setLoadError(err.message || "Failed to parse Excel workbook.");
+          }
+        })
+        .catch((err: any) => {
+          if (!isCancelled) {
+            console.error("Fetch spreadsheet error:", err);
+            setLoadError(err.message || "Network error loading spreadsheet.");
+          }
+        })
+        .finally(() => {
+          if (!isCancelled) setIsLoading(false);
+        });
+      return () => { isCancelled = true; };
+    }
+
+    // 3. Word Documents (.docx)
+    if (isWord) {
+      if (ext === "docx") {
+        fetch(publicUrl)
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to download Word document`);
+            return res.arrayBuffer();
+          })
+          .then((arrayBuffer) => {
+            if (isCancelled) return;
+            return mammoth.convertToHtml({ arrayBuffer });
+          })
+          .then((result) => {
+            if (isCancelled || !result) return;
+            setDocxHtml(result.value || "<p>Document is empty.</p>");
+          })
+          .catch((err: any) => {
+            if (!isCancelled) {
+              console.error("Word document preview error:", err);
+              setLoadError("Unable to extract document layout. You can still download the original document.");
+            }
+          })
+          .finally(() => {
+            if (!isCancelled) setIsLoading(false);
+          });
+      } else {
+        // Legacy .doc format
+        setIsLoading(false);
+        setLoadError("Legacy .doc format cannot be rendered in-browser. Please download to view in Microsoft Word.");
+      }
+      return () => { isCancelled = true; };
+    }
+
+    // 4. CSV Files
+    if (isCsv) {
+      fetch(publicUrl)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to download CSV`);
+          return res.text();
+        })
+        .then((text) => {
+          if (isCancelled) return;
+          try {
+            const wb = XLSX.read(text, { type: "string" });
+            const sheetName = wb.SheetNames[0] || "CSV";
+            const rawRows: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" });
+            setWorkbook({
+              sheetNames: [sheetName],
+              sheetsData: { [sheetName]: rawRows },
+            });
+            setActiveSheetName(sheetName);
+          } catch {
+            // Fallback simple line split
+            const lines = text.split(/\r?\n/).map((l) => l.split(","));
+            setWorkbook({
+              sheetNames: ["CSV"],
+              sheetsData: { CSV: lines },
+            });
+            setActiveSheetName("CSV");
+          }
+        })
+        .catch((err: any) => {
+          if (!isCancelled) {
+            console.error("CSV preview error:", err);
+            setLoadError(err.message || "Failed to load CSV file.");
+          }
+        })
+        .finally(() => {
+          if (!isCancelled) setIsLoading(false);
+        });
+      return () => { isCancelled = true; };
+    }
+
+    // 5. Code & Text Files
+    if (isTextOrCode) {
+      fetch(publicUrl)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to download text file`);
+          return res.text();
+        })
+        .then((text) => {
+          if (!isCancelled) setTextContent(text);
+        })
+        .catch((err: any) => {
+          if (!isCancelled) {
+            console.error("Text preview error:", err);
+            setLoadError(err.message || "Failed to load text content.");
+          }
+        })
+        .finally(() => {
+          if (!isCancelled) setIsLoading(false);
+        });
+      return () => { isCancelled = true; };
+    }
+
+    // Generic / Other
+    setIsLoading(false);
+    return () => { isCancelled = true; };
+  }, [file.id, publicUrl, ext, isExcel, isWord, isCsv, isTextOrCode, isImage, isPdf, isVideo, isAudio]);
 
   // Copy text to clipboard
   const handleCopyText = () => {
@@ -156,14 +270,13 @@ export function UniversalFileViewer({
     isExpiringSoon = daysRemaining <= 3;
   }
 
-  // Filtered CSV Rows for spreadsheet search
-  const filteredCsvRows = isCsv && csvSearch.trim()
-    ? csvRows.filter((r) => r.some((c) => c.toLowerCase().includes(csvSearch.toLowerCase())))
-    : csvRows;
-
-  // Office viewer URLs
-  const officeUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(publicUrl)}`;
-  const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(publicUrl)}&embedded=true`;
+  // Active Sheet Data for Spreadsheets
+  const activeRows = (workbook && activeSheetName && workbook.sheetsData[activeSheetName]) || [];
+  const filteredRows = activeRows.filter((row) => {
+    if (!sheetSearch.trim()) return true;
+    const q = sheetSearch.toLowerCase();
+    return row.some((cell) => String(cell || "").toLowerCase().includes(q));
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
@@ -191,7 +304,7 @@ export function UniversalFileViewer({
               <h2 className="text-xs sm:text-sm font-bold text-white truncate" title={fileName}>
                 {fileName}
               </h2>
-              <div className="flex items-center gap-2 mt-0.5 text-[10px] sm:text-[11px] text-slate-400">
+              <div className="flex items-center gap-2 mt-0.5 text-[10px] sm:text-[11px] text-slate-400 flex-wrap">
                 <span>{formatBytes(file.size)}</span>
                 <span>•</span>
                 <span className="font-mono uppercase font-bold text-slate-500">{ext}</span>
@@ -207,7 +320,7 @@ export function UniversalFileViewer({
                         ? "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30"
                         : "bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
                     }`}
-                    title="Click to move into Vault (Permanent)"
+                    title="Click to move into permanent Vault"
                   >
                     <Clock className="w-3 h-3" />
                     <span>Temp Stash ({daysRemaining}d left) · Click to Keep in Vault</span>
@@ -229,47 +342,13 @@ export function UniversalFileViewer({
 
           {/* Action Buttons Toolbar */}
           <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
-            {/* Office Viewer Engine Selector (Word/Excel/PowerPoint) */}
-            {isOfficeDoc && (
-              <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsIframeLoading(true);
-                    setOfficeViewerEngine("office");
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
-                    officeViewerEngine === "office"
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  Office 365
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsIframeLoading(true);
-                    setOfficeViewerEngine("google");
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
-                    officeViewerEngine === "google"
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  Google Viewer
-                </button>
-              </div>
-            )}
-
             {/* Image Zoom Buttons */}
             {isImage && (
               <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.25))}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                   title="Zoom Out"
                 >
                   <ZoomOut className="w-3.5 h-3.5" />
@@ -280,7 +359,7 @@ export function UniversalFileViewer({
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                   title="Zoom In"
                 >
                   <ZoomIn className="w-3.5 h-3.5" />
@@ -288,10 +367,10 @@ export function UniversalFileViewer({
                 <button
                   type="button"
                   onClick={() => setZoomLevel(1)}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                   title="Reset Zoom"
                 >
-                  <RotateCcw className="w-3 h-3" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
@@ -301,7 +380,7 @@ export function UniversalFileViewer({
               <button
                 type="button"
                 onClick={handleCopyText}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
                 title="Copy Content"
               >
                 {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -349,10 +428,184 @@ export function UniversalFileViewer({
         </div>
 
         {/* Viewer Content Canvas */}
-        <div className="flex-1 min-h-0 bg-[#060a14] relative overflow-hidden flex flex-col items-center justify-center">
-          {/* 1. Image Viewer */}
-          {isImage && (
-            <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
+        <div className="flex-1 min-h-0 bg-[#060a14] relative overflow-hidden flex flex-col">
+          {/* Global Loading Spinner */}
+          {isLoading && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-slate-400 p-6">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                Opening document...
+              </span>
+            </div>
+          )}
+
+          {/* Fallback Error Card */}
+          {!isLoading && loadError && (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mb-3">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-base font-bold text-white">Preview Notice</h3>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{loadError}</p>
+              <div className="mt-5 flex items-center gap-3">
+                <a
+                  href={publicUrl}
+                  download={fileName}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download File</span>
+                </a>
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Open Raw Link</span>
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* 1. Native Interactive Spreadsheet Grid (Excel & CSV) */}
+          {!isLoading && !loadError && (isExcel || isCsv) && workbook && (
+            <div className="flex-1 flex flex-col bg-white text-slate-900 overflow-hidden min-h-0">
+              {/* Spreadsheet Toolbar */}
+              <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                {/* Search in Sheet */}
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={sheetSearch}
+                    onChange={(e) => setSheetSearch(e.target.value)}
+                    placeholder="Search in sheet..."
+                    className="w-full pl-8 pr-3 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 font-medium"
+                  />
+                </div>
+
+                <div className="text-[11px] text-slate-500 font-medium flex items-center gap-3">
+                  <span>
+                    <strong>{filteredRows.length}</strong> rows
+                    {sheetSearch ? ` (filtered from ${activeRows.length})` : ""}
+                  </span>
+                  <span>•</span>
+                  <span>Sheet: <strong>{activeSheetName}</strong></span>
+                </div>
+              </div>
+
+              {/* Scrollable Spreadsheet Table */}
+              <div className="flex-1 overflow-auto bg-white select-text">
+                <table className="w-full border-collapse text-xs font-sans">
+                  <tbody>
+                    {filteredRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="p-8 text-center text-slate-400">
+                          {sheetSearch ? "No matching rows found." : "This worksheet is empty."}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRows.map((row, rIdx) => {
+                        const isHeaderRow = rIdx === 0 && !sheetSearch;
+                        return (
+                          <tr
+                            key={rIdx}
+                            className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${
+                              isHeaderRow ? "bg-slate-100 font-bold text-slate-800 sticky top-0 z-10 shadow-2xs" : ""
+                            }`}
+                          >
+                            {/* Row Number */}
+                            <td className="py-2 px-3 text-[10px] text-center font-mono text-slate-400 bg-slate-50 border-r border-slate-200 w-12 shrink-0 select-none">
+                              {rIdx + 1}
+                            </td>
+
+                            {/* Cells */}
+                            {row.map((cell, cIdx) => (
+                              <td
+                                key={cIdx}
+                                className={`py-2 px-3 border-r border-slate-100 truncate max-w-[280px] ${
+                                  typeof cell === "number" ? "text-right font-mono text-slate-800" : "text-slate-700"
+                                }`}
+                                title={String(cell || "")}
+                              >
+                                {cell !== null && cell !== undefined ? String(cell) : ""}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Worksheet Tabs Bar (e.g. Sheet1, RT Payroll, Cash Req) */}
+              {workbook.sheetNames.length > 1 && (
+                <div className="px-3 py-1.5 bg-slate-200 border-t border-slate-300 flex items-center gap-1 overflow-x-auto shrink-0 select-none">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
+                    Sheets:
+                  </span>
+                  {workbook.sheetNames.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        setActiveSheetName(name);
+                        setSheetSearch("");
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                        activeSheetName === name
+                          ? "bg-white text-blue-700 shadow-xs border-b-2 border-blue-600"
+                          : "text-slate-600 hover:bg-slate-300/80 hover:text-slate-900"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. Word Document Canvas (.docx) */}
+          {!isLoading && !loadError && isWord && docxHtml && (
+            <div className="flex-1 overflow-auto p-4 sm:p-8 bg-[#0a0f1d]">
+              <div
+                className="max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl shadow-2xl p-6 sm:p-12 min-h-full border border-slate-200 font-serif leading-relaxed select-text prose prose-slate max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2 [&_th]:bg-slate-100 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3"
+                dangerouslySetInnerHTML={{ __html: docxHtml }}
+              />
+            </div>
+          )}
+
+          {/* 3. PDF Viewer */}
+          {!isLoading && !loadError && isPdf && (
+            <div className="flex-1 w-full h-full relative">
+              <iframe
+                src={`${publicUrl}#toolbar=1`}
+                title={fileName}
+                className="w-full h-full border-0 bg-slate-900"
+              />
+              <div className="absolute top-3 right-3 bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-1.5 text-[11px] text-slate-300 backdrop-blur-xs flex items-center gap-2">
+                <span>PDF Document</span>
+                <a
+                  href={`https://docs.google.com/viewer?url=${encodeURIComponent(publicUrl)}&embedded=true`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline"
+                >
+                  Google Viewer ↗
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* 4. High-Res Image Viewer */}
+          {!isLoading && !loadError && isImage && (
+            <div className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-4">
               <img
                 src={publicUrl}
                 alt={fileName}
@@ -362,126 +615,16 @@ export function UniversalFileViewer({
             </div>
           )}
 
-          {/* 2. PDF Viewer */}
-          {isPdf && (
-            <div className="w-full h-full flex flex-col relative">
-              <iframe
-                src={`${publicUrl}#toolbar=1`}
-                title={fileName}
-                className="w-full h-full border-0 bg-slate-900"
-                onLoad={() => setIsIframeLoading(false)}
-              />
-              <div className="absolute top-3 right-3 bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-1.5 text-[11px] text-slate-300 backdrop-blur-xs flex items-center gap-2">
-                <span>Native PDF View</span>
-                <a
-                  href={`https://docs.google.com/viewer?url=${encodeURIComponent(publicUrl)}&embedded=true`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline"
-                >
-                  Google Viewer
-                </a>
-              </div>
-            </div>
-          )}
-
-          {/* 3. CSV Spreadsheet Native Grid Viewer */}
-          {isCsv && (
-            <div className="w-full h-full flex flex-col bg-white text-slate-900 overflow-hidden">
-              {/* CSV Toolbar */}
-              <div className="p-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={csvSearch}
-                    onChange={(e) => setCsvSearch(e.target.value)}
-                    placeholder="Search inside spreadsheet..."
-                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 transition-all font-medium"
-                  />
-                </div>
-                <div className="text-xs text-slate-500 font-medium">
-                  {filteredCsvRows.length} rows {csvSearch ? `(matching "${csvSearch}")` : ""}
-                </div>
-              </div>
-
-              {/* Scrollable Spreadsheet Table */}
-              <div className="flex-1 overflow-auto">
-                {isTextLoading ? (
-                  <div className="flex items-center justify-center h-full gap-2 text-slate-500 text-xs">
-                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                    <span>Parsing spreadsheet rows...</span>
-                  </div>
-                ) : (
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead className="sticky top-0 bg-slate-200/90 backdrop-blur-xs text-slate-800 font-bold border-b border-slate-300">
-                      <tr>
-                        <th className="py-2.5 px-3 w-12 text-slate-400 text-center font-mono text-[10px]">#</th>
-                        {csvHeaders.map((h, i) => (
-                          <th key={i} className="py-2.5 px-3 border-r border-slate-300/60 truncate max-w-[200px]">
-                            {h || `Column ${i + 1}`}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredCsvRows.map((row, rIdx) => (
-                        <tr key={rIdx} className="hover:bg-blue-50/50 transition-colors">
-                          <td className="py-2 px-3 text-center text-slate-400 font-mono text-[10px] bg-slate-50 border-r border-slate-200">
-                            {rIdx + 1}
-                          </td>
-                          {row.map((val, cIdx) => (
-                            <td key={cIdx} className="py-2 px-3 border-r border-slate-100 truncate max-w-[250px]">
-                              {val}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 4. Microsoft Office & Google Docs Online Viewer (Word / Excel / PowerPoint) */}
-          {isOfficeDoc && (
-            <div className="w-full h-full flex flex-col relative bg-slate-900">
-              {isIframeLoading && (
-                <div className="absolute inset-0 z-10 bg-slate-950 flex flex-col items-center justify-center gap-3 text-slate-400">
-                  <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
-                  <span className="text-xs font-bold uppercase tracking-wider">
-                    Rendering document preview via {officeViewerEngine === "office" ? "Microsoft 365" : "Google Docs"}...
-                  </span>
-                </div>
-              )}
-              <iframe
-                key={`${file.id}-${officeViewerEngine}`}
-                src={officeViewerEngine === "office" ? officeUrl : googleViewerUrl}
-                title={fileName}
-                className="w-full h-full border-0 bg-white"
-                onLoad={() => setIsIframeLoading(false)}
-              />
-            </div>
-          )}
-
-          {/* 5. Code, Markdown, JSON & Text Viewer */}
-          {isTextOrCode && !isCsv && (
-            <div className="w-full h-full overflow-auto p-4 sm:p-6 bg-[#070b16] font-mono text-xs sm:text-[13px] text-slate-200 leading-relaxed select-text">
-              {isTextLoading ? (
-                <div className="flex items-center justify-center h-full gap-2 text-slate-400">
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                  <span>Loading text content...</span>
-                </div>
-              ) : (
-                <pre className="whitespace-pre-wrap break-words">{textContent || "No text content"}</pre>
-              )}
+          {/* 5. Code, Markdown & Text Viewer */}
+          {!isLoading && !loadError && isTextOrCode && !isCsv && (
+            <div className="flex-1 w-full h-full overflow-auto p-4 sm:p-6 bg-[#070b16] font-mono text-xs sm:text-[13px] text-slate-200 leading-relaxed select-text">
+              <pre className="whitespace-pre-wrap break-words">{textContent || "Document is empty."}</pre>
             </div>
           )}
 
           {/* 6. Video Viewer */}
-          {isVideo && (
-            <div className="w-full h-full flex items-center justify-center p-4">
+          {!isLoading && !loadError && isVideo && (
+            <div className="flex-1 w-full h-full flex items-center justify-center p-4">
               <video controls autoPlay className="max-w-full max-h-full rounded-2xl shadow-2xl" src={publicUrl}>
                 Your browser does not support HTML5 video preview.
               </video>
@@ -489,8 +632,8 @@ export function UniversalFileViewer({
           )}
 
           {/* 7. Audio Viewer */}
-          {isAudio && (
-            <div className="w-full h-full flex flex-col items-center justify-center p-6 gap-4">
+          {!isLoading && !loadError && isAudio && (
+            <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-6 gap-4">
               <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shadow-lg">
                 <FileCode className="w-10 h-10" />
               </div>
@@ -504,15 +647,15 @@ export function UniversalFileViewer({
             </div>
           )}
 
-          {/* 8. Generic / Unsupported Binary File */}
-          {!isImage && !isPdf && !isCsv && !isOfficeDoc && !isTextOrCode && !isVideo && !isAudio && (
-            <div className="flex flex-col items-center justify-center p-8 text-center max-w-md">
+          {/* 8. Generic / Unsupported Binary Format */}
+          {!isLoading && !loadError && !isImage && !isPdf && !isCsv && !isExcel && !isWord && !isTextOrCode && !isVideo && !isAudio && (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
               <div className="w-20 h-20 rounded-3xl bg-slate-800/80 border border-slate-700 text-slate-400 flex items-center justify-center mb-4 shadow-xl">
                 <FileArchive className="w-10 h-10" />
               </div>
               <h3 className="text-base font-bold text-white">{fileName}</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Direct in-browser preview is not supported for this binary file format ({ext.toUpperCase() || "unknown"}).
+              <p className="text-xs text-slate-400 mt-1.5">
+                Direct in-browser preview is not available for this binary format ({ext.toUpperCase() || "unknown"}).
               </p>
               <div className="mt-5 flex items-center gap-3">
                 <a
@@ -532,7 +675,7 @@ export function UniversalFileViewer({
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  <span>Open in Browser</span>
+                  <span>Open Raw Link</span>
                 </a>
               </div>
             </div>
@@ -540,7 +683,7 @@ export function UniversalFileViewer({
         </div>
 
         {/* Mobile / Compact Bottom Bar */}
-        <div className="px-4 py-2.5 bg-[#090f1d] border-t border-[#15203b] flex items-center justify-between text-xs text-slate-400 sm:hidden">
+        <div className="px-4 py-2.5 bg-[#090f1d] border-t border-[#15203b] flex items-center justify-between text-xs text-slate-400 sm:hidden shrink-0">
           <span className="truncate max-w-[180px]">{fileName}</span>
           <a
             href={publicUrl}
