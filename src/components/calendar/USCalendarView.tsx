@@ -49,22 +49,39 @@ export function getUSFederalHolidaysForYear(year: number): HolidayItem[] {
 
   function addFixed(month: number, day: number, name: string) {
     const d = new Date(year, month, day);
-    let observedDate = day;
+    const target = new Date(d);
     // Sat -> Friday observed, Sun -> Monday observed
-    if (d.getDay() === 6) observedDate = day - 1;
-    else if (d.getDay() === 0) observedDate = day + 1;
+    if (d.getDay() === 6) {
+      target.setDate(d.getDate() - 1);
+    } else if (d.getDay() === 0) {
+      target.setDate(d.getDate() + 1);
+    }
 
-    holidays.push({
-      date: observedDate,
-      month,
-      year,
-      name,
-      isObserved: observedDate !== day,
-    });
+    if (target.getFullYear() === year) {
+      holidays.push({
+        date: target.getDate(),
+        month: target.getMonth(),
+        year,
+        name: target.getDate() !== day ? `${name} (Observed)` : name,
+        isObserved: target.getDate() !== day,
+      });
+    }
   }
 
   // 1. New Year's Day (Jan 1)
   addFixed(0, 1, "New Year's Day");
+
+  // Check if New Year's Day of next year falls on a Saturday (observed Dec 31 of this year)
+  const nextJan1 = new Date(year + 1, 0, 1);
+  if (nextJan1.getDay() === 6) {
+    holidays.push({
+      date: 31,
+      month: 11,
+      year,
+      name: "New Year's Day (Observed)",
+      isObserved: true,
+    });
+  }
 
   // 2. Martin Luther King Jr. Day (3rd Mon in Jan)
   holidays.push({ date: getNthDayOfWeek(year, 0, 1, 3), month: 0, year, name: "Martin Luther King Jr. Day" });
@@ -147,8 +164,10 @@ export function USCalendarView() {
   monthHolidays.forEach((h) => holidayMap.set(h.date, h));
 
   // Compute Working Hours & Breakdown for P1 (1-15) and P2 (16-End)
-  let p1WorkdaysCount = 0;
-  let p2WorkdaysCount = 0;
+  let p1WorkingDaysCount = 0;
+  let p2WorkingDaysCount = 0;
+  let p1TotalWeekdays = 0;
+  let p2TotalWeekdays = 0;
   let p1HolidaysCount = 0;
   let p2HolidaysCount = 0;
 
@@ -159,17 +178,32 @@ export function USCalendarView() {
     const isHoliday = holidayMap.has(day);
 
     if (day <= 15) {
-      if (isWeekday) p1WorkdaysCount++;
-      if (isHoliday) p1HolidaysCount++;
+      if (isWeekday) {
+        p1TotalWeekdays++;
+        if (!isHoliday) {
+          p1WorkingDaysCount++;
+        }
+      }
+      if (isHoliday) {
+        p1HolidaysCount++;
+      }
     } else {
-      if (isWeekday) p2WorkdaysCount++;
-      if (isHoliday) p2HolidaysCount++;
+      if (isWeekday) {
+        p2TotalWeekdays++;
+        if (!isHoliday) {
+          p2WorkingDaysCount++;
+        }
+      }
+      if (isHoliday) {
+        p2HolidaysCount++;
+      }
     }
   }
 
-  const totalWorkdays = p1WorkdaysCount + p2WorkdaysCount;
-  const p1TotalHours = p1WorkdaysCount * hoursPerDay;
-  const p2TotalHours = p2WorkdaysCount * hoursPerDay;
+  const totalWorkingDays = p1WorkingDaysCount + p2WorkingDaysCount;
+  const totalWeekdays = p1TotalWeekdays + p2TotalWeekdays;
+  const p1TotalHours = p1WorkingDaysCount * hoursPerDay;
+  const p2TotalHours = p2WorkingDaysCount * hoursPerDay;
   const totalWorkingHours = p1TotalHours + p2TotalHours;
   const totalHolidaysInMonth = p1HolidaysCount + p2HolidaysCount;
 
@@ -249,7 +283,7 @@ export function USCalendarView() {
             <span className="text-sm font-bold text-slate-400">hrs</span>
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>{totalWorkdays} working days ({hoursPerDay}h/day)</span>
+            <span>{totalWorkingDays} working days ({hoursPerDay}h/day)</span>
             <span className="font-semibold text-blue-600">Full Month</span>
           </div>
         </div>
@@ -267,7 +301,7 @@ export function USCalendarView() {
             <span className="text-sm font-bold text-blue-500">hrs</span>
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>{p1WorkdaysCount} weekdays</span>
+            <span>{p1WorkingDaysCount} working days</span>
             {p1HolidaysCount > 0 ? (
               <span className="font-bold text-rose-600">{p1HolidaysCount} holiday</span>
             ) : (
@@ -289,7 +323,7 @@ export function USCalendarView() {
             <span className="text-sm font-bold text-indigo-500">hrs</span>
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>{p2WorkdaysCount} weekdays</span>
+            <span>{p2WorkingDaysCount} working days</span>
             {p2HolidaysCount > 0 ? (
               <span className="font-bold text-rose-600">{p2HolidaysCount} holiday</span>
             ) : (
@@ -454,8 +488,14 @@ export function USCalendarView() {
                 </div>
 
                 {/* Day Footer Sub-info */}
-                <div className="text-[9px] text-slate-400 font-medium pt-1">
-                  {isWeekend ? "0h" : `${hoursPerDay}h workday`}
+                <div className="text-[9px] font-medium pt-1">
+                  {holiday ? (
+                    <span className="text-rose-600 font-bold">0h (Holiday)</span>
+                  ) : isWeekend ? (
+                    <span className="text-slate-400">0h</span>
+                  ) : (
+                    <span className="text-slate-500 font-semibold">{hoursPerDay}h workday</span>
+                  )}
                 </div>
               </div>
             );
@@ -488,9 +528,16 @@ export function USCalendarView() {
             </div>
 
             <div className="flex items-center justify-between text-slate-600">
-              <span>Working Weekdays:</span>
+              <span>Actual Working Days:</span>
               <span className="font-bold text-slate-900">
-                {p1WorkdaysCount} days ({hoursPerDay}h/day)
+                {p1WorkingDaysCount} days ({p1TotalHours} hrs)
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-slate-600">
+              <span>Total Weekdays:</span>
+              <span className="font-medium text-slate-600">
+                {p1TotalWeekdays} weekdays
               </span>
             </div>
 
@@ -498,7 +545,7 @@ export function USCalendarView() {
               <span>US Federal Holidays:</span>
               <span className="font-bold text-slate-900">
                 {p1HolidaysCount > 0 ? (
-                  <span className="text-rose-600 font-bold">{p1HolidaysCount} holiday(s)</span>
+                  <span className="text-rose-600 font-bold">{p1HolidaysCount} holiday(s) (0 hrs)</span>
                 ) : (
                   "0 holidays"
                 )}
@@ -530,9 +577,16 @@ export function USCalendarView() {
             </div>
 
             <div className="flex items-center justify-between text-slate-600">
-              <span>Working Weekdays:</span>
+              <span>Actual Working Days:</span>
               <span className="font-bold text-slate-900">
-                {p2WorkdaysCount} days ({hoursPerDay}h/day)
+                {p2WorkingDaysCount} days ({p2TotalHours} hrs)
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-slate-600">
+              <span>Total Weekdays:</span>
+              <span className="font-medium text-slate-600">
+                {p2TotalWeekdays} weekdays
               </span>
             </div>
 
@@ -540,7 +594,7 @@ export function USCalendarView() {
               <span>US Federal Holidays:</span>
               <span className="font-bold text-slate-900">
                 {p2HolidaysCount > 0 ? (
-                  <span className="text-rose-600 font-bold">{p2HolidaysCount} holiday(s)</span>
+                  <span className="text-rose-600 font-bold">{p2HolidaysCount} holiday(s) (0 hrs)</span>
                 ) : (
                   "0 holidays"
                 )}
