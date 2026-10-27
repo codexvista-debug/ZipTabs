@@ -227,43 +227,113 @@ function getCellFont(cell: any): {
   };
 }
 
-// Helper: Format cell value cleanly (Currency, Dates, Percentages, Integers, Formulas)
+// Helper: Format cell value cleanly (Unpacks formulas, shared formulas, currency, dates, percentages, integers)
 function getCellFormattedValue(cell: any): {
   formattedText: string;
   rawValue: any;
   formula?: string;
 } {
-  if (!cell) return { formattedText: "", rawValue: "" };
+  if (!cell || cell.value === null || cell.value === undefined) {
+    return { formattedText: "", rawValue: "" };
+  }
 
   let val = cell.value;
   let formula: string | undefined = undefined;
 
-  // Handle ExcelJS Formula Object { formula: "...", result: ... }
-  if (typeof val === "object" && val !== null) {
-    if (val.formula) {
-      formula = val.formula.startsWith("=") ? val.formula : "=" + val.formula;
-      val = val.result !== undefined ? val.result : "";
-    } else if (val.richText && Array.isArray(val.richText)) {
-      return {
-        formattedText: val.richText.map((t: any) => t.text || "").join(""),
-        rawValue: val,
-      };
-    } else if (val instanceof Date) {
-      return {
-        formattedText: val.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }),
-        rawValue: val,
-      };
-    } else if (val.text !== undefined) {
-      val = val.text;
+  // Thoroughly unpack object structures (ExcelJS can wrap formulas, shared formulas, hyperlinks, richText, errors)
+  let loopCount = 0;
+  while (typeof val === "object" && val !== null && !(val instanceof Date) && loopCount < 5) {
+    loopCount++;
+
+    // 1. Shared formula or standard formula
+    if (val.formula || val.sharedFormula) {
+      const rawF = val.formula || val.sharedFormula;
+      if (typeof rawF === "string") {
+        formula = rawF.startsWith("=") ? rawF : "=" + rawF;
+      }
+      if (val.result !== undefined && val.result !== null) {
+        val = val.result;
+      } else {
+        val = formula || "";
+        break;
+      }
+      continue;
     }
+
+    // 2. Result property on any object
+    if ("result" in val && val.result !== undefined && val.result !== null) {
+      val = val.result;
+      continue;
+    }
+
+    // 3. Rich text array
+    if (val.richText && Array.isArray(val.richText)) {
+      val = val.richText.map((t: any) => t.text || "").join("");
+      break;
+    }
+
+    // 4. Text property (Hyperlink or text object)
+    if (val.text !== undefined && val.text !== null) {
+      val = val.text;
+      break;
+    }
+
+    // 5. Error cell (e.g. #N/A, #VALUE!, #REF!)
+    if (val.error) {
+      val = String(val.error);
+      break;
+    }
+
+    // 6. Hyperlink object without text
+    if (val.hyperlink) {
+      val = String(val.hyperlink);
+      break;
+    }
+
+    // 7. Generic object with 'v' or 'value'
+    if (val.v !== undefined) {
+      val = val.v;
+      continue;
+    }
+    if (val.value !== undefined) {
+      val = val.value;
+      continue;
+    }
+
+    // 8. If still an object, extract single primitive property or formula
+    try {
+      const keys = Object.keys(val);
+      if (keys.length === 1 && typeof val[keys[0]] !== "object") {
+        val = val[keys[0]];
+      } else {
+        val = formula || "";
+      }
+    } catch {
+      val = formula || "";
+    }
+    break;
+  }
+
+  // Handle Date instance
+  if (val instanceof Date) {
+    return {
+      formattedText: val.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+      rawValue: val,
+      formula,
+    };
+  }
+
+  // Guard against any leftover object
+  if (typeof val === "object" && val !== null) {
+    val = formula || "";
   }
 
   if (val === null || val === undefined || val === "") {
-    return { formattedText: "", rawValue: "", formula };
+    return { formattedText: formula || "", rawValue: formula || "", formula };
   }
 
   // Numbers & Currency
@@ -281,7 +351,6 @@ function getCellFormattedValue(cell: any): {
     }
 
     // 2. Intelligent currency / accounting format detection:
-    // If numFmt indicates currency or accounting ($)
     const isCurrencyFmt = cell.numFmt && String(cell.numFmt).includes("$");
     if (isCurrencyFmt) {
       if (val === 0) {
@@ -547,21 +616,22 @@ export function ExcelSheetViewer({ fileUrl, fileName, isCsv = false }: ExcelShee
                 fontColor = "#" + cell.s.font.color.rgb;
               }
 
-              const formattedText = cell?.w ? String(cell.w) : cell?.v !== undefined ? String(cell.v) : "";
-              const formula = cell?.f ? "=" + cell.f : undefined;
+              const valInfo = getCellFormattedValue({ value: cell?.v, numFmt: cell?.z });
+              const formattedText = cell?.w ? String(cell.w) : valInfo.formattedText;
+              const formula = cell?.f ? "=" + cell.f : valInfo.formula;
 
               cells.push({
                 address: cellAddress,
                 colIndex: C,
                 rowIndex: R,
                 rowNumber,
-                value: cell?.v,
+                value: valInfo.rawValue,
                 formattedText,
                 formula,
                 bgColor,
                 color: fontColor,
                 bold: cell?.s?.font?.bold,
-                horizontalAlign: typeof cell?.v === "number" ? "right" : "left",
+                horizontalAlign: typeof valInfo.rawValue === "number" ? "right" : "left",
               });
             }
 
