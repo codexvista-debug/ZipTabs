@@ -356,33 +356,16 @@ export function getDateUrgency(targetDateStr?: string | null, isCompleted?: bool
       status: "today",
       daysDiff: 0,
       label: "Due Today",
-      badgeClass: "bg-amber-100 text-amber-900 border-amber-400 font-bold animate-pulse",
+      badgeClass: "bg-amber-100 text-amber-900 border-amber-400 font-bold",
       cardBorder: "border-amber-400 bg-amber-50/50 shadow-md ring-2 ring-amber-300/40",
-      highlightNotice: "🔥 Action required today!",
-    };
-  } else if (diffDays <= 3) {
-    return {
-      status: "urgent",
-      daysDiff: diffDays,
-      label: `Due in ${diffDays} day${diffDays > 1 ? "s" : ""} (${formattedDate})`,
-      badgeClass: "bg-orange-100 text-orange-800 border-orange-300 font-bold",
-      cardBorder: "border-orange-300 bg-orange-50/25 shadow-xs",
-      highlightNotice: `⏰ Target date approaching in ${diffDays} day${diffDays > 1 ? "s" : ""}`,
-    };
-  } else if (diffDays <= 7) {
-    return {
-      status: "soon",
-      daysDiff: diffDays,
-      label: `Due in ${diffDays} days (${formattedDate})`,
-      badgeClass: "bg-blue-50 text-blue-700 border-blue-200 font-semibold",
-      cardBorder: "border-blue-200 bg-blue-50/20",
-      highlightNotice: null,
+      highlightNotice: "⚠️ Action required today!",
     };
   } else {
+    // Normal color for all other future dates (e.g. 1, 2, 3+ days) unless due today
     return {
       status: "upcoming",
       daysDiff: diffDays,
-      label: formattedDate,
+      label: diffDays === 1 ? `Due Tomorrow (${formattedDate})` : `Due in ${diffDays} days (${formattedDate})`,
       badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
       cardBorder: "border-slate-200/80 bg-white hover:border-slate-300",
       highlightNotice: null,
@@ -481,7 +464,8 @@ export function NotesView() {
             if (isImage && (file.name === "image.png" || !file.name || file.name.startsWith("blob"))) {
               const ext = file.type.split("/")[1] || "png";
               const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-              finalFile = new File([file], `screenshot_${dateStr}.${ext}`, { type: file.type });
+              const randSuffix = Math.random().toString(36).substring(2, 6);
+              finalFile = new File([file], `screenshot_${dateStr}_${i + 1}_${randSuffix}.${ext}`, { type: file.type });
             }
             pastedFiles.push(finalFile);
           }
@@ -843,16 +827,13 @@ export function NotesView() {
   };
 
   // Remove pending file before upload
+  // Remove pending file before upload
   const handleRemoveNewFile = (index: number) => {
-    setNewFilesToUpload((prev) => [...prev, ...indexMatches(index)]);
-  };
-
-  const indexMatches = (index: number) => {
-    return newFilesToUpload.filter((_, i) => i !== index);
+    setNewFilesToUpload((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Background Upload Process for note attachments
-  const queueBackgroundUploads = (noteId: string, noteTitle: string, files: File[]) => {
+  const queueBackgroundUploads = async (noteId: string, noteTitle: string, files: File[]) => {
     const jobs: BackgroundUploadJob[] = files.map((file) => ({
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
       noteId,
@@ -865,31 +846,22 @@ export function NotesView() {
 
     setBackgroundUploads((prev) => [...prev, ...jobs]);
 
-    // Process each file concurrently in background
-    jobs.forEach(async (job, idx) => {
+    const uploadedAttachments: NoteAttachment[] = [];
+
+    // Process each file safely and collect all attachments
+    for (let idx = 0; idx < files.length; idx++) {
       const file = files[idx];
+      const job = jobs[idx];
       try {
         if (!supabase) throw new Error("Supabase client not initialized");
 
         const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-        const storagePath = `${noteId}/${Date.now()}_${cleanName}`;
-
-        // Simulated progress ticker while uploading
-        const progTimer = setInterval(() => {
-          setBackgroundUploads((prev) =>
-            prev.map((j) =>
-              j.id === job.id && j.status === "uploading"
-                ? { ...j, progress: Math.min(j.progress + 15, 85) }
-                : j
-            )
-          );
-        }, 300);
+        const uniqueSuffix = `${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
+        const storagePath = `${noteId}/${uniqueSuffix}_${cleanName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("note-attachments")
           .upload(storagePath, file, { cacheControl: "3600", upsert: true });
-
-        clearInterval(progTimer);
 
         if (uploadError) {
           throw uploadError;
@@ -908,11 +880,15 @@ export function NotesView() {
           path: storagePath,
         };
 
-        // 1. Immediately update note state and localStorage
+        uploadedAttachments.push(newAttachment);
+
+        // Immediately update note state and localStorage with this new attachment
         setNotes((prevNotes) => {
           const next = prevNotes.map((n) => {
             if (n.id === noteId) {
               const existingAtts = n.attachments || [];
+              const exists = existingAtts.some((a) => a.path === newAttachment.path || a.id === newAttachment.id);
+              if (exists) return n;
               return { ...n, attachments: [...existingAtts, newAttachment] };
             }
             return n;
@@ -923,35 +899,10 @@ export function NotesView() {
           return next;
         });
 
-        // 2. Persist to Supabase database
-        try {
-          const { data: dbNote } = await supabase
-            .from("app_notes")
-            .select("attachments")
-            .eq("id", noteId)
-            .single();
-
-          const currentAtts: NoteAttachment[] = dbNote?.attachments || [];
-          await supabase
-            .from("app_notes")
-            .update({
-              attachments: [...currentAtts, newAttachment],
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", noteId);
-        } catch (dbErr) {
-          console.error("Failed to update note attachments in db:", dbErr);
-        }
-
-        // 3. Mark background upload as completed
+        // Mark this upload job as completed
         setBackgroundUploads((prev) =>
           prev.map((j) => (j.id === job.id ? { ...j, progress: 100, status: "completed" } : j))
         );
-
-        // Auto remove completed job after 4 seconds
-        setTimeout(() => {
-          setBackgroundUploads((prev) => prev.filter((j) => j.id !== job.id));
-        }, 4000);
       } catch (err: any) {
         console.error("Background upload failed for:", file.name, err);
         setBackgroundUploads((prev) =>
@@ -960,7 +911,41 @@ export function NotesView() {
           )
         );
       }
-    });
+    }
+
+    // Persist ALL uploaded attachments to Supabase in a single authoritative update to prevent race conditions
+    if (uploadedAttachments.length > 0 && supabase) {
+      try {
+        const { data: dbNote } = await supabase
+          .from("app_notes")
+          .select("attachments")
+          .eq("id", noteId)
+          .single();
+
+        const currentAtts: NoteAttachment[] = dbNote?.attachments || [];
+        const existingPaths = new Set(currentAtts.map((a) => a.path));
+        const combined = [
+          ...currentAtts,
+          ...uploadedAttachments.filter((a) => !existingPaths.has(a.path)),
+        ];
+
+        await supabase
+          .from("app_notes")
+          .update({
+            attachments: combined,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", noteId);
+      } catch (dbErr) {
+        console.error("Failed to update note attachments in db:", dbErr);
+      }
+    }
+
+    // Auto remove completed jobs after 4 seconds
+    setTimeout(() => {
+      const jobIds = new Set(jobs.map((j) => j.id));
+      setBackgroundUploads((prev) => prev.filter((j) => !jobIds.has(j.id)));
+    }, 4000);
   };
 
   // Save note smoothly without delay; background upload handles attachments if present
@@ -2267,32 +2252,16 @@ export function NotesView() {
                             {imgs.map((img) => (
                               <div
                                 key={img.id}
-                                className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video shadow-2xs flex flex-col justify-end"
+                                onClick={() => setPreviewAttachment(img)}
+                                className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video shadow-2xs flex flex-col justify-end cursor-pointer hover:border-blue-500 hover:shadow-md transition-all"
+                                title={`Click to view: ${img.name}`}
                               >
                                 <img
                                   src={img.url}
                                   alt={img.name}
                                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 />
-                                {/* Quick actions overlay */}
-                                <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-10 backdrop-blur-2xs">
-                                  <button
-                                    type="button"
-                                    onClick={() => setPreviewAttachment(img)}
-                                    className="p-2 rounded-lg bg-white/90 hover:bg-white text-slate-900 font-bold transition-all shadow-md cursor-pointer"
-                                    title="View Full Attachment"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => downloadFileDirectly(img.url, img.name)}
-                                    className="p-2 rounded-lg bg-white/90 hover:bg-white text-slate-900 font-bold transition-all shadow-md cursor-pointer"
-                                    title="Direct Download"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                </div>
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                                 <div className="relative z-10 bg-slate-900/80 text-white text-[11px] p-1.5 px-2.5 truncate backdrop-blur-xs font-medium">
                                   {img.name}
                                 </div>
@@ -2307,43 +2276,20 @@ export function NotesView() {
                             {docs.map((doc) => (
                               <div
                                 key={doc.id}
-                                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/90 border border-slate-200 transition-colors shadow-2xs group"
+                                onClick={() => setPreviewAttachment(doc)}
+                                className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 transition-all shadow-2xs group cursor-pointer"
+                                title={`Click to view: ${doc.name}`}
                               >
-                                <div
-                                  onClick={() => setPreviewAttachment(doc)}
-                                  className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
-                                  title={`Click to view: ${doc.name}`}
-                                >
-                                  <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
-                                    <FileText className="w-4 h-4" />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
-                                      {doc.name}
-                                    </p>
-                                    <p className="text-[10px] text-slate-400 font-medium">
-                                      {formatFileSize(doc.size)}
-                                    </p>
-                                  </div>
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 group-hover:bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0 transition-colors">
+                                  <FileText className="w-4 h-4" />
                                 </div>
-
-                                <div className="flex items-center gap-1 shrink-0 ml-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setPreviewAttachment(doc)}
-                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-200"
-                                    title="View Full Space"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => downloadFileDirectly(doc.url, doc.name)}
-                                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-200"
-                                    title="Direct Download"
-                                  >
-                                    <Download className="w-3.5 h-3.5" />
-                                  </button>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
+                                    {doc.name}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400 font-medium">
+                                    {formatFileSize(doc.size)}
+                                  </p>
                                 </div>
                               </div>
                             ))}
