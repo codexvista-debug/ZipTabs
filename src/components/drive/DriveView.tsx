@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import {
   FolderOpen,
@@ -118,6 +119,16 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   const [toast, setToast] = useState<{ title: string; description?: string; type: "success" | "error" | "info" } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const renderPortal = (children: React.ReactNode) => {
+    if (!isMounted || typeof document === "undefined") return null;
+    return createPortal(children, document.body);
+  };
 
   const showToast = (title: string, description?: string, type: "success" | "error" | "info" = "success") => {
     setToast({ title, description, type });
@@ -544,46 +555,48 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       }}
     >
       {/* Toast Notification */}
-      {toast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
-          <div
-            className={`p-3.5 px-5 rounded-2xl shadow-2xl flex items-center justify-between gap-3 border ${
-              toast.type === "error"
-                ? "bg-rose-950 text-white border-rose-800"
-                : "bg-[#0c1427] text-white border-[#1b2b4d]"
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              {toast.type === "error" ? (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+      {toast &&
+        renderPortal(
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
+            <div
+              className={`p-3.5 px-5 rounded-2xl shadow-2xl flex items-center justify-between gap-3 border ${
+                toast.type === "error"
+                  ? "bg-rose-950 text-white border-rose-800"
+                  : "bg-[#0c1427] text-white border-[#1b2b4d]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                {toast.type === "error" ? (
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                )}
+                <div className="text-xs font-bold">{toast.title}</div>
+              </div>
+              {toast.description && (
+                <span className="text-[11px] text-slate-300 font-normal truncate max-w-xs">{toast.description}</span>
               )}
-              <div className="text-xs font-bold">{toast.title}</div>
             </div>
-            {toast.description && (
-              <span className="text-[11px] text-slate-300 font-normal truncate max-w-xs">{toast.description}</span>
-            )}
           </div>
-        </div>
-      )}
+        )}
 
       {/* Drag & Drop Fullscreen Overlay Indicator */}
-      {isDraggingOver && (
-        <div className="fixed inset-0 z-50 bg-blue-600/15 backdrop-blur-xs border-4 border-dashed border-blue-500 rounded-3xl flex items-center justify-center p-6 pointer-events-none animate-in fade-in duration-150">
-          <div className="p-6 rounded-3xl bg-white shadow-2xl border border-blue-200 text-center flex flex-col items-center gap-3">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-              <Upload className="w-8 h-8 animate-bounce" />
-            </div>
-            <div className="text-base font-black text-slate-900">
-              Drop files to upload into {currentFolder ? `"${currentFolder.name}"` : "Drive Root"}
-            </div>
-            <div className="text-xs text-slate-500">
-              Files will be securely stored in your Supabase storage
+      {isDraggingOver &&
+        renderPortal(
+          <div className="fixed inset-0 z-50 bg-blue-600/15 backdrop-blur-xs border-4 border-dashed border-blue-500 rounded-3xl flex items-center justify-center p-6 pointer-events-none animate-in fade-in duration-150">
+            <div className="p-6 rounded-3xl bg-white shadow-2xl border border-blue-200 text-center flex flex-col items-center gap-3">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
+                <Upload className="w-8 h-8 animate-bounce" />
+              </div>
+              <div className="text-base font-black text-slate-900">
+                Drop files to upload into {currentFolder ? `"${currentFolder.name}"` : "Drive Root"}
+              </div>
+              <div className="text-xs text-slate-500">
+                Files will be securely stored in your Supabase storage
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
@@ -1216,8 +1229,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       </div>
 
       {/* New Folder Modal */}
-      {isFolderModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {isFolderModalOpen &&
+        renderPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             onClick={() => setIsFolderModalOpen(false)}
             className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
@@ -1297,8 +1311,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       )}
 
       {/* Delete Folder Confirmation Modal */}
-      {confirmDeleteFolder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {confirmDeleteFolder &&
+        renderPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             onClick={() => setConfirmDeleteFolder(null)}
             className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
@@ -1338,8 +1353,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       )}
 
       {/* Delete File Confirmation Modal */}
-      {confirmDeleteFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {confirmDeleteFile &&
+        renderPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             onClick={() => setConfirmDeleteFile(null)}
             className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
@@ -1380,13 +1396,16 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       )}
 
       {/* Universal Document & File Viewer Modal (Word, Excel, CSV, PDF, Image, Code) */}
-      <UniversalFileViewer
-        file={previewFile}
-        isOpen={Boolean(previewFile)}
-        onClose={() => setPreviewFile(null)}
-        onToggleRetention={handleToggleRetention}
-        onDeleteFile={executeDeleteFile}
-      />
+      {previewFile &&
+        renderPortal(
+          <UniversalFileViewer
+            file={previewFile}
+            isOpen={Boolean(previewFile)}
+            onClose={() => setPreviewFile(null)}
+            onToggleRetention={handleToggleRetention}
+            onDeleteFile={executeDeleteFile}
+          />
+        )}
     </div>
   );
 }

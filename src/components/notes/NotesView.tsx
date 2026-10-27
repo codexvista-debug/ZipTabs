@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import {
   NotebookPen,
@@ -451,6 +452,16 @@ export function NotesView() {
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const renderPortal = (children: React.ReactNode) => {
+    if (!isMounted || typeof document === "undefined") return null;
+    return createPortal(children, document.body);
+  };
 
   const showToast = (title: string, description?: string, type: "success" | "error" | "info" = "success") => {
     setToastNotification({ title, description, type });
@@ -1222,41 +1233,42 @@ export function NotesView() {
   return (
     <div className="space-y-6 relative pb-16">
       {/* Toast Notification */}
-      {toastNotification && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
-          <div
-            className={`p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 border ${
-              toastNotification.type === "error"
-                ? "bg-rose-950/95 border-rose-800 text-white"
-                : "bg-[#0c1427]/95 border-[#1b2b4d] text-white backdrop-blur-md"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              {toastNotification.type === "error" ? (
-                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-4 h-4" />
-                </div>
-              ) : (
-                <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-white truncate">{toastNotification.title}</div>
-                {toastNotification.description && (
-                  <div className="text-[11px] text-slate-300 mt-0.5 truncate">{toastNotification.description}</div>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => setToastNotification(null)}
-              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+      {toastNotification &&
+        renderPortal(
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
+            <div
+              className={`p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 border ${
+                toastNotification.type === "error"
+                  ? "bg-rose-950/95 border-rose-800 text-white"
+                  : "bg-[#0c1427]/95 border-[#1b2b4d] text-white backdrop-blur-md"
+              }`}
             >
-              <X className="w-4 h-4" />
-            </button>
+              <div className="flex items-center gap-3">
+                {toastNotification.type === "error" ? (
+                  <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-white truncate">{toastNotification.title}</div>
+                  {toastNotification.description && (
+                    <div className="text-[11px] text-slate-300 mt-0.5 truncate">{toastNotification.description}</div>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setToastNotification(null)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Top Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
@@ -1683,8 +1695,9 @@ export function NotesView() {
       {/* ==================================================== */}
       {/* CREATE / EDIT NOTE MODAL                             */}
       {/* ==================================================== */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {isModalOpen &&
+        renderPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             onClick={() => !isSaving && setIsModalOpen(false)}
             className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
@@ -2122,8 +2135,9 @@ export function NotesView() {
       )}
 
       {/* Read-Only View Note Modal */}
-      {viewingNote && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 transition-all duration-200">
+      {viewingNote &&
+        renderPortal(
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 transition-all duration-200">
           <div
             onClick={() => setViewingNote(null)}
             className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity"
@@ -2375,8 +2389,9 @@ export function NotesView() {
       )}
 
       {/* Delete Confirmation Modal */}
-      {confirmDeleteNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {confirmDeleteNote &&
+        renderPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             onClick={() => setConfirmDeleteNote(null)}
             className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
@@ -2417,15 +2432,19 @@ export function NotesView() {
       )}
 
       {/* Full-Space Attachment Viewer (Image, Excel, Word, PDF, CSV, etc.) */}
-      <FullAttachmentViewer
-        file={previewAttachment}
-        isOpen={Boolean(previewAttachment)}
-        onClose={() => setPreviewAttachment(null)}
-      />
+      {previewAttachment &&
+        renderPortal(
+          <FullAttachmentViewer
+            file={previewAttachment}
+            isOpen={Boolean(previewAttachment)}
+            onClose={() => setPreviewAttachment(null)}
+          />
+        )}
 
       {/* Floating Bottom-Right Background Upload Progress Bar */}
-      {backgroundUploads.length > 0 && (
-        <div className="fixed bottom-5 right-5 z-40 max-w-sm w-[92%] sm:w-96 animate-in slide-in-from-bottom-5 duration-300">
+      {backgroundUploads.length > 0 &&
+        renderPortal(
+          <div className="fixed bottom-5 right-5 z-40 max-w-sm w-[92%] sm:w-96 animate-in slide-in-from-bottom-5 duration-300">
           <div className="bg-[#0c1427]/95 border border-[#1b2b4d] rounded-2xl shadow-2xl p-4 text-white backdrop-blur-md">
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import {
   HardDrive,
@@ -78,6 +79,16 @@ export function UsageView() {
   // Free Tier Constants
   const STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024; // 1 GB in bytes
   const DATABASE_LIMIT_BYTES = 500 * 1024 * 1024; // 500 MB in bytes
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const renderPortal = (children: React.ReactNode) => {
+    if (!isMounted || typeof document === "undefined") return null;
+    return createPortal(children, document.body);
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -185,14 +196,15 @@ export function UsageView() {
   return (
     <div className="space-y-6 relative pb-16">
       {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className="p-3.5 px-5 rounded-2xl bg-[#0c1427] text-white text-xs font-semibold shadow-2xl flex items-center gap-2.5 border border-[#1b2b4d]">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{toastMessage}</span>
+      {toastMessage &&
+        renderPortal(
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+            <div className="p-3.5 px-5 rounded-2xl bg-[#0c1427] text-white text-xs font-semibold shadow-2xl flex items-center gap-2.5 border border-[#1b2b4d]">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{toastMessage}</span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Top Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
@@ -616,53 +628,57 @@ export function UsageView() {
       </div>
 
       {/* Delete Confirmation Modal */}
-      {confirmDeleteFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            onClick={() => setConfirmDeleteFile(null)}
-            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
-          />
+      {confirmDeleteFile &&
+        renderPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              onClick={() => setConfirmDeleteFile(null)}
+              className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
+            />
 
-          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mb-4 shadow-xs">
-              <Trash2 className="w-6 h-6" />
-            </div>
+            <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mb-4 shadow-xs">
+                <Trash2 className="w-6 h-6" />
+              </div>
 
-            <h3 className="text-base font-bold text-slate-900 tracking-tight">
-              Delete stored file?
-            </h3>
+              <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                Delete stored file?
+              </h3>
 
-            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-              Delete <strong className="text-slate-800">"{confirmDeleteFile.name.split("/").pop()}"</strong> to immediately reclaim{" "}
-              <strong className="text-emerald-600">{formatBytes(confirmDeleteFile.size)}</strong> of storage?
-            </p>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                Delete <strong className="text-slate-800">"{confirmDeleteFile.name.split("/").pop()}"</strong> to immediately reclaim{" "}
+                <strong className="text-emerald-600">{formatBytes(confirmDeleteFile.size)}</strong> of storage?
+              </p>
 
-            <div className="mt-6 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteFile(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => executeDeleteFile(confirmDeleteFile)}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition-all cursor-pointer"
-              >
-                Delete File
-              </button>
+              <div className="mt-6 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteFile(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeDeleteFile(confirmDeleteFile)}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition-all cursor-pointer"
+                >
+                  Delete File
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Full Workspace Attachment Viewer */}
-      <FullAttachmentViewer
-        file={previewFile}
-        isOpen={Boolean(previewFile)}
-        onClose={() => setPreviewFile(null)}
-      />
+      {previewFile &&
+        renderPortal(
+          <FullAttachmentViewer
+            file={previewFile}
+            isOpen={Boolean(previewFile)}
+            onClose={() => setPreviewFile(null)}
+          />
+        )}
     </div>
   );
 }

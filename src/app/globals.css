@@ -52,15 +52,12 @@ body {
   }
   100% {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: none;
   }
 }
 
 .animate-page-enter {
-  animation: pageEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
-  will-change: opacity, transform;
-  transform-origin: left center;
-  backface-visibility: hidden;
+  animation: pageEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
