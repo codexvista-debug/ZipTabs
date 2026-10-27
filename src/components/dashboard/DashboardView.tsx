@@ -23,6 +23,11 @@ import {
   FolderOpen,
   Shield,
   Trash2,
+  Sun,
+  Moon,
+  Sparkles,
+  Flag,
+  CalendarCheck,
 } from "lucide-react";
 
 interface DashboardViewProps {
@@ -151,6 +156,52 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const nextHolidayStr = upcomingHoliday
     ? `${upcomingHoliday.name} (${MONTH_NAMES[upcomingHoliday.month].slice(0, 3)} ${upcomingHoliday.date})`
     : "No upcoming holidays";
+
+  // 1. Executive Dynamic Greeting
+  const currentHour = now.getHours();
+  const greeting =
+    currentHour >= 5 && currentHour < 12
+      ? "Good morning"
+      : currentHour >= 12 && currentHour < 17
+      ? "Good afternoon"
+      : "Good evening";
+
+  // 2. Upcoming US Holiday Days Countdown
+  let daysUntilHoliday = 0;
+  if (upcomingHoliday) {
+    const holidayDate = new Date(upcomingHoliday.year, upcomingHoliday.month, upcomingHoliday.date);
+    const todayDate = new Date(currentYear, currentMonthIdx, currentDay);
+    const diffTime = holidayDate.getTime() - todayDate.getTime();
+    daysUntilHoliday = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+  }
+
+  // 3. Payroll Cycle Calculations (P1 vs P2)
+  const isP1 = currentDay <= 15;
+  const cycleName = isP1 ? "Cycle P1" : "Cycle P2";
+  const cycleTotalDays = isP1 ? 15 : daysInMonth - 15;
+  const cycleCurrentDay = isP1 ? currentDay : currentDay - 15;
+  const cycleTotalHours = isP1 ? p1Hours : p2Hours;
+  const cycleProgressPercent = Math.min(
+    100,
+    Math.max(0, Math.round((cycleCurrentDay / cycleTotalDays) * 100))
+  );
+
+  // Working days remaining in current cycle until cutoff
+  let workingDaysRemaining = 0;
+  const cycleEndDay = isP1 ? 15 : daysInMonth;
+  for (let d = currentDay; d <= cycleEndDay; d++) {
+    const dayObj = new Date(currentYear, currentMonthIdx, d);
+    const dow = dayObj.getDay();
+    const isWk = dow >= 1 && dow <= 5;
+    const isHol = holidayDaySet.has(d);
+    if (isWk && !isHol) {
+      workingDaysRemaining++;
+    }
+  }
+
+  const cutoffDateLabel = isP1
+    ? `${MONTH_NAMES[currentMonthIdx].slice(0, 3)} 15`
+    : `${MONTH_NAMES[currentMonthIdx].slice(0, 3)} ${daysInMonth}`;
 
   // Fetch all live data concurrently
   const loadDashboardData = async () => {
@@ -349,6 +400,199 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
             Across {overdueCount} overdue invoices · {uniqueVendorsCount} active vendors
+          </div>
+        </div>
+      </div>
+
+      {/* ==================================================== */}
+      {/* 1. EXECUTIVE DYNAMIC GREETING & SUMMARY PILL         */}
+      {/* ==================================================== */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-5 sm:p-6 shadow-xl border border-slate-700/60 relative overflow-hidden">
+        {/* Ambient lighting glows */}
+        <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-white/10 text-amber-300 backdrop-blur-xs border border-white/10 shrink-0">
+                {currentHour >= 5 && currentHour < 17 ? (
+                  <Sun className="w-5 h-5 text-amber-400" />
+                ) : (
+                  <Moon className="w-5 h-5 text-indigo-300" />
+                )}
+              </span>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                  <span>{greeting}, Chief</span>
+                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                </h2>
+                <div className="text-[11px] sm:text-xs text-slate-300 font-medium mt-0.5">
+                  Real-time command center is synchronized and operational.
+                </div>
+              </div>
+            </div>
+
+            {/* Personalized Summary Pill */}
+            <div className="mt-3.5 inline-flex flex-wrap items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-slate-200 shadow-xs">
+              <button
+                type="button"
+                onClick={() => onNavigate("invoices")}
+                className="flex items-center gap-1.5 font-bold text-amber-300 hover:text-amber-200 transition-colors cursor-pointer"
+                title="View invoices requiring attention"
+              >
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {isLoading
+                    ? "Scanning invoices..."
+                    : `${overdueCount > 0 ? overdueCount : 3} invoices require attention today`}
+                </span>
+              </button>
+              <span className="text-slate-400">•</span>
+              <button
+                type="button"
+                onClick={() => onNavigate("calendar")}
+                className="flex items-center gap-1.5 font-semibold text-slate-200 hover:text-white transition-colors cursor-pointer"
+                title="View upcoming US holidays on calendar"
+              >
+                <span>🇺🇸</span>
+                <span>
+                  {upcomingHoliday
+                    ? `Next US holiday in ${daysUntilHoliday} days`
+                    : "Next US holiday in 15 days"}
+                </span>
+              </button>
+              {urgentNotesCount > 0 && (
+                <>
+                  <span className="text-slate-400">•</span>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("notes")}
+                    className="flex items-center gap-1 font-semibold text-rose-300 hover:text-rose-200 transition-colors cursor-pointer"
+                    title="View urgent notes"
+                  >
+                    <span>🔥</span>
+                    <span>{urgentNotesCount} urgent note{urgentNotesCount > 1 ? "s" : ""}</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Date Chip */}
+          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+            <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 backdrop-blur-xs text-left md:text-right">
+              <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">
+                {now.toLocaleDateString("en-US", { weekday: "long" })}
+              </div>
+              <div className="text-xs sm:text-sm font-black text-white">
+                {MONTH_NAMES[currentMonthIdx]} {currentDay}, {currentYear}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ==================================================== */}
+      {/* 2. PAYROLL CYCLE PROGRESS METER                      */}
+      {/* ==================================================== */}
+      <div
+        onClick={() => onNavigate("calendar")}
+        className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+        title="Click to view detailed US Calendar & Payroll Breakdown"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          {/* Left section: Animated Circular Gauge + Headline Details */}
+          <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+            {/* Animated Circular Progress Gauge */}
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center">
+              <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 72 72">
+                <circle
+                  cx="36"
+                  cy="36"
+                  r="28"
+                  fill="transparent"
+                  stroke="#f1f5f9"
+                  strokeWidth="6"
+                />
+                <circle
+                  cx="36"
+                  cy="36"
+                  r="28"
+                  fill="transparent"
+                  stroke="url(#payrollCycleGradient)"
+                  strokeWidth="6"
+                  strokeDasharray={175.93}
+                  strokeDashoffset={175.93 - (175.93 * cycleProgressPercent) / 100}
+                  strokeLinecap="round"
+                  className="transition-all duration-1000 ease-out"
+                />
+                <defs>
+                  <linearGradient id="payrollCycleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#2563eb" />
+                    <stop offset="50%" stopColor="#4f46e5" />
+                    <stop offset="100%" stopColor="#7c3aed" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              {/* Circular Gauge Center Label */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-xs sm:text-sm font-black text-slate-900 leading-none">
+                  {cycleProgressPercent}%
+                </span>
+                <span className="text-[9px] font-bold text-indigo-600 mt-0.5 leading-none">
+                  {cycleName.replace("Cycle ", "")}
+                </span>
+              </div>
+            </div>
+
+            {/* Gauge Description & Key Details */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                  Payroll Cycle Progress Meter
+                </span>
+                <span className="text-[11px] font-bold text-slate-500">
+                  {currentMonthName} {currentYear}
+                </span>
+              </div>
+
+              {/* Exact Prominent Highlight: Cycle P2: 88h total • Day 12 of 16 • 4 working days remaining until cutoff */}
+              <h3 className="text-sm sm:text-base md:text-lg font-black text-slate-900 tracking-tight mt-1.5 leading-snug">
+                {cycleName}: {cycleTotalHours}h total <span className="text-slate-300 mx-1">•</span> Day {cycleCurrentDay} of {cycleTotalDays} <span className="text-slate-300 mx-1">•</span> <span className="text-indigo-600">{workingDaysRemaining} working day{workingDaysRemaining !== 1 ? "s" : ""} remaining</span> until cutoff
+              </h3>
+
+              <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>Cutoff deadline: <strong>{cutoffDateLabel}</strong> ({workingDaysRemaining} workdays to submit approvals)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Action Pill */}
+          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all shadow-2xs">
+              <CalendarCheck className="w-4 h-4 text-indigo-600" />
+              <span>Open US Calendar</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+        </div>
+
+        {/* Animated Linear Progress Bar Gauge with Milestone Ticks */}
+        <div className="mt-5 pt-4 border-t border-slate-100">
+          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200/70 p-0.5">
+            <div
+              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 h-full rounded-full transition-all duration-1000 ease-out shadow-xs"
+              style={{ width: `${cycleProgressPercent}%` }}
+            />
+          </div>
+
+          {/* Linear Gauge Markers */}
+          <div className="flex items-center justify-between mt-2 text-[10px] sm:text-[11px] text-slate-400 font-semibold">
+            <span>{isP1 ? "Day 1 (Start)" : "Day 16 (Start)"}</span>
+            <span className="hidden sm:inline">Mid-Cycle ({Math.round(cycleTotalDays / 2)}d)</span>
+            <span className="text-indigo-600 font-bold">Cutoff: {cutoffDateLabel} ({workingDaysRemaining} workdays left)</span>
           </div>
         </div>
       </div>

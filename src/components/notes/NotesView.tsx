@@ -1293,76 +1293,78 @@ export function NotesView() {
         </button>
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary KPI Cards (2x2 on mobile, 4 columns on desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         <div
           onClick={() => {
             setStatusTab("active");
             setActiveCategory("all");
             setUrgencyFilter("all");
           }}
-          className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs cursor-pointer hover:border-blue-300 transition-colors"
+          className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs cursor-pointer hover:border-blue-300 transition-colors flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Active Notes</span>
-            <NotebookPen className="w-4 h-4 text-slate-400" />
+          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className="truncate">Active Notes</span>
+            <NotebookPen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
             {activeNotesCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
             {completedNotesCount} completed • {totalNotesCount} total
           </div>
         </div>
 
         <div
           onClick={() => setUrgencyFilter(urgencyFilter === "attention" ? "all" : "attention")}
-          className={`cursor-pointer rounded-xl p-5 border transition-all shadow-xs ${
+          className={`cursor-pointer rounded-xl p-3.5 sm:p-5 border transition-all shadow-xs flex flex-col justify-between ${
             urgentCount > 0
               ? "bg-amber-50/50 border-amber-300 hover:border-amber-400"
               : "bg-white border-slate-200/80"
           }`}
         >
-          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider">
-            <span className={urgentCount > 0 ? "text-amber-800 font-bold" : "text-slate-400"}>Due Soon / Urgent</span>
-            <AlertTriangle className={`w-4 h-4 ${urgentCount > 0 ? "text-amber-600" : "text-slate-400"}`} />
+          <div className="flex items-center justify-between text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className={`truncate ${urgentCount > 0 ? "text-amber-800 font-bold" : "text-slate-400"}`}>
+              Due Soon / Urgent
+            </span>
+            <AlertTriangle className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${urgentCount > 0 ? "text-amber-600" : "text-slate-400"}`} />
           </div>
-          <div className={`text-2xl font-black tracking-tight mt-2 ${urgentCount > 0 ? "text-amber-700" : "text-slate-900"}`}>
+          <div className={`text-xl sm:text-2xl font-black tracking-tight mt-1 sm:mt-2 ${urgentCount > 0 ? "text-amber-700" : "text-slate-900"}`}>
             {urgentCount}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            {urgentCount > 0 ? "🔥 Click to view action items" : "All dates are on schedule"}
+          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 sm:mt-1 truncate">
+            {urgentCount > 0 ? "🔥 Action items" : "All dates on schedule"}
           </div>
         </div>
 
         <div
           onClick={() => setActiveCategory(activeCategory === "Invoices" ? "all" : "Invoices")}
-          className="cursor-pointer bg-white hover:border-blue-300 rounded-xl p-5 border border-slate-200/80 shadow-xs transition-colors"
+          className="cursor-pointer bg-white hover:border-blue-300 rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs transition-colors flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Invoices</span>
-            <FileSpreadsheet className="w-4 h-4 text-blue-500" />
+          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className="truncate">Invoices</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
             {invoiceNotesCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
             Vendor & collection logs
           </div>
         </div>
 
         <div
           onClick={() => setActiveCategory(activeCategory === "Payroll" ? "all" : "Payroll")}
-          className="cursor-pointer bg-white hover:border-indigo-300 rounded-xl p-5 border border-slate-200/80 shadow-xs transition-colors"
+          className="cursor-pointer bg-white hover:border-indigo-300 rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs transition-colors flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Payroll</span>
-            <Wallet className="w-4 h-4 text-indigo-500" />
+          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className="truncate">Payroll</span>
+            <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
             {payrollNotesCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
             Salary & contractor items
           </div>
         </div>

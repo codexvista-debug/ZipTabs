@@ -608,56 +608,56 @@ export function InvoicesView() {
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Total Overdue</span>
-            <DollarSign className="w-4 h-4 text-slate-400" />
+      {/* Summary KPI Cards (2x2 on mobile, 4 columns on desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className="truncate">Total Overdue</span>
+            <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
+          <div className="text-base sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2 truncate">
             ${totalOverdueAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
             Across {invoices.length} total entries
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Past Due Invoices</span>
-            <Clock className="w-4 h-4 text-slate-400" />
+        <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className="truncate">Past Due Invoices</span>
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
             {totalOverdueCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
             Overdue items requiring action
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Unique Vendors</span>
-            <Users className="w-4 h-4 text-slate-400" />
+        <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className="truncate">Unique Vendors</span>
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
             {uniqueVendorsCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
             Active vendor accounts
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Critical (60+ Days)</span>
-            <AlertCircle className="w-4 h-4 text-rose-500" />
+        <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className="truncate">Critical (60+ Days)</span>
+            <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-500 shrink-0" />
           </div>
-          <div className={`text-2xl font-black tracking-tight mt-2 ${criticalOverdueCount > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+          <div className={`text-xl sm:text-2xl font-black tracking-tight mt-1 sm:mt-2 ${criticalOverdueCount > 0 ? "text-rose-600" : "text-emerald-600"}`}>
             {criticalOverdueCount}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
             High priority collections
           </div>
         </div>
