@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 import { downloadFileDirectly } from "@/lib/download";
 import { FileBrandIcon } from "./FileBrandIcon";
+import { ExcelSheetViewer } from "./ExcelSheetViewer";
 import {
   X,
   Download,
@@ -44,11 +45,6 @@ interface FullAttachmentViewerProps {
   onClose: () => void;
   onToggleRetention?: (file: any) => void;
   onDeleteFile?: (file: any) => void;
-}
-
-interface ParsedWorkbook {
-  sheetNames: string[];
-  sheetsData: { [sheetName: string]: (string | number)[][] };
 }
 
 export function formatBytes(bytes?: number, decimals = 1): string {
@@ -128,11 +124,6 @@ export function FullAttachmentViewer({
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Excel / Spreadsheet State
-  const [workbook, setWorkbook] = useState<ParsedWorkbook | null>(null);
-  const [activeSheetName, setActiveSheetName] = useState<string>("");
-  const [sheetSearch, setSheetSearch] = useState("");
-
   // Word Document (.docx) HTML State
   const [docxHtml, setDocxHtml] = useState<string | null>(null);
 
@@ -188,11 +179,9 @@ export function FullAttachmentViewer({
     // Reset states
     setIsLoading(true);
     setLoadError(null);
-    setWorkbook(null);
     setDocxHtml(null);
     setTextContent(null);
     setZoomLevel(1);
-    setSheetSearch("");
 
     if (!fileUrl) {
       setIsLoading(false);
@@ -200,62 +189,13 @@ export function FullAttachmentViewer({
       return;
     }
 
-    // A. Images, PDFs, Audio, Video render directly
-    if (isImage || isPdf || isVideo || isAudio) {
+    // A. Images, PDFs, Audio, Video, Excel, CSV render directly in their dedicated view components
+    if (isImage || isPdf || isVideo || isAudio || isExcel || isCsv) {
       setIsLoading(false);
       return;
     }
 
-    // B. Excel Spreadsheets (.xlsx, .xls)
-    if (isExcel) {
-      fetch(fileUrl)
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to download spreadsheet`);
-          return res.arrayBuffer();
-        })
-        .then((buffer) => {
-          if (isCancelled) return;
-          try {
-            const readFn = XLSX?.read || (XLSX as any)?.default?.read;
-            if (typeof readFn !== "function") {
-              throw new Error("Spreadsheet engine is not ready in this browser.");
-            }
-            const wb = readFn(buffer, { type: "array" });
-            const sheetNames = wb.SheetNames || [];
-            if (sheetNames.length === 0) {
-              throw new Error("No worksheets found in this workbook.");
-            }
-
-            const sheetsData: { [name: string]: (string | number)[][] } = {};
-            sheetNames.forEach((name: string) => {
-              const sheet = wb.Sheets[name];
-              const utils = XLSX?.utils || (XLSX as any)?.default?.utils;
-              const rawRows: any[][] = utils?.sheet_to_json
-                ? utils.sheet_to_json(sheet, { header: 1, defval: "" })
-                : [];
-              sheetsData[name] = rawRows;
-            });
-
-            setWorkbook({ sheetNames, sheetsData });
-            setActiveSheetName(sheetNames[0] || "");
-          } catch (err: any) {
-            console.error("XLSX parse error:", err);
-            setLoadError(err.message || "Failed to parse Excel workbook.");
-          }
-        })
-        .catch((err: any) => {
-          if (!isCancelled) {
-            console.error("Fetch spreadsheet error:", err);
-            setLoadError(err.message || "Network error loading spreadsheet.");
-          }
-        })
-        .finally(() => {
-          if (!isCancelled) setIsLoading(false);
-        });
-      return () => { isCancelled = true; };
-    }
-
-    // C. Word Documents (.docx)
+    // B. Word Documents (.docx)
     if (isWord) {
       if (ext === "docx") {
         fetch(fileUrl)
@@ -297,51 +237,7 @@ export function FullAttachmentViewer({
       return () => { isCancelled = true; };
     }
 
-    // D. CSV Files
-    if (isCsv) {
-      fetch(fileUrl)
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to download CSV`);
-          return res.text();
-        })
-        .then((text) => {
-          if (isCancelled) return;
-          try {
-            const readFn = XLSX?.read || (XLSX as any)?.default?.read;
-            const wb = readFn ? readFn(text, { type: "string" }) : null;
-            const sheetName = wb?.SheetNames?.[0] || "CSV";
-            const utils = XLSX?.utils || (XLSX as any)?.default?.utils;
-            const rawRows: any[][] = (wb && utils?.sheet_to_json)
-              ? utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" })
-              : text.split(/\r?\n/).map((l) => l.split(","));
-
-            setWorkbook({
-              sheetNames: [sheetName],
-              sheetsData: { [sheetName]: rawRows },
-            });
-            setActiveSheetName(sheetName);
-          } catch {
-            const lines = text.split(/\r?\n/).map((l) => l.split(","));
-            setWorkbook({
-              sheetNames: ["CSV"],
-              sheetsData: { CSV: lines },
-            });
-            setActiveSheetName("CSV");
-          }
-        })
-        .catch((err: any) => {
-          if (!isCancelled) {
-            console.error("CSV preview error:", err);
-            setLoadError(err.message || "Failed to load CSV file.");
-          }
-        })
-        .finally(() => {
-          if (!isCancelled) setIsLoading(false);
-        });
-      return () => { isCancelled = true; };
-    }
-
-    // E. Code & Text Files
+    // C. Code & Text Files
     if (isTextOrCode) {
       fetch(fileUrl)
         .then((res) => {
@@ -403,14 +299,6 @@ export function FullAttachmentViewer({
     daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
     isExpiringSoon = daysRemaining <= 3;
   }
-
-  // Active Sheet Data for Spreadsheets
-  const activeRows = (workbook && activeSheetName && workbook.sheetsData[activeSheetName]) || [];
-  const filteredRows = activeRows.filter((row) => {
-    if (!sheetSearch.trim()) return true;
-    const q = sheetSearch.toLowerCase();
-    return row.some((cell) => String(cell || "").toLowerCase().includes(q));
-  });
 
   return (
     <aside
@@ -617,104 +505,9 @@ export function FullAttachmentViewer({
             </div>
           )}
 
-          {/* 2. Full-Space Native Excel & CSV Spreadsheet Grid */}
-          {!isLoading && !loadError && (isExcel || isCsv) && workbook && (
-            <div className="flex-1 flex flex-col bg-white text-slate-900 overflow-hidden min-h-0 select-text">
-              {/* Spreadsheet Toolbar */}
-              <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
-                {/* Search in Sheet */}
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={sheetSearch}
-                    onChange={(e) => setSheetSearch(e.target.value)}
-                    placeholder="Search in sheet..."
-                    className="w-full pl-8 pr-3 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 font-medium"
-                  />
-                </div>
-
-                <div className="text-[11px] text-slate-500 font-medium flex items-center gap-3">
-                  <span>
-                    <strong>{filteredRows.length}</strong> rows
-                    {sheetSearch ? ` (filtered from ${activeRows.length})` : ""}
-                  </span>
-                  <span>•</span>
-                  <span>Sheet: <strong>{activeSheetName}</strong></span>
-                </div>
-              </div>
-
-              {/* Scrollable Spreadsheet Table */}
-              <div className="flex-1 overflow-auto bg-white select-text">
-                <table className="w-full border-collapse text-xs font-sans">
-                  <tbody>
-                    {filteredRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="p-8 text-center text-slate-400">
-                          {sheetSearch ? "No matching rows found." : "This worksheet is empty."}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredRows.map((row, rIdx) => {
-                        const isHeaderRow = rIdx === 0 && !sheetSearch;
-                        return (
-                          <tr
-                            key={rIdx}
-                            className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors ${
-                              isHeaderRow ? "bg-slate-100 font-bold text-slate-800 sticky top-0 z-10 shadow-2xs" : ""
-                            }`}
-                          >
-                            {/* Row Number */}
-                            <td className="py-2 px-3 text-[10px] text-center font-mono text-slate-400 bg-slate-50 border-r border-slate-200 w-12 shrink-0 select-none">
-                              {rIdx + 1}
-                            </td>
-
-                            {/* Cells */}
-                            {row.map((cell, cIdx) => (
-                              <td
-                                key={cIdx}
-                                className={`py-2 px-3 border-r border-slate-100 truncate max-w-[300px] ${
-                                  typeof cell === "number" ? "text-right font-mono text-slate-800" : "text-slate-700"
-                                }`}
-                                title={String(cell || "")}
-                              >
-                                {cell !== null && cell !== undefined ? String(cell) : ""}
-                              </td>
-                            ))}
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Worksheet Tabs Bar */}
-              {workbook.sheetNames.length > 1 && (
-                <div className="px-3 py-1.5 bg-slate-200 border-t border-slate-300 flex items-center gap-1 overflow-x-auto shrink-0 select-none">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">
-                    Sheets:
-                  </span>
-                  {workbook.sheetNames.map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => {
-                        setActiveSheetName(name);
-                        setSheetSearch("");
-                      }}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                        activeSheetName === name
-                          ? "bg-white text-blue-700 shadow-xs border-b-2 border-blue-600"
-                          : "text-slate-600 hover:bg-slate-300/80 hover:text-slate-900"
-                      }`}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* 2. Full-Space Native Excel & CSV Spreadsheet Grid with 100% Color, Font, Currency & Formula Fidelity */}
+          {!isLoading && !loadError && (isExcel || isCsv) && (
+            <ExcelSheetViewer fileUrl={fileUrl} fileName={fileName} isCsv={isCsv} />
           )}
 
           {/* 3. Full-Space Word Document Canvas (.docx) */}
