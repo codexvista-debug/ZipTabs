@@ -36,8 +36,10 @@ import {
   Edit,
   ChevronDown,
   UploadCloud,
+  Eye,
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
+import { downloadFileDirectly } from "@/lib/download";
 
 export interface NoteAttachment {
   id: string;
@@ -196,14 +198,16 @@ export function formatFileSize(bytes: number) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-export function getDateUrgency(targetDateStr?: string | null) {
+export function getDateUrgency(targetDateStr?: string | null, isCompleted?: boolean) {
   if (!targetDateStr) {
     return {
-      status: "none",
+      status: isCompleted ? "completed" : "none",
       daysDiff: 9999,
-      label: "No deadline",
-      badgeClass: "bg-slate-100 text-slate-500 border-slate-200",
-      cardBorder: "border-slate-200/80 bg-white",
+      label: isCompleted ? "Completed" : "No deadline",
+      badgeClass: isCompleted
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold"
+        : "bg-slate-100 text-slate-500 border-slate-200",
+      cardBorder: isCompleted ? "border-slate-200/80 bg-slate-50/60" : "border-slate-200/80 bg-white",
       highlightNotice: null,
     };
   }
@@ -211,11 +215,13 @@ export function getDateUrgency(targetDateStr?: string | null) {
   const parts = targetDateStr.split("-").map(Number);
   if (parts.length < 3 || isNaN(parts[0])) {
     return {
-      status: "none",
+      status: isCompleted ? "completed" : "none",
       daysDiff: 9999,
       label: targetDateStr,
-      badgeClass: "bg-slate-100 text-slate-500 border-slate-200",
-      cardBorder: "border-slate-200/80 bg-white",
+      badgeClass: isCompleted
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold"
+        : "bg-slate-100 text-slate-500 border-slate-200",
+      cardBorder: isCompleted ? "border-slate-200/80 bg-slate-50/60" : "border-slate-200/80 bg-white",
       highlightNotice: null,
     };
   }
@@ -234,6 +240,19 @@ export function getDateUrgency(targetDateStr?: string | null) {
     day: "numeric",
     year: "numeric",
   });
+
+  // When a note is marked as completed/done:
+  // Never show "Overdue by ...", never show red urgency notices!
+  if (isCompleted) {
+    return {
+      status: "completed",
+      daysDiff: 9999,
+      label: formattedDate,
+      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold",
+      cardBorder: "border-slate-200/80 bg-slate-50/70 shadow-2xs",
+      highlightNotice: null,
+    };
+  }
 
   if (diffDays < 0) {
     const overdueDays = Math.abs(diffDays);
@@ -290,7 +309,9 @@ export function NotesView() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [urgencyFilter, setUrgencyFilter] = useState<"all" | "attention" | "completed">("all");
+  const [statusTab, setStatusTab] = useState<"active" | "completed">("active");
+  const [urgencyFilter, setUrgencyFilter] = useState<"all" | "attention">("all");
+  const [isContentCopied, setIsContentCopied] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -978,18 +999,37 @@ export function NotesView() {
     showToast("Copied to Clipboard", "Ready to paste into emails or messages.", "success");
   };
 
+  // Calculate Counts
+  const totalNotesCount = notes.length;
+  const activeNotesCount = notes.filter((n) => !n.is_completed).length;
+  const completedNotesCount = notes.filter((n) => n.is_completed).length;
+  const urgentCount = notes.filter((n) => {
+    if (n.is_completed) return false;
+    const u = getDateUrgency(n.target_date, n.is_completed);
+    return u.status === "overdue" || u.status === "today" || u.status === "urgent";
+  }).length;
+  const invoiceNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Invoices").length;
+  const payrollNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Payroll").length;
+  const totalAttachmentsCount = notes.reduce((acc, n) => acc + (n.attachments?.length || 0), 0);
+
   // Filtered & Sorted Notes
   const filteredNotes = notes
     .filter((note) => {
+      // 1. Status Filter: "active" (default) vs "completed"
+      if (statusTab === "active" && note.is_completed) return false;
+      if (statusTab === "completed" && !note.is_completed) return false;
+
+      // 2. Search
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
         note.title.toLowerCase().includes(q) ||
-        (note.content && note.content.toLowerCase().includes(q));
+        (note.content && note.content.toLowerCase().includes(q)) ||
+        (note.attachments || []).some((a) => a.name.toLowerCase().includes(q));
 
       if (!matchesSearch) return false;
 
-      // Category matching with normalization
+      // 3. Category matching with normalization
       if (activeCategory !== "all") {
         const normalized = normalizeCategory(note.category);
         if (normalized !== activeCategory) {
@@ -997,15 +1037,13 @@ export function NotesView() {
         }
       }
 
-      const urgency = getDateUrgency(note.target_date);
+      // 4. Urgency
+      const urgency = getDateUrgency(note.target_date, note.is_completed);
       if (urgencyFilter === "attention") {
         return (
           !note.is_completed &&
           (urgency.status === "overdue" || urgency.status === "today" || urgency.status === "urgent")
         );
-      }
-      if (urgencyFilter === "completed") {
-        return note.is_completed;
       }
 
       return true;
@@ -1014,21 +1052,10 @@ export function NotesView() {
       if (a.is_completed !== b.is_completed) {
         return a.is_completed ? 1 : -1;
       }
-      const uA = getDateUrgency(a.target_date);
-      const uB = getDateUrgency(b.target_date);
+      const uA = getDateUrgency(a.target_date, a.is_completed);
+      const uB = getDateUrgency(b.target_date, b.is_completed);
       return uA.daysDiff - uB.daysDiff;
     });
-
-  // Calculate Metrics
-  const totalNotesCount = notes.length;
-  const urgentCount = notes.filter((n) => {
-    if (n.is_completed) return false;
-    const u = getDateUrgency(n.target_date);
-    return u.status === "overdue" || u.status === "today" || u.status === "urgent";
-  }).length;
-  const invoiceNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Invoices").length;
-  const payrollNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Payroll").length;
-  const totalAttachmentsCount = notes.reduce((acc, n) => acc + (n.attachments?.length || 0), 0);
 
   // Live 2-3 keyword subject generated from content
   const liveSubjectPreview = extractKeywordsSubject(formContent);
@@ -1097,16 +1124,23 @@ export function NotesView() {
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs">
+        <div
+          onClick={() => {
+            setStatusTab("active");
+            setActiveCategory("all");
+            setUrgencyFilter("all");
+          }}
+          className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs cursor-pointer hover:border-blue-300 transition-colors"
+        >
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Total Notes</span>
+            <span>Active Notes</span>
             <NotebookPen className="w-4 h-4 text-slate-400" />
           </div>
           <div className="text-2xl font-black text-slate-900 tracking-tight mt-2">
-            {totalNotesCount}
+            {activeNotesCount}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">
-            {totalAttachmentsCount} files & images stored
+            {completedNotesCount} completed • {totalNotesCount} total
           </div>
         </div>
 
@@ -1179,30 +1213,41 @@ export function NotesView() {
             />
           </div>
 
-          {/* Category Filter Pills (Quick Notes at top) */}
+          {/* Category & Status Filter Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
+            {/* Active Notes Tab (Replaces All) */}
             <button
               type="button"
-              onClick={() => setActiveCategory("all")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeCategory === "all"
+              onClick={() => {
+                setStatusTab("active");
+                setActiveCategory("all");
+                setUrgencyFilter("all");
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                statusTab === "active" && activeCategory === "all" && urgencyFilter === "all"
                   ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
               }`}
             >
-              All ({notes.length})
+              Active ({activeNotesCount})
             </button>
+
+            {/* Category Filter Pills */}
             {allCategories.map((cat) => {
-              const count = notes.filter((n) => normalizeCategory(n.category) === cat.id).length;
+              const count = notes.filter((n) => {
+                const matchesStatus = statusTab === "active" ? !n.is_completed : n.is_completed;
+                return matchesStatus && normalizeCategory(n.category) === cat.id;
+              }).length;
               const isActive = activeCategory === cat.id;
+
               return (
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  onClick={() => setActiveCategory(activeCategory === cat.id ? "all" : cat.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     isActive
-                      ? "bg-slate-900 text-white shadow-xs"
+                      ? "bg-blue-600 text-white shadow-xs border border-blue-600"
                       : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
@@ -1210,6 +1255,24 @@ export function NotesView() {
                 </button>
               );
             })}
+
+            {/* Completed Notes Tab (Dedicated separate pill) */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusTab("completed");
+                setActiveCategory("all");
+                setUrgencyFilter("all");
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                statusTab === "completed" && activeCategory === "all"
+                  ? "bg-emerald-600 text-white shadow-xs border border-emerald-600"
+                  : "bg-emerald-50/70 border border-emerald-200 text-emerald-800 hover:bg-emerald-100/80"
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Completed ({completedNotesCount})</span>
+            </button>
           </div>
 
           {/* Quick Urgency / Status Filter */}
@@ -1237,18 +1300,34 @@ export function NotesView() {
           </div>
         ) : filteredNotes.length === 0 ? (
           <div className="py-20 px-4 flex flex-col items-center justify-center text-center">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600 mb-4 shadow-xs">
-              <NotebookPen className="w-7 h-7" />
+            <div
+              className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-xs ${
+                statusTab === "completed"
+                  ? "bg-emerald-50 border border-emerald-200 text-emerald-600"
+                  : "bg-blue-50 border border-blue-200/60 text-blue-600"
+              }`}
+            >
+              {statusTab === "completed" ? (
+                <CheckCircle2 className="w-7 h-7" />
+              ) : (
+                <NotebookPen className="w-7 h-7" />
+              )}
             </div>
             <h3 className="text-base font-bold text-slate-900">
-              {notes.length === 0 ? "No notes created yet" : "No matching notes found"}
+              {statusTab === "completed"
+                ? "No completed notes"
+                : notes.length === 0
+                ? "No notes created yet"
+                : "No matching notes found"}
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mt-1">
-              {notes.length === 0
+              {statusTab === "completed"
+                ? "When you mark notes as done, they will be archived here for your records."
+                : notes.length === 0
                 ? "Type your note instructions or attach receipts/invoices. The subject automatically highlights 2–3 key words like 'Akash Premium $2965'."
                 : "Try clearing your search query or category filter."}
             </p>
-            {notes.length === 0 && (
+            {notes.length === 0 && statusTab === "active" && (
               <button
                 type="button"
                 onClick={handleOpenCreate}
@@ -1262,7 +1341,7 @@ export function NotesView() {
         ) : (
           <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredNotes.map((note) => {
-              const urgency = getDateUrgency(note.target_date);
+              const urgency = getDateUrgency(note.target_date, note.is_completed);
               const normalizedCat = normalizeCategory(note.category);
               const catConfig = allCategories.find((c) => c.id === normalizedCat) || allCategories[0];
               const CatIcon = catConfig.icon || Tag;
@@ -1275,12 +1354,12 @@ export function NotesView() {
                   onClick={() => setViewingNote(note)}
                   className={`group relative rounded-2xl border p-5 transition-all duration-200 flex flex-col justify-between cursor-pointer ${
                     note.is_completed
-                      ? "bg-slate-50 border-slate-200 opacity-60 hover:opacity-100"
+                      ? "bg-slate-50/70 border-slate-200/90 hover:border-slate-300 opacity-80 hover:opacity-100 shadow-2xs"
                       : urgency.cardBorder
                   }`}
                 >
                   <div>
-                    {/* Urgency Highlight Banner (if close to or past date) */}
+                    {/* Urgency Highlight Banner (if close to or past date, only for active notes) */}
                     {urgency.highlightNotice && !note.is_completed && (
                       <div className="mb-3 px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 bg-amber-500/15 text-amber-900 border border-amber-300">
                         <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-700" />
@@ -1299,9 +1378,17 @@ export function NotesView() {
 
                       {note.target_date && (
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] border ${urgency.badgeClass} shrink-0 whitespace-nowrap`}
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] border ${
+                            note.is_completed
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold"
+                              : urgency.badgeClass
+                          } shrink-0 whitespace-nowrap`}
                         >
-                          <CalendarClock className="w-3 h-3" />
+                          {note.is_completed ? (
+                            <Check className="w-3 h-3 text-emerald-600" />
+                          ) : (
+                            <CalendarClock className="w-3 h-3" />
+                          )}
                           <span>{urgency.label}</span>
                         </span>
                       )}
@@ -1878,15 +1965,20 @@ export function NotesView() {
 
       {/* Read-Only View Note Modal */}
       {viewingNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 transition-all duration-200">
           <div
             onClick={() => setViewingNote(null)}
-            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity"
           />
 
-          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-5 sm:p-7 z-10 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 flex flex-col justify-between">
+          <div className="relative bg-white rounded-t-[28px] sm:rounded-2xl shadow-2xl border border-slate-200/90 max-w-2xl w-full p-5 sm:p-7 z-10 max-h-[92vh] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col justify-between">
+            {/* Mobile Drag Handle Indicator */}
+            <div className="sm:hidden -mt-1 pb-3 flex justify-center">
+              <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+            </div>
+
             <div>
-              {/* Top Bar: Category Pill, Priority, Target Date & Close Button */}
+              {/* Top Bar: Category Pill, Status/Target Date, Priority & Close Button */}
               <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100">
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Category Pill */}
@@ -1895,7 +1987,7 @@ export function NotesView() {
                     const catCfg = allCategories.find((c) => c.id === normCat) || allCategories[0];
                     const CIcon = catCfg.icon || Tag;
                     return (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${catCfg.color} shrink-0`}>
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${catCfg.color} shadow-2xs`}>
                         <CIcon className="w-3.5 h-3.5" />
                         <span>{normCat}</span>
                       </span>
@@ -1904,65 +1996,114 @@ export function NotesView() {
 
                   {/* Priority Pill */}
                   {viewingNote.priority === "urgent" && (
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
-                      Urgent 🔥
+                    <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0">
+                      <span>Urgent</span>
+                      <span>🔥</span>
                     </span>
                   )}
                   {viewingNote.priority === "high" && (
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
-                      High Priority
+                    <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs shrink-0">
+                      <span>High Priority</span>
+                      <span>⚡</span>
                     </span>
                   )}
 
                   {/* Target Date Pill */}
                   {viewingNote.target_date && (() => {
-                    const urg = getDateUrgency(viewingNote.target_date);
+                    const urg = getDateUrgency(viewingNote.target_date, viewingNote.is_completed);
                     return (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border font-semibold ${urg.badgeClass} shrink-0`}>
-                        <CalendarClock className="w-3.5 h-3.5" />
-                        <span>{viewingNote.target_date} ({urg.label})</span>
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border font-semibold ${urg.badgeClass} shadow-2xs shrink-0`}>
+                        <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+                        <span>{urg.label}</span>
                       </span>
                     );
                   })()}
-                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setViewingNote(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Note Subject / Title */}
-              <div className="mt-5">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
-                    {viewingNote.title || "Note"}
-                  </h2>
+                  {/* Completed Badge */}
                   {viewingNote.is_completed && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                    <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs shrink-0">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Completed</span>
                     </span>
                   )}
                 </div>
 
-                {/* Note Details Content */}
-                {viewingNote.content && (
-                  <div className="mt-4 p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap select-text font-normal">
-                    {viewingNote.content}
+                <button
+                  type="button"
+                  onClick={() => setViewingNote(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Note Subject / Title & Metadata */}
+              <div className="mt-4">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug break-words">
+                  {viewingNote.title || "Note"}
+                </h2>
+
+                {viewingNote.created_at && (
+                  <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-400 font-medium">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>
+                      Created {new Date(viewingNote.created_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                      {viewingNote.updated_at && viewingNote.updated_at !== viewingNote.created_at && " (Edited)"}
+                    </span>
                   </div>
                 )}
               </div>
 
+              {/* Note Details Content Card with Copy text */}
+              <div className="mt-4 rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/90 to-slate-50/40 p-4 sm:p-5 shadow-2xs">
+                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/60 text-xs text-slate-500 font-semibold">
+                  <span className="uppercase tracking-wider text-[11px] font-bold text-slate-400">Note Description</span>
+                  {viewingNote.content && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (viewingNote.content) {
+                          navigator.clipboard.writeText(viewingNote.content);
+                          setIsContentCopied(true);
+                          setTimeout(() => setIsContentCopied(false), 2000);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white border border-transparent hover:border-slate-200 transition-all cursor-pointer shadow-2xs"
+                      title="Copy note text"
+                    >
+                      {isContentCopied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy text</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-sm sm:text-[15px] text-slate-800 leading-relaxed font-normal whitespace-pre-wrap select-text break-words">
+                  {viewingNote.content || <span className="text-slate-400 italic">No description provided.</span>}
+                </div>
+              </div>
+
               {/* Attachments Section */}
               {viewingNote.attachments && viewingNote.attachments.length > 0 && (
-                <div className="mt-6 pt-5 border-t border-slate-100">
-                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <Paperclip className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Attachments ({viewingNote.attachments.length})</span>
+                <div className="mt-5 pt-5 border-t border-slate-100">
+                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Paperclip className="w-4 h-4 text-blue-600" />
+                      <span>Attachments ({viewingNote.attachments.length})</span>
+                    </div>
                   </div>
 
                   {(() => {
@@ -1970,26 +2111,40 @@ export function NotesView() {
                     const docs = viewingNote.attachments.filter((a) => !a.type.startsWith("image/"));
 
                     return (
-                      <div className="space-y-3">
+                      <div className="space-y-3.5">
                         {/* Image Attachments */}
                         {imgs.length > 0 && (
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             {imgs.map((img) => (
                               <div
                                 key={img.id}
-                                onClick={() => setPreviewAttachment(img)}
-                                className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video cursor-pointer hover:border-blue-500 transition-colors shadow-2xs"
-                                title="Click to view attachment"
+                                className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video shadow-2xs flex flex-col justify-end"
                               >
                                 <img
                                   src={img.url}
                                   alt={img.name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                  <ExternalLink className="w-4 h-4" />
+                                {/* Quick actions overlay */}
+                                <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-10 backdrop-blur-2xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewAttachment(img)}
+                                    className="p-2 rounded-lg bg-white/90 hover:bg-white text-slate-900 font-bold transition-all shadow-md cursor-pointer"
+                                    title="View Full Attachment"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadFileDirectly(img.url, img.name)}
+                                    className="p-2 rounded-lg bg-white/90 hover:bg-white text-slate-900 font-bold transition-all shadow-md cursor-pointer"
+                                    title="Direct Download"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
                                 </div>
-                                <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] p-1 px-2 truncate backdrop-blur-2xs">
+                                <div className="relative z-10 bg-slate-900/80 text-white text-[11px] p-1.5 px-2.5 truncate backdrop-blur-xs font-medium">
                                   {img.name}
                                 </div>
                               </div>
@@ -1999,19 +2154,49 @@ export function NotesView() {
 
                         {/* Document Attachments */}
                         {docs.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             {docs.map((doc) => (
-                              <button
+                              <div
                                 key={doc.id}
-                                type="button"
-                                onClick={() => setPreviewAttachment(doc)}
-                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-medium transition-colors cursor-pointer"
-                                title={`Click to view: ${doc.name}`}
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/90 border border-slate-200 transition-colors shadow-2xs group"
                               >
-                                <FileText className="w-4 h-4 text-blue-600 shrink-0" />
-                                <span className="truncate max-w-[160px] font-semibold">{doc.name}</span>
-                                <span className="text-[10px] text-slate-500">({formatFileSize(doc.size)})</span>
-                              </button>
+                                <div
+                                  onClick={() => setPreviewAttachment(doc)}
+                                  className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+                                  title={`Click to view: ${doc.name}`}
+                                >
+                                  <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
+                                      {doc.name}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-medium">
+                                      {formatFileSize(doc.size)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0 ml-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewAttachment(doc)}
+                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                                    title="View Full Space"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadFileDirectly(doc.url, doc.name)}
+                                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                                    title="Direct Download"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         )}
@@ -2031,10 +2216,10 @@ export function NotesView() {
                     handleToggleCompleted(viewingNote, e);
                     setViewingNote({ ...viewingNote, is_completed: !viewingNote.is_completed });
                   }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
                     viewingNote.is_completed
                       ? "text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200"
-                      : "text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200"
+                      : "text-slate-700 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 hover:border-emerald-200"
                   }`}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -2044,7 +2229,7 @@ export function NotesView() {
                 <button
                   type="button"
                   onClick={(e) => handleCopyNote(viewingNote, e)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer shadow-2xs"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>Copy</span>
