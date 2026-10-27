@@ -95,16 +95,39 @@ export const DEFAULT_CATEGORIES: CategoryConfig[] = [
 ];
 
 export function normalizeCategory(cat?: string): string {
-  if (!cat) return "Quick Notes";
-  const lower = cat.toLowerCase();
-  if (lower === "quick notes" || lower === "quick note" || lower.includes("quick")) return "Quick Notes";
+  if (!cat || !cat.trim()) return "Quick Notes";
+  const trimmed = cat.trim();
+  const lower = trimmed.toLowerCase();
+
+  // 1. Quickbooks / QBO (Must check BEFORE any "quick" check!)
+  if (lower.includes("quickbook") || lower.includes("qbo")) return "Quickbooks";
+
+  // 2. Exact match with standard default categories
+  if (
+    lower === "quick notes" ||
+    lower === "quick note" ||
+    lower === "quicknotes" ||
+    lower === "quicknote" ||
+    lower === "quick"
+  ) {
+    return "Quick Notes";
+  }
+  if (lower === "invoices" || lower === "invoice") return "Invoices";
+  if (lower === "payments" || lower === "payment") return "Payments";
+  if (lower === "payroll" || lower === "payrolls") return "Payroll";
+  if (lower === "leopard") return "Leopard";
+  if (lower === "paychex") return "Paychex";
+
+  // 3. Fallback partial matching for legacy variations
   if (lower.includes("invoice")) return "Invoices";
   if (lower.includes("payment")) return "Payments";
   if (lower.includes("payroll")) return "Payroll";
   if (lower.includes("leopard")) return "Leopard";
-  if (lower.includes("quickbook")) return "Quickbooks";
   if (lower.includes("paychex")) return "Paychex";
-  return cat;
+  if (lower.startsWith("quick note")) return "Quick Notes";
+
+  // 4. Return the exact category name for any custom category
+  return trimmed;
 }
 
 // Checks if a note's title was auto-generated from old logic (e.g. truncated full sentence of note details)
@@ -706,6 +729,7 @@ export function NotesView() {
               } catch {}
               return next;
             });
+            setViewingNote((prev) => (prev && prev.id === updatedNote.id ? { ...prev, ...updatedNote } : prev));
           } else if (payload.eventType === "DELETE") {
             const deletedId = (payload.old as { id: string })?.id;
             if (deletedId) {
@@ -800,7 +824,7 @@ export function NotesView() {
   const handleOpenEdit = (note: NoteItem) => {
     setEditingNote(note);
     setFormContent(note.content || note.title || "");
-    setFormCategory(note.category || "Quick Notes");
+    setFormCategory(normalizeCategory(note.category));
     setFormTargetDate(note.target_date || "");
     setFormPriority(note.priority || "normal");
     setExistingAttachments(note.attachments || []);
@@ -969,13 +993,15 @@ export function NotesView() {
     setNewFilesToUpload([]);
     setUploadProgressText(null);
 
+    const canonicalCategory = normalizeCategory(formCategory);
+
     if (editingNote) {
       // Update
       const updatedItem: NoteItem = {
         ...editingNote,
         title: finalSubject,
         content: contentTrimmed,
-        category: formCategory,
+        category: canonicalCategory,
         target_date: formTargetDate || null,
         priority: formPriority,
         attachments: finalAttachments,
@@ -984,6 +1010,7 @@ export function NotesView() {
 
       const updatedList = notes.map((n) => (n.id === editingNote.id ? updatedItem : n));
       saveNotesList(updatedList);
+      setViewingNote((prev) => (prev && prev.id === editingNote.id ? updatedItem : prev));
 
       if (supabase) {
         supabase
@@ -1007,7 +1034,7 @@ export function NotesView() {
         "Note Updated",
         pendingUploadFiles.length > 0
           ? `"${finalSubject}" updated! Uploading ${pendingUploadFiles.length} file(s) in background...`
-          : `"${finalSubject}" has been saved.`,
+          : `"${finalSubject}" saved under ${canonicalCategory}.`,
         "success"
       );
     } else {
@@ -1017,7 +1044,7 @@ export function NotesView() {
         user_id: "chief",
         title: finalSubject,
         content: contentTrimmed,
-        category: formCategory,
+        category: canonicalCategory,
         target_date: formTargetDate || null,
         priority: formPriority,
         is_completed: false,
@@ -1054,7 +1081,7 @@ export function NotesView() {
         "Note Created",
         pendingUploadFiles.length > 0
           ? `"${finalSubject}" created! Uploading ${pendingUploadFiles.length} file(s) in background...`
-          : `"${finalSubject}" added under ${formCategory}.`,
+          : `"${finalSubject}" added under ${canonicalCategory}.`,
         "success"
       );
     }
@@ -1071,6 +1098,7 @@ export function NotesView() {
     const nextStatus = !note.is_completed;
     const updatedList = notes.map((n) => (n.id === note.id ? { ...n, is_completed: nextStatus } : n));
     saveNotesList(updatedList);
+    setViewingNote((prev) => (prev && prev.id === note.id ? { ...prev, is_completed: nextStatus } : prev));
 
     if (supabase) {
       try {
@@ -1474,7 +1502,10 @@ export function NotesView() {
             {filteredNotes.map((note) => {
               const urgency = getDateUrgency(note.target_date, note.is_completed);
               const normalizedCat = normalizeCategory(note.category);
-              const catConfig = allCategories.find((c) => c.id === normalizedCat) || allCategories[0];
+              const catConfig =
+                allCategories.find(
+                  (c) => c.id === normalizedCat || c.label.toLowerCase() === normalizedCat.toLowerCase()
+                ) || allCategories[0];
               const CatIcon = catConfig.icon || Tag;
               const attachments = note.attachments || [];
 
@@ -2111,7 +2142,10 @@ export function NotesView() {
                   {/* Category Pill */}
                   {(() => {
                     const normCat = normalizeCategory(viewingNote.category);
-                    const catCfg = allCategories.find((c) => c.id === normCat) || allCategories[0];
+                    const catCfg =
+                      allCategories.find(
+                        (c) => c.id === normCat || c.label.toLowerCase() === normCat.toLowerCase()
+                      ) || allCategories[0];
                     const CIcon = catCfg.icon || Tag;
                     return (
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${catCfg.color} shadow-2xs`}>
