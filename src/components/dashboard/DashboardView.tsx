@@ -320,7 +320,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   }, []);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-200 pb-16">
+    <div className="space-y-8 pb-16">
       {/* Top Header Row with Live Total Receivables */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 sm:pb-8 border-b border-slate-200/60">
         <div>
