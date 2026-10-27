@@ -4,6 +4,7 @@ import React, { useState, useEffect, Component, ReactNode } from "react";
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 import { downloadFileDirectly } from "@/lib/download";
+import { FileBrandIcon } from "./FileBrandIcon";
 import {
   X,
   Download,
@@ -420,19 +421,7 @@ export function FullAttachmentViewer({
       <header className="h-16 px-4 sm:px-6 border-b border-[#15203b] bg-[#0c1427] flex items-center justify-between gap-3 shrink-0">
         {/* Left: Attachment Info */}
         <div className="flex items-center gap-3 min-w-0 max-w-[55%] sm:max-w-xl">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-            {isImage ? (
-              <ImageIcon className="w-5 h-5 text-purple-400" />
-            ) : isExcel || isCsv ? (
-              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-            ) : isWord ? (
-              <FileText className="w-5 h-5 text-blue-400" />
-            ) : isPdf ? (
-              <FileText className="w-5 h-5 text-rose-400" />
-            ) : (
-              <FileCode className="w-5 h-5 text-slate-400" />
-            )}
-          </div>
+          <FileBrandIcon fileName={fileName} mimeType={file.type} size="md" />
 
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-white truncate" title={fileName}>
@@ -768,8 +757,8 @@ export function FullAttachmentViewer({
           {/* 7. Full-Space Audio Viewer */}
           {!isLoading && !loadError && isAudio && (
             <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-6 gap-4">
-              <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shadow-lg">
-                <FileCode className="w-10 h-10" />
+              <div className="flex items-center justify-center">
+                <FileBrandIcon fileName={fileName} mimeType={file.type} size="xl" className="w-16 h-16" />
               </div>
               <div className="text-center">
                 <div className="font-bold text-base text-white">{fileName}</div>
@@ -784,8 +773,8 @@ export function FullAttachmentViewer({
           {/* 8. Generic / Unsupported Binary Format */}
           {!isLoading && !loadError && !isImage && !isPdf && !isCsv && !isExcel && !isWord && !isTextOrCode && !isVideo && !isAudio && (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
-              <div className="w-20 h-20 rounded-3xl bg-slate-800/80 border border-slate-700 text-slate-400 flex items-center justify-center mb-4 shadow-xl">
-                <FileArchive className="w-10 h-10" />
+              <div className="flex items-center justify-center mb-4">
+                <FileBrandIcon fileName={fileName} mimeType={file.type} size="xl" className="w-16 h-16" />
               </div>
               <h3 className="text-base font-bold text-white">{fileName}</h3>
               <p className="text-xs text-slate-400 mt-1.5">

@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 import { downloadFileDirectly } from "@/lib/download";
+import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 
 export interface NoteAttachment {
   id: string;
@@ -1579,7 +1580,7 @@ export function NotesView() {
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 text-[11px] font-medium transition-colors max-w-full cursor-pointer"
                             title={`Open ${doc.name}`}
                           >
-                            <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <FileBrandIcon fileName={doc.name} mimeType={doc.type} size="sm" className="w-4 h-4 shrink-0" />
                             <span className="truncate max-w-[130px]">{doc.name}</span>
                             <span className="text-[10px] text-slate-400">({formatFileSize(doc.size)})</span>
                           </button>
@@ -1940,10 +1941,10 @@ export function NotesView() {
                             ) : (
                               <div
                                 onClick={() => setPreviewAttachment(att)}
-                                className="w-10 h-10 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0 cursor-pointer"
+                                className="w-10 h-10 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 cursor-pointer shadow-2xs"
                                 title="Click to view attachment"
                               >
-                                <FileText className="w-5 h-5" />
+                                <FileBrandIcon fileName={att.name} mimeType={att.type} size="sm" className="w-6 h-6 shrink-0" />
                               </div>
                             )}
 
@@ -2004,8 +2005,8 @@ export function NotesView() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                                <FileUp className="w-5 h-5" />
+                              <div className="w-10 h-10 rounded-lg bg-white border border-blue-200 flex items-center justify-center shrink-0 shadow-2xs">
+                                <FileBrandIcon fileName={file.name} mimeType={file.type} size="sm" className="w-6 h-6 shrink-0" />
                               </div>
                             )}
 
@@ -2280,8 +2281,8 @@ export function NotesView() {
                                 className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 transition-all shadow-2xs group cursor-pointer"
                                 title={`Click to view: ${doc.name}`}
                               >
-                                <div className="w-8 h-8 rounded-lg bg-blue-50 group-hover:bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0 transition-colors">
-                                  <FileText className="w-4 h-4" />
+                                <div className="w-8 h-8 rounded-lg bg-white group-hover:bg-blue-50 border border-slate-200 group-hover:border-blue-300 flex items-center justify-center shrink-0 transition-colors shadow-2xs">
+                                  <FileBrandIcon fileName={doc.name} mimeType={doc.type} size="sm" className="w-5 h-5 shrink-0" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-xs font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">

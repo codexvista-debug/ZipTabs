@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { UniversalFileViewer } from "./UniversalFileViewer";
 import { downloadFileDirectly } from "@/lib/download";
+import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 
 export interface DriveFolder {
   id: string;
@@ -488,25 +489,31 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   const breadcrumbs = getBreadcrumbs();
   const currentFolder = folders.find((f) => f.id === currentFolderId);
 
-  // Helper to pick icon for file extension
+  // Helper to pick icon label for file extension
   const getFileIcon = (fileName: string, mimetype?: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase() || "";
     if (mimetype?.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext)) {
-      return { icon: ImageIcon, color: "text-purple-600 bg-purple-50 border-purple-200", label: "IMAGE" };
+      return { icon: ImageIcon, color: "text-purple-600 bg-purple-50 border-purple-200", label: ext.toUpperCase() || "IMAGE" };
     }
-    if (["xlsx", "xls", "csv"].includes(ext)) {
-      return { icon: FileSpreadsheet, color: "text-emerald-600 bg-emerald-50 border-emerald-200", label: "SHEET" };
+    if (["xlsx", "xls"].includes(ext)) {
+      return { icon: FileSpreadsheet, color: "text-emerald-600 bg-emerald-50 border-emerald-200", label: "EXCEL" };
+    }
+    if (["csv"].includes(ext)) {
+      return { icon: FileSpreadsheet, color: "text-emerald-600 bg-emerald-50 border-emerald-200", label: "CSV" };
     }
     if (["pdf"].includes(ext)) {
       return { icon: FileText, color: "text-rose-600 bg-rose-50 border-rose-200", label: "PDF" };
     }
-    if (["doc", "docx", "txt", "rtf"].includes(ext)) {
-      return { icon: FileText, color: "text-blue-600 bg-blue-50 border-blue-200", label: "DOC" };
+    if (["doc", "docx"].includes(ext)) {
+      return { icon: FileText, color: "text-blue-600 bg-blue-50 border-blue-200", label: "WORD" };
+    }
+    if (["ppt", "pptx"].includes(ext)) {
+      return { icon: FileText, color: "text-amber-600 bg-amber-50 border-amber-200", label: "PPT" };
     }
     if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) {
       return { icon: FileArchive, color: "text-amber-600 bg-amber-50 border-amber-200", label: "ARCHIVE" };
     }
-    return { icon: FileIcon, color: "text-slate-600 bg-slate-50 border-slate-200", label: "FILE" };
+    return { icon: FileIcon, color: "text-slate-600 bg-slate-50 border-slate-200", label: ext.toUpperCase() || "FILE" };
   };
 
   return (
@@ -919,7 +926,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
                 {visibleFiles.map((file) => {
                   const iconInfo = getFileIcon(file.name, file.type);
-                  const Icon = iconInfo.icon;
                   const isImage = (file.type || "").startsWith("image/");
                   const isTemp = file.retention_type === "temporary";
                   let daysLeft = 30;
@@ -947,8 +953,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                             className="w-full h-full object-cover group-hover/preview:scale-105 transition-transform duration-200"
                           />
                         ) : (
-                          <div className={`w-12 h-12 rounded-2xl ${iconInfo.color} border flex items-center justify-center`}>
-                            <Icon className="w-6 h-6" />
+                          <div className="w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover/preview:scale-110 duration-200">
+                            <FileBrandIcon fileName={file.name} mimeType={file.type} size="lg" />
                           </div>
                         )}
 
@@ -1075,7 +1081,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                     <tbody className="divide-y divide-slate-100">
                       {visibleFiles.map((file) => {
                         const iconInfo = getFileIcon(file.name, file.type);
-                        const Icon = iconInfo.icon;
                         const isTemp = file.retention_type === "temporary";
                         let daysLeft = 30;
                         let isUrgent = false;
@@ -1089,10 +1094,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                         return (
                           <tr key={file.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-3 px-4">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`w-8 h-8 rounded-lg ${iconInfo.color} border flex items-center justify-center shrink-0`}>
-                                  <Icon className="w-4 h-4" />
-                                </div>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <FileBrandIcon fileName={file.name} mimeType={file.type} size="sm" />
                                 <span
                                   onClick={() => setPreviewFile(file)}
                                   className="font-bold text-slate-900 hover:text-blue-600 cursor-pointer truncate max-w-xs md:max-w-md"
