@@ -10,7 +10,6 @@ import {
   HardDrive,
   AlertTriangle,
   ArrowRight,
-  RefreshCw,
   Clock,
   DollarSign,
   Building2,
@@ -86,7 +85,6 @@ const MONTH_NAMES = [
 
 export function DashboardView({ onNavigate }: DashboardViewProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Live Metrics
   const [invoicesCount, setInvoicesCount] = useState(0);
@@ -155,8 +153,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     : "No upcoming holidays";
 
   // Fetch all live data concurrently
-  const loadDashboardData = async (showSpinner = false) => {
-    if (showSpinner) setIsRefreshing(true);
+  const loadDashboardData = async () => {
     try {
       if (!supabase) return;
 
@@ -274,7 +271,6 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       console.error("Dashboard data load error:", err);
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
@@ -313,11 +309,11 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   };
 
   useEffect(() => {
-    loadDashboardData(false);
+    loadDashboardData();
 
     // Refresh every 30 seconds
     const interval = setInterval(() => {
-      loadDashboardData(false);
+      loadDashboardData();
     }, 30000);
 
     return () => clearInterval(interval);
@@ -328,16 +324,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       {/* Top Header Row with Live Total Receivables */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 sm:pb-8 border-b border-slate-200/60">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <span>Dashboard</span>
-            <button
-              type="button"
-              onClick={() => loadDashboardData(true)}
-              className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-300 text-slate-400 hover:text-slate-700 bg-white shadow-2xs transition-colors cursor-pointer"
-              title="Refresh live metrics"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-blue-600" : ""}`} />
-            </button>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+            Dashboard
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Real-time operations hub across Invoices, Notes, US Calendar, and Free Plan Storage.

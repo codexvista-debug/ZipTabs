@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { AuthScreen } from "@/components/auth/AuthScreen";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -21,6 +21,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const mainContentRef = useRef<HTMLElement>(null);
 
   // Synchronize and persist active tab across page refreshes and browser history
   useEffect(() => {
@@ -50,6 +51,9 @@ export default function Home() {
       const current = window.location.hash.replace("#", "").toLowerCase() as TabType;
       if (VALID_TABS.includes(current)) {
         setActiveTab(current);
+        if (mainContentRef.current) {
+          mainContentRef.current.scrollTop = 0;
+        }
         try {
           localStorage.setItem("ziptabs_active_tab", current);
         } catch {}
@@ -62,6 +66,9 @@ export default function Home() {
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
     try {
       localStorage.setItem("ziptabs_active_tab", tab);
       if (typeof window !== "undefined") {
@@ -114,20 +121,22 @@ export default function Home() {
         </header>
 
         {/* Content Canvas */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
-          {activeTab === "invoices" ? (
-            <InvoicesView />
-          ) : activeTab === "notes" ? (
-            <NotesView />
-          ) : activeTab === "calendar" ? (
-            <USCalendarView />
-          ) : activeTab === "drive" ? (
-            <DriveView onNavigateUsage={() => handleTabChange("usage")} />
-          ) : activeTab === "usage" ? (
-            <UsageView />
-          ) : (
-            <DashboardView onNavigate={(tab) => handleTabChange(tab)} />
-          )}
+        <main ref={mainContentRef} className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
+          <div key={activeTab} className="animate-page-enter min-h-full">
+            {activeTab === "invoices" ? (
+              <InvoicesView />
+            ) : activeTab === "notes" ? (
+              <NotesView />
+            ) : activeTab === "calendar" ? (
+              <USCalendarView />
+            ) : activeTab === "drive" ? (
+              <DriveView onNavigateUsage={() => handleTabChange("usage")} />
+            ) : activeTab === "usage" ? (
+              <UsageView />
+            ) : (
+              <DashboardView onNavigate={(tab) => handleTabChange(tab)} />
+            )}
+          </div>
         </main>
       </div>
 
