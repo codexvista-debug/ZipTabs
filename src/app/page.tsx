@@ -121,7 +121,7 @@ export default function Home() {
         </header>
 
         {/* Content Canvas */}
-        <main ref={mainContentRef} className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
+        <main ref={mainContentRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
           <div key={activeTab} className="animate-page-enter min-h-full">
             {activeTab === "invoices" ? (
               <InvoicesView />
