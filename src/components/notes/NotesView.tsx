@@ -1476,8 +1476,7 @@ export function NotesView() {
               const normalizedCat = normalizeCategory(note.category);
               const catConfig = allCategories.find((c) => c.id === normalizedCat) || allCategories[0];
               const CatIcon = catConfig.icon || Tag;
-              const imageAttachments = (note.attachments || []).filter((a) => a.type.startsWith("image/"));
-              const docAttachments = (note.attachments || []).filter((a) => !a.type.startsWith("image/"));
+              const attachments = note.attachments || [];
 
               return (
                 <div
@@ -1543,48 +1542,43 @@ export function NotesView() {
                       </p>
                     )}
 
-                    {/* Image Attachments Thumbnails */}
-                    {imageAttachments.length > 0 && (
+                    {/* All Attachments (Uniform Same-Size Cards) */}
+                    {attachments.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {imageAttachments.map((img) => (
-                          <div
-                            key={img.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPreviewAttachment(img);
-                            }}
-                            className="relative w-14 h-14 rounded-xl border border-slate-200 overflow-hidden group/img hover:border-blue-500 transition-colors bg-slate-100 shrink-0 cursor-pointer shadow-2xs"
-                            title={`Click to view: ${img.name}`}
-                          >
-                            <img
-                              src={img.url}
-                              alt={img.name}
-                              className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-200"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Document Attachments Chips */}
-                    {docAttachments.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {docAttachments.map((doc) => (
-                          <button
-                            key={doc.id}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPreviewAttachment(doc);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 text-[11px] font-medium transition-colors max-w-full cursor-pointer"
-                            title={`Open ${doc.name}`}
-                          >
-                            <FileBrandIcon fileName={doc.name} mimeType={doc.type} size="sm" className="w-4 h-4 shrink-0" />
-                            <span className="truncate max-w-[130px]">{doc.name}</span>
-                            <span className="text-[10px] text-slate-400">({formatFileSize(doc.size)})</span>
-                          </button>
-                        ))}
+                        {attachments.map((att) => {
+                          const isImg = att.type.startsWith("image/");
+                          return (
+                            <div
+                              key={att.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewAttachment(att);
+                              }}
+                              className="relative w-14 h-14 rounded-xl border border-slate-200 overflow-hidden bg-slate-50 shrink-0 cursor-pointer hover:border-blue-500 hover:shadow-xs transition-all shadow-2xs group/att flex items-center justify-center select-none"
+                              title={`Click to view: ${att.name} (${formatFileSize(att.size)})`}
+                            >
+                              {isImg ? (
+                                <img
+                                  src={att.url}
+                                  alt={att.name}
+                                  className="w-full h-full object-cover group-hover/att:scale-105 transition-transform duration-200"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center p-1 bg-gradient-to-b from-slate-50 to-slate-100/80 group-hover/att:from-blue-50/50 group-hover/att:to-blue-100/40 transition-colors">
+                                  <FileBrandIcon
+                                    fileName={att.name}
+                                    mimeType={att.type}
+                                    size="sm"
+                                    className="w-7 h-7 shrink-0 group-hover/att:scale-110 transition-transform"
+                                  />
+                                  <span className="text-[8px] font-mono font-bold text-slate-500 uppercase tracking-tight truncate max-w-[46px] mt-0.5">
+                                    {att.name.split(".").pop() || "FILE"}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 
@@ -1926,7 +1920,7 @@ export function NotesView() {
                             {isImage ? (
                               <div
                                 onClick={() => setPreviewAttachment(att)}
-                                className="relative w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
+                                className="relative w-11 h-11 rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
                                 title="Click to view attachment"
                               >
                                 <img
@@ -1941,7 +1935,7 @@ export function NotesView() {
                             ) : (
                               <div
                                 onClick={() => setPreviewAttachment(att)}
-                                className="w-10 h-10 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 cursor-pointer shadow-2xs"
+                                className="w-11 h-11 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 cursor-pointer shadow-2xs"
                                 title="Click to view attachment"
                               >
                                 <FileBrandIcon fileName={att.name} mimeType={att.type} size="sm" className="w-6 h-6 shrink-0" />
@@ -1992,7 +1986,7 @@ export function NotesView() {
                             {isImage && previewUrl ? (
                               <div
                                 onClick={() => setPreviewAttachment({ url: previewUrl, name: file.name, size: file.size, type: file.type })}
-                                className="relative w-12 h-12 rounded-lg border border-blue-300 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
+                                className="relative w-11 h-11 rounded-lg border border-blue-300 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
                                 title="Click to view attachment"
                               >
                                 <img
@@ -2005,7 +1999,7 @@ export function NotesView() {
                                 </div>
                               </div>
                             ) : (
-                              <div className="w-10 h-10 rounded-lg bg-white border border-blue-200 flex items-center justify-center shrink-0 shadow-2xs">
+                              <div className="w-11 h-11 rounded-lg bg-white border border-blue-200 flex items-center justify-center shrink-0 shadow-2xs">
                                 <FileBrandIcon fileName={file.name} mimeType={file.type} size="sm" className="w-6 h-6 shrink-0" />
                               </div>
                             )}
@@ -2241,64 +2235,50 @@ export function NotesView() {
                     </div>
                   </div>
 
-                  {(() => {
-                    const imgs = viewingNote.attachments.filter((a) => a.type.startsWith("image/"));
-                    const docs = viewingNote.attachments.filter((a) => !a.type.startsWith("image/"));
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {viewingNote.attachments.map((att) => {
+                      const isImage = att.type.startsWith("image/");
 
-                    return (
-                      <div className="space-y-3.5">
-                        {/* Image Attachments */}
-                        {imgs.length > 0 && (
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {imgs.map((img) => (
-                              <div
-                                key={img.id}
-                                onClick={() => setPreviewAttachment(img)}
-                                className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video shadow-2xs flex flex-col justify-end cursor-pointer hover:border-blue-500 hover:shadow-md transition-all"
-                                title={`Click to view: ${img.name}`}
-                              >
-                                <img
-                                  src={img.url}
-                                  alt={img.name}
-                                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                                <div className="relative z-10 bg-slate-900/80 text-white text-[11px] p-1.5 px-2.5 truncate backdrop-blur-xs font-medium">
-                                  {img.name}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                      return (
+                        <div
+                          key={att.id}
+                          onClick={() => setPreviewAttachment(att)}
+                          className="group relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-video shadow-2xs flex flex-col justify-end cursor-pointer hover:border-blue-500 hover:shadow-md transition-all select-none"
+                          title={`Click to view: ${att.name}`}
+                        >
+                          {isImage ? (
+                            <>
+                              <img
+                                src={att.url}
+                                alt={att.name}
+                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                            </>
+                          ) : (
+                            <div className="absolute inset-0 pb-7 flex flex-col items-center justify-center bg-gradient-to-b from-slate-50 to-slate-100/90 group-hover:from-blue-50/50 group-hover:to-blue-100/40 transition-colors">
+                              <FileBrandIcon
+                                fileName={att.name}
+                                mimeType={att.type}
+                                size="md"
+                                className="w-12 h-12 drop-shadow-xs group-hover:scale-110 transition-transform duration-200"
+                              />
+                            </div>
+                          )}
 
-                        {/* Document Attachments */}
-                        {docs.length > 0 && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            {docs.map((doc) => (
-                              <div
-                                key={doc.id}
-                                onClick={() => setPreviewAttachment(doc)}
-                                className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 transition-all shadow-2xs group cursor-pointer"
-                                title={`Click to view: ${doc.name}`}
-                              >
-                                <div className="w-8 h-8 rounded-lg bg-white group-hover:bg-blue-50 border border-slate-200 group-hover:border-blue-300 flex items-center justify-center shrink-0 transition-colors shadow-2xs">
-                                  <FileBrandIcon fileName={doc.name} mimeType={doc.type} size="sm" className="w-5 h-5 shrink-0" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
-                                    {doc.name}
-                                  </p>
-                                  <p className="text-[10px] text-slate-400 font-medium">
-                                    {formatFileSize(doc.size)}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
+                          {/* Uniform Bottom Caption Bar for All Attachment Cards */}
+                          <div className="relative z-10 bg-slate-900/85 text-white text-[11px] py-1.5 px-2.5 truncate backdrop-blur-xs font-medium flex items-center justify-between gap-1.5 border-t border-white/10">
+                            <span className="truncate">{att.name}</span>
+                            {att.size ? (
+                              <span className="text-[10px] text-slate-300 font-normal shrink-0">
+                                {formatFileSize(att.size)}
+                              </span>
+                            ) : null}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
