@@ -111,6 +111,37 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const [driveFilesCount, setDriveFilesCount] = useState(0);
   const [expiringDriveFiles, setExpiringDriveFiles] = useState<ExpiringDriveFile[]>([]);
 
+  // Live Indian Standard Time (IST) Clock (Only for Executive Greeting element)
+  const [istTimeStr, setIstTimeStr] = useState<string>("");
+  const [istDateStr, setIstDateStr] = useState<string>("");
+
+  useEffect(() => {
+    const updateIst = () => {
+      const d = new Date();
+      setIstTimeStr(
+        d.toLocaleTimeString("en-US", {
+          timeZone: "Asia/Kolkata",
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        })
+      );
+      setIstDateStr(
+        d.toLocaleDateString("en-US", {
+          timeZone: "Asia/Kolkata",
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      );
+    };
+    updateIst();
+    const timer = setInterval(updateIst, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Calendar Calculations for Current Real Month
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -407,87 +438,57 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       {/* ==================================================== */}
       {/* 1. EXECUTIVE DYNAMIC GREETING & SUMMARY PILL         */}
       {/* ==================================================== */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-5 sm:p-6 shadow-xl border border-slate-700/60 relative overflow-hidden">
-        {/* Ambient lighting glows */}
-        <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs relative overflow-hidden bg-gradient-to-br from-white via-slate-50/40 to-blue-50/20">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2.5">
-              <span className="p-2 rounded-xl bg-white/10 text-amber-300 backdrop-blur-xs border border-white/10 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-500 flex items-center justify-center shrink-0 shadow-2xs">
                 {currentHour >= 5 && currentHour < 17 ? (
-                  <Sun className="w-5 h-5 text-amber-400" />
+                  <Sun className="w-5 h-5 text-amber-500" />
                 ) : (
-                  <Moon className="w-5 h-5 text-indigo-300" />
+                  <Moon className="w-5 h-5 text-indigo-500" />
                 )}
-              </span>
+              </div>
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                   <span>{greeting}, Chief</span>
-                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
                 </h2>
-                <div className="text-[11px] sm:text-xs text-slate-300 font-medium mt-0.5">
+                <div className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
                   Real-time command center is synchronized and operational.
                 </div>
               </div>
             </div>
 
-            {/* Personalized Summary Pill */}
-            <div className="mt-3.5 inline-flex flex-wrap items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-slate-200 shadow-xs">
-              <button
-                type="button"
-                onClick={() => onNavigate("invoices")}
-                className="flex items-center gap-1.5 font-bold text-amber-300 hover:text-amber-200 transition-colors cursor-pointer"
-                title="View invoices requiring attention"
-              >
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  {isLoading
-                    ? "Scanning invoices..."
-                    : `${overdueCount > 0 ? overdueCount : 3} invoices require attention today`}
-                </span>
-              </button>
-              <span className="text-slate-400">•</span>
+            {/* Personalized Summary Pill: Next US Holiday Countdown */}
+            <div className="mt-3.5 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/90 border border-slate-200/90 text-xs text-slate-700 shadow-2xs">
               <button
                 type="button"
                 onClick={() => onNavigate("calendar")}
-                className="flex items-center gap-1.5 font-semibold text-slate-200 hover:text-white transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 font-semibold text-slate-700 hover:text-blue-600 transition-colors cursor-pointer"
                 title="View upcoming US holidays on calendar"
               >
                 <span>🇺🇸</span>
                 <span>
                   {upcomingHoliday
-                    ? `Next US holiday in ${daysUntilHoliday} days`
+                    ? `Next US holiday in ${daysUntilHoliday} days (${upcomingHoliday.name})`
                     : "Next US holiday in 15 days"}
                 </span>
               </button>
-              {urgentNotesCount > 0 && (
-                <>
-                  <span className="text-slate-400">•</span>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate("notes")}
-                    className="flex items-center gap-1 font-semibold text-rose-300 hover:text-rose-200 transition-colors cursor-pointer"
-                    title="View urgent notes"
-                  >
-                    <span>🔥</span>
-                    <span>{urgentNotesCount} urgent note{urgentNotesCount > 1 ? "s" : ""}</span>
-                  </button>
-                </>
-              )}
             </div>
           </div>
 
-          {/* Quick Date Chip */}
-          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-            <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 backdrop-blur-xs text-left md:text-right">
-              <div className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">
-                {now.toLocaleDateString("en-US", { weekday: "long" })}
-              </div>
-              <div className="text-xs sm:text-sm font-black text-white">
-                {MONTH_NAMES[currentMonthIdx]} {currentDay}, {currentYear}
-              </div>
+          {/* Right Side: Current IST Time & Date (Indian Time) */}
+          <div className="flex flex-col items-start md:items-end justify-center px-4 py-3 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-2xs self-start md:self-center shrink-0">
+            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>🇮🇳 IST · Indian Time</span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight font-mono mt-0.5" suppressHydrationWarning>
+              {istTimeStr || "--:--:--"}
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium mt-0.5" suppressHydrationWarning>
+              {istDateStr}
             </div>
           </div>
         </div>
