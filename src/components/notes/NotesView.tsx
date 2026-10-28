@@ -874,6 +874,10 @@ export function NotesView() {
     item: File | NoteAttachment,
     idKey: string
   ) => {
+    // 15-second safety controller to avoid infinite "Extracting..." state
+    const abortController = new AbortController();
+    const timer = setTimeout(() => abortController.abort(), 15000);
+
     try {
       setExtractingId(idKey);
 
@@ -884,14 +888,37 @@ export function NotesView() {
         res = await fetch("/api/extract-text", {
           method: "POST",
           body: formData,
+          signal: abortController.signal,
         });
       } else {
-        res = await fetch("/api/extract-text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageUrl: item.url }),
-        });
+        // For existing attachments with URL: fetch blob locally first if possible to avoid server CORS
+        let blobToSend: Blob | null = null;
+        try {
+          const fetchImg = await fetch(item.url);
+          if (fetchImg.ok) {
+            blobToSend = await fetchImg.blob();
+          }
+        } catch {}
+
+        if (blobToSend) {
+          const formData = new FormData();
+          formData.append("file", blobToSend, item.name || "image.png");
+          res = await fetch("/api/extract-text", {
+            method: "POST",
+            body: formData,
+            signal: abortController.signal,
+          });
+        } else {
+          res = await fetch("/api/extract-text", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageUrl: item.url }),
+            signal: abortController.signal,
+          });
+        }
       }
+
+      clearTimeout(timer);
 
       const result = await res.json();
       if (!res.ok || !result.success) {
@@ -921,10 +948,14 @@ export function NotesView() {
         "success"
       );
     } catch (err: any) {
+      clearTimeout(timer);
       console.error("Text extraction failed:", err);
+      const isTimeout = err.name === "AbortError";
       showToast(
         "Extraction Failed",
-        err.message || "An error occurred while scanning the image.",
+        isTimeout
+          ? "Extraction timed out. Please check your network or try a clearer image."
+          : err.message || "An error occurred while scanning the image.",
         "error"
       );
     } finally {
