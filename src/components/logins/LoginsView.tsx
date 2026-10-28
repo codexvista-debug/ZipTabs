@@ -127,16 +127,12 @@ export function LoginsView() {
     }
   }, [isUnlocked]);
 
+  // Auto-authenticate & unlock immediately on mount if user is Chief
   useEffect(() => {
-    const handleActivity = () => resetAutoLockTimer();
-    window.addEventListener("mousemove", handleActivity);
-    window.addEventListener("keydown", handleActivity);
-    return () => {
-      window.removeEventListener("mousemove", handleActivity);
-      window.removeEventListener("keydown", handleActivity);
-      if (autoLockTimerRef.current) clearTimeout(autoLockTimerRef.current);
-    };
-  }, [resetAutoLockTimer]);
+    if (isChief && !isUnlocked && !vaultKey) {
+      handleUnlock();
+    }
+  }, [isChief]);
 
   const handleLockVault = () => {
     setIsUnlocked(false);
@@ -497,7 +493,20 @@ export function LoginsView() {
     );
   }
 
-  // 2. VAULT LOCKED SCREEN (Chief Authentication & Master Unlock)
+  // 2. LOADING STATE (Auto-Authenticating Chief)
+  if (isUnlocking && !isUnlocked) {
+    return (
+      <div className="min-h-[450px] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mb-3 shadow-xs">
+          <RefreshCw className="w-6 h-6 animate-spin" />
+        </div>
+        <h3 className="text-base font-bold text-slate-800">Authenticating @chief session...</h3>
+        <p className="text-xs text-slate-400 mt-1">Decrypting cloud vault credentials securely</p>
+      </div>
+    );
+  }
+
+  // 3. VAULT LOCKED SCREEN (Only shown if manually locked)
   if (!isUnlocked) {
     return (
       <div className="min-h-[520px] flex items-center justify-center p-6">

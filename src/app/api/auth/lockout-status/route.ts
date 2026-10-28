@@ -22,6 +22,42 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // 0. Check Master Control Security Settings
+    const { data: settings } = await supabase
+      .from("system_security_settings")
+      .select("*")
+      .eq("id", "global")
+      .maybeSingle();
+
+    if (settings) {
+      if (Array.isArray(settings.blacklisted_ips) && settings.blacklisted_ips.includes(clientIp)) {
+        return NextResponse.json({
+          ip: clientIp,
+          locked: true,
+          attempts: 3,
+          remainingAttempts: 0,
+          lockedUntil: "2099-12-31T23:59:59Z",
+          remainingMs: 999999999999,
+          isBlacklisted: true,
+        });
+      }
+
+      if (settings.ip_lockdown_enabled) {
+        const isAllowed = Array.isArray(settings.allowed_ips) && settings.allowed_ips.includes(clientIp);
+        if (!isAllowed) {
+          return NextResponse.json({
+            ip: clientIp,
+            locked: true,
+            attempts: 0,
+            remainingAttempts: 0,
+            lockedUntil: null,
+            remainingMs: 0,
+            isLockdown: true,
+          });
+        }
+      }
+    }
+
     const { data: record, error } = await supabase
       .from("auth_ip_locks")
       .select("*")

@@ -13,6 +13,7 @@ import {
   LogOut,
   KeyRound,
   Calculator,
+  Radio,
   X,
 } from "lucide-react";
 
@@ -42,7 +43,12 @@ export function Sidebar({
     { id: "calendar", label: "US Calendar", icon: CalendarDays },
     { id: "drive", label: "Drive", icon: FolderOpen },
     { id: "resources", label: "Resources", icon: Calculator },
-    ...(isChief ? [{ id: "logins", label: "Logins", icon: KeyRound }] : []),
+    ...(isChief
+      ? [
+          { id: "logins", label: "Logins", icon: KeyRound },
+          { id: "master-control", label: "Master Control", icon: Radio },
+        ]
+      : []),
     { id: "usage", label: "Usage", icon: HardDrive },
   ];
 

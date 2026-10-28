@@ -37,6 +37,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 0. Check Master Control Security Settings (Blacklist & Lockdown Mode)
+    const { data: settings } = await supabase
+      .from("system_security_settings")
+      .select("*")
+      .eq("id", "global")
+      .maybeSingle();
+
+    if (settings) {
+      // Check if IP is explicitly blacklisted
+      if (Array.isArray(settings.blacklisted_ips) && settings.blacklisted_ips.includes(clientIp)) {
+        return NextResponse.json(
+          {
+            success: false,
+            locked: true,
+            ip: clientIp,
+            attempts: 3,
+            remainingAttempts: 0,
+            lockedUntil: "2099-12-31T23:59:59Z",
+            remainingMs: 999999999999,
+            error: `Your IP (${clientIp}) has been permanently blacklisted by the Administrator. Access denied.`,
+          },
+          { status: 403 }
+        );
+      }
+
+      // Check if Website Lockdown Mode is active (only allowed_ips can log in)
+      if (settings.ip_lockdown_enabled) {
+        const isAllowed = Array.isArray(settings.allowed_ips) && settings.allowed_ips.includes(clientIp);
+        if (!isAllowed) {
+          return NextResponse.json(
+            {
+              success: false,
+              locked: true,
+              ip: clientIp,
+              attempts: 0,
+              remainingAttempts: 0,
+              lockedUntil: null,
+              remainingMs: 0,
+              error: `WEBSITE LOCKDOWN ACTIVE: Access is restricted strictly to authorized Administrator IP addresses. Your IP (${clientIp}) is not whitelisted.`,
+            },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     // 1. Check if IP is currently locked out
     const { data: lockRecord } = await supabase
       .from("auth_ip_locks")

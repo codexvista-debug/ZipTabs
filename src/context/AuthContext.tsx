@@ -137,6 +137,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (supabase) {
       try {
+        // Enforce Master Control registration lock policy
+        const { data: settings } = await supabase
+          .from("system_security_settings")
+          .select("registrations_allowed")
+          .eq("id", "global")
+          .maybeSingle();
+
+        if (settings && !settings.registrations_allowed) {
+          return {
+            success: false,
+            error: "New user registrations are currently paused and locked by the Chief Administrator.",
+          };
+        }
+
         const { data: existing } = await supabase
           .from("app_users")
           .select("id")
