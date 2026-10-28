@@ -159,6 +159,16 @@ export function MasterControlView() {
   const [customAllowedIp, setCustomAllowedIp] = useState("");
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
+  // Project-Style Custom Confirmation Dialog State
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    description: React.ReactNode;
+    confirmText: string;
+    confirmVariant?: "danger" | "primary" | "warning";
+    icon?: "logout" | "trash" | "lock" | "warning";
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+
   // Premium Toast Notification State
   const [actionMessage, setActionMessage] = useState<{
     type: "success" | "error";
@@ -347,19 +357,7 @@ export function MasterControlView() {
   };
 
   // 3. Blacklist an IP
-  const handleBlacklistIp = (ipToBlacklist: string) => {
-    const ip = ipToBlacklist.trim();
-    if (!ip) return;
-    if (ip === clientIp) {
-      if (
-        !confirm(
-          `WARNING: ${ip} is your CURRENT IP address! Are you sure you want to blacklist yourself?`
-        )
-      ) {
-        return;
-      }
-    }
-
+  const executeBlacklistAction = (ip: string) => {
     setPendingActionId(`blacklist-${ip}`);
     const prevBlacklisted = [...settings.blacklisted_ips];
     const prevLocks = [...ipLocks];
@@ -396,6 +394,32 @@ export function MasterControlView() {
       `IP ${ip} permanently blacklisted.`
     );
     setCustomBlacklistIp("");
+  };
+
+  const handleBlacklistIp = (ipToBlacklist: string) => {
+    const ip = ipToBlacklist.trim();
+    if (!ip) return;
+
+    if (ip === clientIp) {
+      setConfirmDialog({
+        title: "Blacklist Your Own Current IP?",
+        description: (
+          <span>
+            WARNING: <strong className="text-rose-600 font-mono">{ip}</strong> is your CURRENT network IP address! Blacklisting this IP will immediately terminate your session and lock you out.
+          </span>
+        ),
+        confirmText: "Yes, Blacklist My IP",
+        confirmVariant: "danger",
+        icon: "warning",
+        onConfirm: () => {
+          setConfirmDialog(null);
+          executeBlacklistAction(ip);
+        },
+      });
+      return;
+    }
+
+    executeBlacklistAction(ip);
   };
 
   // 4. Unblacklist / Reset IP Strikes
@@ -461,32 +485,32 @@ export function MasterControlView() {
   // 6. Delete Rogue User
   const handleDeleteUser = (userId: string, username: string) => {
     if (username.toLowerCase() === "chief") {
-      alert("The Chief Administrator account cannot be deleted.");
+      showNotification("The Chief Administrator account cannot be deleted.", "error");
       return;
     }
-    if (confirm(`Are you sure you want to permanently delete user account @${username}?`)) {
-      const prevUsers = [...users];
-      executeActionOptimistic(
-        { action: "delete_user", userId },
-        () => setUsers((prev) => prev.filter((u) => u.id !== userId)),
-        () => setUsers(prevUsers),
-        `User account @${username} deleted.`
-      );
-    }
+    setConfirmDialog({
+      title: `Delete user account @${username}?`,
+      description: `Are you sure you want to permanently delete user account @${username}? They will immediately lose access to this workspace.`,
+      confirmText: "Delete Account",
+      confirmVariant: "danger",
+      icon: "trash",
+      onConfirm: () => {
+        setConfirmDialog(null);
+        const prevUsers = [...users];
+        executeActionOptimistic(
+          { action: "delete_user", userId },
+          () => setUsers((prev) => prev.filter((u) => u.id !== userId)),
+          () => setUsers(prevUsers),
+          `User account @${username} deleted.`
+        );
+      },
+    });
   };
 
   // 7. Kick Out / Terminate All Other Active Sessions Except Current One
   const [isKickingSessions, setIsKickingSessions] = useState(false);
 
-  const handleKickOtherSessions = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to terminate and log out all active sessions on other devices? (Your current device will stay logged in)."
-      )
-    ) {
-      return;
-    }
-
+  const executeKickOtherSessions = async () => {
     setIsKickingSessions(true);
     const { sessionId } = getOrCreateSessionId();
 
@@ -511,6 +535,25 @@ export function MasterControlView() {
     } finally {
       setIsKickingSessions(false);
     }
+  };
+
+  const handleKickOtherSessions = () => {
+    setConfirmDialog({
+      title: "Kick Out All Other Sessions?",
+      description: (
+        <span>
+          Are you sure you want to terminate and log out all active sessions on other devices?{" "}
+          <strong className="text-slate-800">Your current device will stay logged in.</strong>
+        </span>
+      ),
+      confirmText: "Kick Out Other Sessions",
+      confirmVariant: "danger",
+      icon: "logout",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        await executeKickOtherSessions();
+      },
+    });
   };
 
   // 8. Password-Protected Clear Logs System
@@ -1793,6 +1836,72 @@ export function MasterControlView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Project-Style Custom Confirmation Dialog Modal */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setConfirmDialog(null)}
+            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+          />
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm sm:max-w-md w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 shadow-xs ${
+                confirmDialog.confirmVariant === "danger"
+                  ? "bg-rose-50 border border-rose-200/80 text-rose-600"
+                  : confirmDialog.confirmVariant === "warning"
+                  ? "bg-amber-50 border border-amber-200/80 text-amber-600"
+                  : "bg-blue-50 border border-blue-200/80 text-blue-600"
+              }`}
+            >
+              {confirmDialog.icon === "logout" ? (
+                <LogOut className="w-6 h-6" />
+              ) : confirmDialog.icon === "trash" ? (
+                <Trash2 className="w-6 h-6" />
+              ) : confirmDialog.icon === "lock" ? (
+                <Lock className="w-6 h-6" />
+              ) : (
+                <AlertTriangle className="w-6 h-6" />
+              )}
+            </div>
+
+            <h3 className="text-base font-bold text-slate-900 tracking-tight">
+              {confirmDialog.title}
+            </h3>
+
+            <div className="text-xs text-slate-500 mt-2 leading-relaxed">
+              {confirmDialog.description}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className={`px-4 py-2 rounded-xl text-white text-xs font-bold transition-all shadow-md cursor-pointer active:scale-95 ${
+                  confirmDialog.confirmVariant === "danger"
+                    ? "bg-rose-600 hover:bg-rose-700 shadow-rose-500/20"
+                    : confirmDialog.confirmVariant === "warning"
+                    ? "bg-amber-600 hover:bg-amber-700 shadow-amber-500/20"
+                    : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                }`}
+              >
+                {confirmDialog.confirmText}
+              </button>
+            </div>
           </div>
         </div>
       )}

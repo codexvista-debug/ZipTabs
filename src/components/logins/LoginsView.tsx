@@ -104,6 +104,7 @@ export function LoginsView() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: string; title: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -372,10 +373,6 @@ export function LoginsView() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to permanently delete this login from the cloud vault?")) {
-      return;
-    }
-
     if (supabase) {
       await supabase
         .from("vault_credentials")
@@ -774,7 +771,7 @@ export function LoginsView() {
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => setDeleteConfirmItem({ id: item.id, title: item.title })}
                         className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
                         title="Delete login"
                       >
@@ -1011,6 +1008,55 @@ export function LoginsView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setDeleteConfirmItem(null)}
+            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+          />
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm sm:max-w-md w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200/80 flex items-center justify-center text-rose-600 mb-4 shadow-xs">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-base font-bold text-slate-900 tracking-tight">
+              Delete login credential?
+            </h3>
+
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-slate-800">"{deleteConfirmItem.title}"</strong> from your encrypted cloud vault? This action cannot be undone.
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmItem(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const item = deleteConfirmItem;
+                  setDeleteConfirmItem(null);
+                  await handleDelete(item.id);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-md shadow-rose-500/20 cursor-pointer active:scale-95"
+              >
+                Delete Credential
+              </button>
+            </div>
           </div>
         </div>
       )}
