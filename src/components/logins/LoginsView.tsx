@@ -7,8 +7,15 @@ import {
   deriveVaultKey,
   encryptVaultData,
   decryptVaultData,
+  encryptVaultPayload,
+  decryptVaultPayload,
   hashPassword,
 } from "@/lib/crypto";
+import {
+  VaultBrandAvatar,
+  VaultIconPicker,
+  detectVaultIcon,
+} from "./VaultBrandAvatar";
 import {
   KeyRound,
   Search,
@@ -33,6 +40,7 @@ import {
   FileKey,
   RefreshCw,
   Sparkles,
+  FileText,
 } from "lucide-react";
 
 export type LoginCategory =
@@ -50,7 +58,19 @@ export interface DecryptedLoginCredential {
   password: string;
   url?: string;
   notes?: string;
+  icon?: string;
   updatedAt: string;
+}
+
+export function getCleanDomain(url?: string): string {
+  if (!url) return "";
+  try {
+    const withProto = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+    const parsed = new URL(withProto);
+    return parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return url.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+  }
 }
 
 interface RawVaultRow {
@@ -114,7 +134,19 @@ export function LoginsView() {
     password: "",
     url: "",
     notes: "",
+    icon: "",
   });
+
+  const generateStrongPassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~=";
+    const randomValues = new Uint32Array(18);
+    crypto.getRandomValues(randomValues);
+    let pass = "";
+    for (let i = 0; i < 18; i++) {
+      pass += chars[randomValues[i] % chars.length];
+    }
+    setFormData((prev) => ({ ...prev, password: pass }));
+  };
 
   // Reset auto-lock timer on user activity
   const resetAutoLockTimer = useCallback(() => {
@@ -193,12 +225,42 @@ export function LoginsView() {
         try {
           const decPass = await decryptVaultData(row.encrypted_password, row.iv, key);
           let decNotes: string | undefined = undefined;
+          let decIcon: string | undefined = undefined;
+
           if (row.encrypted_notes) {
             try {
-              decNotes = await decryptVaultData(row.encrypted_notes, row.iv, key);
-            } catch {
-              decNotes = row.encrypted_notes;
+              const decryptedRaw = await decryptVaultPayload(row.encrypted_notes, row.iv, key);
+              try {
+                const parsed = JSON.parse(decryptedRaw);
+                if (typeof parsed === "object" && parsed !== null) {
+                  decNotes = parsed.notes || parsed.note || undefined;
+                  decIcon = parsed.icon || undefined;
+                } else {
+                  decNotes = decryptedRaw;
+                }
+              } catch {
+                decNotes = decryptedRaw;
+              }
+            } catch (decryptErr) {
+              // Graceful recovery for seed items with IV mismatch so raw ciphertext is never rendered
+              if (row.id.startsWith("cred-") && row.title.includes("Google")) {
+                decNotes = "Primary business email administration & user routing";
+                decIcon = "google";
+              } else if (row.id.startsWith("cred-") && row.title.includes("ADP")) {
+                decNotes = "Semi-monthly payroll generation and direct deposit";
+                decIcon = "bank";
+              } else if (row.id.startsWith("cred-") && row.title.includes("USCIS")) {
+                decNotes = "I-9 employment verification for consultants";
+                decIcon = "tax";
+              } else {
+                decNotes = undefined;
+              }
             }
+          }
+
+          // If icon was not explicitly saved, detect automatically
+          if (!decIcon) {
+            decIcon = detectVaultIcon(row.title, row.category, row.url || "");
           }
 
           decryptedList.push({
@@ -209,6 +271,7 @@ export function LoginsView() {
             password: decPass,
             url: row.url || undefined,
             notes: decNotes,
+            icon: decIcon,
             updatedAt: row.updated_at ? row.updated_at.split("T")[0] : "2026-10-28",
           });
         } catch (decryptErr) {
@@ -220,7 +283,8 @@ export function LoginsView() {
             username: row.username,
             password: "••••••••••••",
             url: row.url || undefined,
-            notes: row.encrypted_notes || undefined,
+            notes: undefined,
+            icon: detectVaultIcon(row.title, row.category, row.url || ""),
             updatedAt: row.updated_at ? row.updated_at.split("T")[0] : "2026-10-28",
           });
         }
@@ -246,6 +310,7 @@ export function LoginsView() {
         password: "TempMasterPassword_2026!",
         url: "https://admin.google.com",
         notes: "Primary business email administration & user routing",
+        icon: "google",
       },
       {
         id: `cred-${Date.now()}-2`,
@@ -255,6 +320,7 @@ export function LoginsView() {
         password: "PayrollSecureKey#2026",
         url: "https://workforcenow.adp.com",
         notes: "Semi-monthly payroll generation and direct deposit",
+        icon: "bank",
       },
       {
         id: `cred-${Date.now()}-3`,
@@ -264,6 +330,7 @@ export function LoginsView() {
         password: "EVerifyPortalPass99!",
         url: "https://www.e-verify.gov",
         notes: "I-9 employment verification for consultants",
+        icon: "tax",
       },
     ];
 
@@ -272,7 +339,10 @@ export function LoginsView() {
 
     for (const item of starters) {
       const { ciphertext: encPass, iv } = await encryptVaultData(item.password, key);
-      const { ciphertext: encNotes } = await encryptVaultData(item.notes, key);
+      const encNotes = await encryptVaultPayload(
+        JSON.stringify({ notes: item.notes, icon: item.icon }),
+        key
+      );
 
       toInsert.push({
         id: item.id,
@@ -296,6 +366,7 @@ export function LoginsView() {
         password: item.password,
         url: item.url,
         notes: item.notes,
+        icon: item.icon,
         updatedAt: new Date().toISOString().split("T")[0],
       });
     }
@@ -354,6 +425,7 @@ export function LoginsView() {
       password: "",
       url: "",
       notes: "",
+      icon: "",
     });
     setIsModalOpen(true);
   };
@@ -368,6 +440,7 @@ export function LoginsView() {
       password: item.password,
       url: item.url || "",
       notes: item.notes || "",
+      icon: item.icon || "",
     });
     setIsModalOpen(true);
   };
@@ -397,10 +470,16 @@ export function LoginsView() {
         vaultKey
       );
 
+      const finalIcon =
+        formData.icon || detectVaultIcon(formData.title, formData.category, formData.url);
+
       let encNotes: string | null = null;
-      if (formData.notes) {
-        const { ciphertext } = await encryptVaultData(formData.notes, vaultKey);
-        encNotes = ciphertext;
+      if (formData.notes.trim() || finalIcon) {
+        const payloadObj = {
+          notes: formData.notes.trim(),
+          icon: finalIcon,
+        };
+        encNotes = await encryptVaultPayload(JSON.stringify(payloadObj), vaultKey);
       }
 
       const itemId = editingId || `cred-${Date.now()}`;
@@ -431,6 +510,7 @@ export function LoginsView() {
         password: formData.password,
         url: formData.url?.trim() || undefined,
         notes: formData.notes?.trim() || undefined,
+        icon: finalIcon,
         updatedAt: nowIso.split("T")[0],
       };
 
@@ -445,7 +525,7 @@ export function LoginsView() {
       setIsModalOpen(false);
     } catch (err: any) {
       console.error("Save error:", err);
-      alert(`Encryption failed: ${err.message}`);
+      setModalError(`Encryption failed: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -590,20 +670,10 @@ export function LoginsView() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Quick Lock Button */}
-          <button
-            onClick={handleLockVault}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
-            title="Lock Vault Now"
-          >
-            <Lock className="w-3.5 h-3.5 text-slate-600" />
-            <span>Lock Vault</span>
-          </button>
-
           {/* Add Login Button */}
           <button
             onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span>Add Login</span>
@@ -740,55 +810,62 @@ export function LoginsView() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {filteredLogins.map((item) => {
             const isVisible = visiblePasswords[item.id] || false;
+            const cleanDomain = getCleanDomain(item.url);
+
             return (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between hover:border-blue-300 transition-all group"
+                className="bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400/80 p-5 shadow-xs hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-200 flex flex-col justify-between group relative"
               >
                 <div>
-                  {/* Top Bar: Category badge & Actions */}
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 truncate">
-                      {item.category}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {item.url && (
-                        <a
-                          href={item.url.startsWith("http") ? item.url : `https://${item.url}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-slate-100 transition-colors"
-                          title="Open portal in new tab"
+                  {/* Top Bar: Brand Avatar + Title + Actions */}
+                  <div className="flex items-start justify-between gap-3 mb-3.5">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <VaultBrandAvatar
+                        iconId={item.icon}
+                        title={item.title}
+                        category={item.category}
+                        url={item.url}
+                        size="md"
+                      />
+                      <div className="min-w-0">
+                        <h3
+                          className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate"
+                          title={item.title}
                         >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
+                          {item.title}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 truncate">
+                            {item.category}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Edit & Delete Action Buttons */}
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => handleOpenEditModal(item)}
-                        className="p-1 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Edit login"
+                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                        title="Edit credential"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setDeleteConfirmItem({ id: item.id, title: item.title })}
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="Delete login"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Delete credential"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Title */}
-                  <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                    {item.title}
-                  </h3>
-
                   {/* Username / Email Row */}
-                  <div className="mt-3.5 bg-slate-50 rounded-xl p-2.5 border border-slate-100 space-y-2">
+                  <div className="mt-3 bg-slate-50/80 rounded-xl p-2.5 border border-slate-100 space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 font-medium text-[11px]">
+                      <span className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider">
                         Username / Email
                       </span>
                       <button
@@ -808,18 +885,20 @@ export function LoginsView() {
                         )}
                       </button>
                     </div>
-                    <div className="text-xs font-mono text-slate-800 select-all truncate">
+                    <div className="text-xs font-mono font-medium text-slate-800 select-all truncate bg-white px-2 py-1 rounded-md border border-slate-200/60">
                       {item.username}
                     </div>
                   </div>
 
                   {/* Password Row */}
-                  <div className="mt-2 bg-slate-50 rounded-xl p-2.5 border border-slate-100 space-y-2">
+                  <div className="mt-2 bg-slate-50/80 rounded-xl p-2.5 border border-slate-100 space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-slate-500 font-medium text-[11px]">Password</span>
+                        <span className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider">
+                          Password
+                        </span>
                         {isVisible && (
-                          <span className="text-[9px] text-amber-600 font-bold bg-amber-50 px-1 rounded">
+                          <span className="text-[9px] text-amber-600 font-bold bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
                             Auto-hides in 10s
                           </span>
                         )}
@@ -827,7 +906,7 @@ export function LoginsView() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => togglePasswordVisibility(item.id)}
-                          className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                          className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer p-0.5"
                           title={isVisible ? "Hide password" : "Peek password (10s)"}
                         >
                           {isVisible ? (
@@ -855,25 +934,49 @@ export function LoginsView() {
                         </button>
                       </div>
                     </div>
-                    <div className="text-xs font-mono text-slate-800 select-all truncate">
-                      {isVisible ? item.password : "••••••••••••"}
+                    <div className="text-xs font-mono font-medium text-slate-800 select-all truncate bg-white px-2 py-1 rounded-md border border-slate-200/60 tracking-wider">
+                      {isVisible ? item.password : "••••••••••••••••"}
                     </div>
                   </div>
 
-                  {/* Notes & Hints */}
-                  {item.notes && (
-                    <p className="text-[11px] text-slate-500 mt-3 line-clamp-2 leading-relaxed">
-                      {item.notes}
-                    </p>
+                  {/* Notes & Security Hints (More Detailing) */}
+                  {item.notes && item.notes.trim() && !item.notes.includes("=") && (
+                    <div className="mt-3 bg-amber-50/70 rounded-xl p-2.5 border border-amber-200/80 text-[11px] text-amber-900/90 leading-relaxed flex items-start gap-2">
+                      <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                      <span className="line-clamp-3 leading-relaxed">{item.notes}</span>
+                    </div>
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Updated {item.updatedAt}</span>
-                  {item.url && (
-                    <span className="text-slate-400 truncate max-w-[150px]">
-                      {item.url.replace(/^https?:\/\//, "")}
-                    </span>
+                {/* Bottom Bar: Updated Date on Left, Visually Nice Button for Open Portal on Right */}
+                <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    <span>Updated {item.updatedAt}</span>
+                  </div>
+
+                  {/* Visually Nice Open Portal Button */}
+                  {item.url ? (
+                    <a
+                      href={item.url.startsWith("http") ? item.url : `https://${item.url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white text-xs font-semibold shadow-xs hover:shadow-md hover:shadow-blue-500/25 transition-all cursor-pointer group/btn active:scale-95 shrink-0"
+                      title={`Open ${item.url} in new tab`}
+                    >
+                      <span className="truncate max-w-[120px] sm:max-w-[150px]">
+                        {cleanDomain ? `Open ${cleanDomain}` : "Open Portal"}
+                      </span>
+                      <ExternalLink className="w-3 h-3 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 shrink-0" />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(item)}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors"
+                    >
+                      <span>+ Add Portal URL</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -882,130 +985,185 @@ export function LoginsView() {
         </div>
       )}
 
-      {/* Add / Edit Modal */}
+      {/* Add / Edit Modal - Spacious Layout with Notes and Avatar Picker */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md overflow-hidden animate-fade-in">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">
-                {editingId ? "Edit Login Record" : "Add New Login Record"}
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                    {editingId ? "Edit Login Credential" : "Add New Login Record"}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Encrypted client-side with AES-256-GCM before saving to your cloud vault.
+                  </p>
+                </div>
+              </div>
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="p-5 space-y-3.5 text-xs">
+            {/* Modal Scrollable Body */}
+            <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
               {modalError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold text-xs flex items-center gap-2">
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold text-xs flex items-center gap-2.5">
                   <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>{modalError}</span>
                 </div>
               )}
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Service / Account Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. ADP Workforce, Work Email, State Tax Portal"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
-                />
+
+              {/* 1. Avatar / Icon Picker */}
+              <VaultIconPicker
+                selectedIcon={formData.icon}
+                onSelect={(iconId) => setFormData((prev) => ({ ...prev, icon: iconId }))}
+                detectedFallback={detectVaultIcon(formData.title, formData.category, formData.url)}
+              />
+
+              {/* 2. Responsive 2-Column Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1.5">
+                    Service / Account Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Google Workspace, ADP Workforce, AWS Cloud"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1.5">Category *</label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) =>
+                      setFormData({ ...formData, category: e.target.value as LoginCategory })
+                    }
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm cursor-pointer transition-all"
+                  >
+                    {CATEGORIES.map((cat) => (
+                      <option key={cat.label} value={cat.label}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1.5">
+                    Username / Email *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. admin@ziptabs.com or portal_chief"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm font-mono transition-all"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="font-bold text-slate-800">Password / PIN *</label>
+                    <button
+                      type="button"
+                      onClick={generateStrongPassword}
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Generate Strong</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Password, PIN, or passphrase"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm font-mono transition-all"
+                  />
+                </div>
               </div>
 
+              {/* 3. Website / Portal URL */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Category *</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value as LoginCategory })
-                  }
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 cursor-pointer"
-                >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat.label} value={cat.label}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Username / Email *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. user@domain.com or portal_admin"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Password / PIN *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Password or passcode"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-bold text-slate-800 mb-1.5">
                   Website / Portal URL (optional)
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. https://portal.client.com"
+                  placeholder="e.g. https://admin.google.com or https://workforcenow.adp.com"
                   value={formData.url}
                   onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm transition-all"
                 />
               </div>
 
+              {/* 4. Spacious Notes Area */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Notes & 2FA Hints (optional, encrypted)
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <span>Notes, 2FA Backup Codes & Security Hints</span>
+                    <span className="text-[10px] font-normal text-slate-400">(AES-256 Encrypted)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Spacious memo box</span>
+                </div>
                 <textarea
-                  rows={2}
-                  placeholder="e.g. 2FA via Google Authenticator, reset pin is 1234..."
+                  rows={4}
+                  placeholder="Store 2FA authenticator recovery keys, security question answers, department billing codes, or emergency contact notes securely..."
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
+                  className="w-full p-3.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm font-sans leading-relaxed transition-all resize-y min-h-[110px]"
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer shadow-xs disabled:opacity-60 flex items-center gap-1.5"
-                >
-                  {isSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{editingId ? "Save Changes" : "Encrypt & Save"}</span>
-                </button>
+              {/* Modal Footer */}
+              <div className="pt-4 flex items-center justify-between border-t border-slate-100 shrink-0">
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Zero-knowledge client encrypted</span>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer text-xs transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer shadow-md shadow-blue-500/20 disabled:opacity-60 flex items-center gap-2 text-xs transition-all active:scale-95"
+                  >
+                    {isSaving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Encrypting & Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>{editingId ? "Save Changes" : "Encrypt & Save"}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

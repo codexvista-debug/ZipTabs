@@ -125,3 +125,33 @@ export async function decryptVaultData(
 
   return dec.decode(decryptedBuffer);
 }
+
+/**
+ * Encrypts arbitrary plaintext and packages the IV directly with the ciphertext (iv:ciphertext).
+ * Guarantees that individual encrypted fields (e.g. notes, metadata) never suffer from IV mismatch.
+ */
+export async function encryptVaultPayload(
+  plaintext: string,
+  key: CryptoKey
+): Promise<string> {
+  const { ciphertext, iv } = await encryptVaultData(plaintext, key);
+  return `${iv}:${ciphertext}`;
+}
+
+/**
+ * Decrypts a vault payload, automatically unpacking the embedded IV if present (iv:ciphertext),
+ * or falling back to the row-level IV for legacy compatibility.
+ */
+export async function decryptVaultPayload(
+  payload: string,
+  fallbackIv: string,
+  key: CryptoKey
+): Promise<string> {
+  if (payload.includes(":")) {
+    const colonIdx = payload.indexOf(":");
+    const iv = payload.substring(0, colonIdx);
+    const ciphertext = payload.substring(colonIdx + 1);
+    return await decryptVaultData(ciphertext, iv, key);
+  }
+  return await decryptVaultData(payload, fallbackIv, key);
+}
