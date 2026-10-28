@@ -12,6 +12,7 @@ import {
   HardDrive,
   LogOut,
   KeyRound,
+  Calculator,
   X,
 } from "lucide-react";
 
@@ -38,6 +39,8 @@ export function Sidebar({
     { id: "notes", label: "Notes & Reminders", icon: NotebookPen },
     { id: "calendar", label: "US Calendar", icon: CalendarDays },
     { id: "drive", label: "Drive", icon: FolderOpen },
+    { id: "resources", label: "Resources", icon: Calculator },
+    { id: "logins", label: "Logins", icon: KeyRound },
     { id: "usage", label: "Usage", icon: HardDrive },
   ];
 
