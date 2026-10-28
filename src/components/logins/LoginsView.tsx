@@ -15,6 +15,8 @@ import {
   VaultBrandAvatar,
   VaultIconPicker,
   detectVaultAvatar,
+  getAvatarFamilyId,
+  ALL_VAULT_AVATARS,
 } from "./VaultBrandAvatar";
 import {
   KeyRound,
@@ -663,6 +665,45 @@ export function LoginsView() {
     });
   }, [logins, selectedCategory, searchQuery]);
 
+  // Track logins per avatar family across the entire vault.
+  // A number badge (1, 2, 3...) is ONLY displayed if multiple accounts share the same crest persona!
+  const familyVariantAssignments = useMemo(() => {
+    const map = new Map<string, number>();
+    const familyItems: Record<string, typeof logins> = {};
+
+    logins.forEach((item) => {
+      const familyId = getAvatarFamilyId(item.icon, item.title, item.category, item.url);
+      if (!familyItems[familyId]) familyItems[familyId] = [];
+      familyItems[familyId].push(item);
+    });
+
+    Object.entries(familyItems).forEach(([, items]) => {
+      if (items.length > 1) {
+        // Multiple logins share this crest persona!
+        const usedVariants = new Set<number>();
+        let hasCollision = false;
+        items.forEach((it) => {
+          const avatar = ALL_VAULT_AVATARS.find((a) => a.id === it.icon);
+          const vNum = avatar ? avatar.variantNumber : 1;
+          if (usedVariants.has(vNum)) hasCollision = true;
+          usedVariants.add(vNum);
+        });
+
+        items.forEach((it, idx) => {
+          if (hasCollision) {
+            // Give clean distinct sequential numbers 1, 2, 3...
+            map.set(it.id, idx + 1);
+          } else {
+            const avatar = ALL_VAULT_AVATARS.find((a) => a.id === it.icon);
+            map.set(it.id, avatar ? avatar.variantNumber : idx + 1);
+          }
+        });
+      }
+    });
+
+    return map;
+  }, [logins]);
+
   // 1. ACCESS DENIED SCREEN (Non-Chief Users)
   if (!isChief) {
     return (
@@ -974,6 +1015,8 @@ export function LoginsView() {
             const isVisible = visiblePasswords[item.id] || false;
             const cleanDomain = getCleanDomain(item.url);
             const catStyle = getCategoryBadgeStyle(item.category);
+            const badgeNum = familyVariantAssignments.get(item.id);
+            const isMultiple = badgeNum !== undefined;
 
             return (
               <div
@@ -994,6 +1037,8 @@ export function LoginsView() {
                           category={item.category}
                           url={item.url}
                           size="md"
+                          showBadge={isMultiple}
+                          badgeNumber={badgeNum}
                         />
                       </div>
                       <div className="min-w-0">

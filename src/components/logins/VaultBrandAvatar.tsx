@@ -689,6 +689,16 @@ export function detectVaultAvatar(title = "", category = "", url = ""): string {
   return pickedFamily.variants[0].id;
 }
 
+// Helper to get the family ID of any avatar
+export function getAvatarFamilyId(iconId?: string, title = "", category = "", url = ""): string {
+  let avatar = ALL_VAULT_AVATARS.find((a) => a.id === iconId);
+  if (!avatar) {
+    const fallbackId = detectVaultAvatar(title, category, url);
+    avatar = ALL_VAULT_AVATARS.find((a) => a.id === fallbackId) || ALL_VAULT_AVATARS[0];
+  }
+  return avatar.familyId;
+}
+
 interface VaultBrandAvatarProps {
   iconId?: string;
   title?: string;
@@ -696,6 +706,8 @@ interface VaultBrandAvatarProps {
   url?: string;
   size?: "sm" | "md" | "lg";
   className?: string;
+  showBadge?: boolean;
+  badgeNumber?: number;
 }
 
 export function VaultBrandAvatar({
@@ -705,6 +717,8 @@ export function VaultBrandAvatar({
   url = "",
   size = "md",
   className = "",
+  showBadge = false,
+  badgeNumber,
 }: VaultBrandAvatarProps) {
   // If iconId matches one of our 30 avatars, use it; else detect one
   let avatar = ALL_VAULT_AVATARS.find((a) => a.id === iconId);
@@ -727,6 +741,8 @@ export function VaultBrandAvatar({
       ? "w-5 h-5 text-[10px] -bottom-1 -right-1"
       : "w-4 h-4 text-[9px] -bottom-1 -right-1";
 
+  const displayNum = badgeNumber ?? avatar.variantNumber;
+
   return (
     <div
       className={`relative shrink-0 flex items-center justify-center p-1 bg-gradient-to-br ${avatar.bgGradient} border ${avatar.borderClass} shadow-md transition-all duration-200 ${sizeClasses} ${className}`}
@@ -737,12 +753,14 @@ export function VaultBrandAvatar({
         {renderMascotFace(avatar.familyId, avatar.variantNumber)}
       </div>
 
-      {/* Variation Number Pill Badge */}
-      <div
-        className={`absolute rounded-full font-black flex items-center justify-center shadow-xs border border-white/60 ${avatar.badgeBg} ${badgeSizeClasses}`}
-      >
-        {avatar.variantNumber}
-      </div>
+      {/* Variation Number Pill Badge - ONLY shown when multiple accounts share this crest */}
+      {showBadge && (
+        <div
+          className={`absolute rounded-full font-black flex items-center justify-center shadow-xs border border-white/60 ${avatar.badgeBg} ${badgeSizeClasses}`}
+        >
+          {displayNum}
+        </div>
+      )}
     </div>
   );
 }
@@ -768,7 +786,7 @@ export function VaultIconPicker({
     VAULT_AVATAR_FAMILIES[0];
 
   return (
-    <div className="space-y-3.5 bg-slate-50/80 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80">
+    <div className="space-y-3 bg-slate-50/80 p-3 sm:p-3.5 rounded-2xl border border-slate-200/80 max-w-full overflow-hidden">
       {/* Header Bar */}
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-slate-800 tracking-tight">
@@ -785,51 +803,57 @@ export function VaultIconPicker({
         )}
       </div>
 
-      {/* Floating Variation Popover (Directly Above Selected Family) */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950 text-white rounded-2xl p-3 sm:p-3.5 shadow-xl border border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center gap-3">
-          <VaultBrandAvatar iconId={currentAvatar.id} size="md" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-bold text-white tracking-tight">
+      {/* Selected Crest & Variation Banner (LIGHT THEME & PROPER FIT) */}
+      <div className="bg-white rounded-2xl p-3 sm:p-3.5 shadow-xs border border-slate-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full max-w-full overflow-hidden animate-in fade-in duration-150">
+        <div className="flex items-center gap-3 min-w-0">
+          <VaultBrandAvatar iconId={currentAvatar.id} size="md" showBadge={false} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
                 {currentFamily.familyName}
               </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-300 border border-blue-400/30">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/60">
                 Variation #{currentAvatar.variantNumber}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              {currentAvatar.themeName} theme • Tap variation below
+            <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+              {currentAvatar.themeName} theme • Tap variation to switch color
             </p>
           </div>
         </div>
 
-        {/* 3 Variation Selection Buttons */}
-        <div className="flex items-center gap-1.5 bg-slate-800/90 p-1 rounded-xl border border-slate-700/70 w-full sm:w-auto justify-end shrink-0">
-          <span className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-wider hidden sm:inline">
-            Pick Variation:
+        {/* 3 Variation Selection Segmented Buttons */}
+        <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 w-full sm:w-auto shrink-0 justify-between sm:justify-end">
+          <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase tracking-wider hidden sm:inline">
+            Variation:
           </span>
-          {currentFamily.variants.map((v) => {
-            const isCurrentVariant = currentAvatar.id === v.id;
-            return (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => onSelect(v.id)}
-                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
-                  isCurrentVariant
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 scale-105"
-                    : "text-slate-300 hover:text-white hover:bg-slate-700/80"
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${v.badgeBg}`} />
-                <span>#{v.variantNumber}</span>
-                <span className="text-[10px] font-medium opacity-85 hidden md:inline">
-                  {v.themeName.split("/")[0].trim()}
-                </span>
-              </button>
-            );
-          })}
+          <div className="flex items-center gap-1 w-full sm:w-auto">
+            {currentFamily.variants.map((v) => {
+              const isCurrentVariant = currentAvatar.id === v.id;
+              const shortName = v.themeName.split(" ")[0].trim();
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => onSelect(v.id)}
+                  className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95 ${
+                    isCurrentVariant
+                      ? "bg-white text-blue-700 shadow-xs border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: v.accentColor }}
+                  />
+                  <span>#{v.variantNumber}</span>
+                  <span className="text-[10px] font-medium opacity-85">
+                    {shortName}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -842,7 +866,7 @@ export function VaultIconPicker({
           </span>
         </div>
 
-        <div className="flex items-center gap-3.5 overflow-x-auto py-2.5 px-1 scrollbar-thin scrollbar-thumb-slate-300">
+        <div className="flex items-center gap-3 overflow-x-auto py-2 px-1 scrollbar-thin scrollbar-thumb-slate-300">
           {VAULT_AVATAR_FAMILIES.map((family) => {
             const isSelected = family.familyId === currentFamily.familyId;
             const displayVariant = isSelected ? currentAvatar : family.variants[0];
@@ -860,7 +884,7 @@ export function VaultIconPicker({
                 title={family.description}
               >
                 <div className="relative">
-                  <VaultBrandAvatar iconId={displayVariant.id} size="lg" />
+                  <VaultBrandAvatar iconId={displayVariant.id} size="lg" showBadge={false} />
                   {isSelected && (
                     <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md">
                       <Check className="w-3 h-3 stroke-[3]" />
