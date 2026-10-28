@@ -20,7 +20,7 @@ type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "reso
 const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "drive", "resources", "logins", "master-control", "usage"];
 
 export default function Home() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, lockoutInfo } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -92,8 +92,8 @@ export default function Home() {
     );
   }
 
-  // 2. Unauthenticated State -> Show Login Gate
-  if (!isAuthenticated) {
+  // 2. Unauthenticated State OR IP Locked Out / Lockdown Active -> Show Gate Screen
+  if (!isAuthenticated || lockoutInfo?.locked) {
     return <AuthScreen />;
   }
 

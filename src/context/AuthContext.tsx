@@ -67,8 +67,89 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+  }, []);
 
-    refreshLockoutStatus();
+  // Cross-tab synchronization (Instant logout / login across all tabs)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let bc: BroadcastChannel | null = null;
+    if ("BroadcastChannel" in window) {
+      bc = new BroadcastChannel("ziptabs_auth_sync");
+      bc.onmessage = (event) => {
+        if (event.data?.type === "LOGOUT") {
+          setUser(null);
+          localStorage.removeItem(STORAGE_KEY);
+        } else if (event.data?.type === "LOGIN" && event.data?.user) {
+          setUser(event.data.user);
+        }
+      };
+    }
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) {
+        if (!e.newValue) {
+          setUser(null);
+        } else {
+          try {
+            setUser(JSON.parse(e.newValue));
+          } catch {}
+        }
+      } else if (e.key === "ziptabs_logout_trigger") {
+        setUser(null);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  // Active Session & Lockdown Heartbeat:
+  // Terminates active sessions immediately if IP is locked, blacklisted, or rejected by lockdown
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const verifyLockdownAndSession = async () => {
+      const info = await refreshLockoutStatus();
+      if (info?.locked) {
+        // Immediate termination: IP is not permitted
+        setUser(null);
+        localStorage.removeItem(STORAGE_KEY);
+        if ("BroadcastChannel" in window) {
+          try {
+            const bc = new BroadcastChannel("ziptabs_auth_sync");
+            bc.postMessage({ type: "LOGOUT" });
+            bc.close();
+          } catch {}
+        }
+      }
+    };
+
+    // Run verification immediately
+    verifyLockdownAndSession();
+
+    // Check when user switches to or focuses the window
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        verifyLockdownAndSession();
+      }
+    };
+
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", verifyLockdownAndSession);
+
+    // Continuous 4-second heartbeat
+    const pollInterval = setInterval(verifyLockdownAndSession, 4000);
+
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", verifyLockdownAndSession);
+      clearInterval(pollInterval);
+    };
   }, []);
 
   const login = async (username: string, password: string) => {
@@ -119,6 +200,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(loggedUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
       setLockoutInfo(null);
+
+      // Notify other tabs on same device
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        try {
+          const bc = new BroadcastChannel("ziptabs_auth_sync");
+          bc.postMessage({ type: "LOGIN", user: loggedUser });
+          bc.close();
+        } catch {}
+      }
+
       return { success: true };
     } catch (err: any) {
       console.error("Login request error:", err);
@@ -247,6 +338,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
+    try {
+      if (typeof window !== "undefined") {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("ziptabs_auth_sync");
+          bc.postMessage({ type: "LOGOUT" });
+          bc.close();
+        }
+        localStorage.setItem("ziptabs_logout_trigger", Date.now().toString());
+        localStorage.removeItem("ziptabs_logout_trigger");
+      }
+    } catch {}
   };
 
   return (
