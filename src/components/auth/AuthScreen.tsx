@@ -129,14 +129,8 @@ export function AuthScreen() {
                 </div>
               )}
 
-              {/* Lockout Details Info (Zero username disclosure) */}
+              {/* Lockout Details Info (Zero username or IP disclosure) */}
               <div className="bg-[#1f1f24] rounded-xl p-3 border border-[#2d2d35] text-left text-xs space-y-2 my-6">
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-400">Client IP:</span>
-                  <span className="font-mono font-bold text-white text-[11px]">
-                    {lockoutInfo?.ip || "Client IP"}
-                  </span>
-                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-zinc-400">Enforcement:</span>
                   <span className="text-rose-400 font-semibold text-[11px]">
@@ -222,13 +216,6 @@ export function AuthScreen() {
                       ? "1 wrong password entered. 2 attempts remaining before this IP is locked out for 24 hours."
                       : "FINAL ATTEMPT: 1 more wrong password will lock your IP from this website for 24 hours."}
                   </p>
-
-                  {lockoutInfo?.ip && (
-                    <div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-zinc-400 font-mono flex items-center justify-between">
-                      <span>Protected IP:</span>
-                      <span className="text-zinc-300">{lockoutInfo.ip}</span>
-                    </div>
-                  )}
                 </div>
               )}
 
