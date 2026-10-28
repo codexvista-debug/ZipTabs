@@ -105,6 +105,7 @@ export function LoginsView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     category: "Email Accounts" as LoginCategory,
@@ -348,6 +349,7 @@ export function LoginsView() {
 
   const handleOpenAddModal = () => {
     setEditingId(null);
+    setModalError(null);
     setFormData({
       title: "",
       category: "Email Accounts",
@@ -361,6 +363,7 @@ export function LoginsView() {
 
   const handleOpenEditModal = (item: DecryptedLoginCredential) => {
     setEditingId(item.id);
+    setModalError(null);
     setFormData({
       title: item.title,
       category: item.category,
@@ -393,6 +396,7 @@ export function LoginsView() {
     if (!formData.title.trim() || !formData.username.trim() || !vaultKey || !supabase) return;
 
     setIsSaving(true);
+    setModalError(null);
     try {
       const nowIso = new Date().toISOString();
       const { ciphertext: encPass, iv: passIv } = await encryptVaultData(
@@ -422,7 +426,7 @@ export function LoginsView() {
 
       const { error } = await supabase.from("vault_credentials").upsert(dbPayload);
       if (error) {
-        alert(`Failed to save to cloud vault: ${error.message}`);
+        setModalError(`Failed to save to cloud vault: ${error.message}`);
         return;
       }
 
@@ -889,6 +893,12 @@ export function LoginsView() {
             </div>
 
             <form onSubmit={handleFormSubmit} className="p-5 space-y-3.5 text-xs">
+              {modalError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold text-xs flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{modalError}</span>
+                </div>
+              )}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Service / Account Name *
