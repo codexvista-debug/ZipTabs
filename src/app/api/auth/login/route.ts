@@ -15,8 +15,17 @@ export function getClientIp(req: NextRequest): string {
   return "127.0.0.1";
 }
 
+export function getClientCountry(req: NextRequest): string | null {
+  const vercelCountry = req.headers.get("x-vercel-ip-country");
+  if (vercelCountry) return vercelCountry.toUpperCase();
+  const cfCountry = req.headers.get("cf-ipcountry");
+  if (cfCountry && cfCountry !== "XX") return cfCountry.toUpperCase();
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const clientIp = getClientIp(req);
+  const clientCountry = getClientCountry(req);
 
   try {
     const body = await req.json();
@@ -139,6 +148,7 @@ export async function POST(req: NextRequest) {
       // Clear failed attempts on this IP
       await supabase.from("auth_ip_locks").upsert({
         ip: clientIp,
+        country_code: clientCountry,
         failed_attempts: 0,
         locked_until: null,
         last_attempt_at: new Date().toISOString(),
@@ -178,6 +188,7 @@ export async function POST(req: NextRequest) {
 
     await supabase.from("auth_ip_locks").upsert({
       ip: clientIp,
+      country_code: clientCountry,
       failed_attempts: currentAttempts,
       locked_until: lockedUntil,
       last_attempt_at: new Date().toISOString(),

@@ -14,21 +14,31 @@ export function getClientIp(req: NextRequest): string {
   return "127.0.0.1";
 }
 
+export function getClientCountry(req: NextRequest): string | null {
+  const vercelCountry = req.headers.get("x-vercel-ip-country");
+  if (vercelCountry) return vercelCountry.toUpperCase();
+  const cfCountry = req.headers.get("cf-ipcountry");
+  if (cfCountry && cfCountry !== "XX") return cfCountry.toUpperCase();
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const clientIp = getClientIp(req);
+  const clientCountry = getClientCountry(req);
 
   if (!supabase) {
     return NextResponse.json({ ip: clientIp, attempts: 0, remainingAttempts: 3, locked: false });
   }
 
   try {
-    // 0. Record visitor IP traffic (even without login)
+    // 0. Record visitor IP traffic with country (even without login)
     const userAgent = req.headers.get("user-agent") || "unknown";
     try {
       await supabase.rpc("record_site_visitor", {
         p_ip: clientIp,
         p_user_agent: userAgent,
         p_page: "/",
+        p_country: clientCountry,
       });
     } catch (e) {
       // Non-blocking fallback

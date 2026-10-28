@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { getCountryFlag, getCountryName, fetchIpCountry, isLocalOrPrivateIp } from "@/lib/geo";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -21,10 +22,10 @@ import {
   Trash2,
   Search,
   Shield,
-  Clock,
-  Eye,
   Activity,
   Compass,
+  Zap,
+  Sparkles,
 } from "lucide-react";
 
 interface AppUserRecord {
@@ -42,6 +43,7 @@ interface IpAttemptHistoryItem {
 
 interface IpLockRecord {
   ip: string;
+  country_code?: string | null;
   failed_attempts: number;
   locked_until: string | null;
   last_attempt_at: string | null;
@@ -50,6 +52,7 @@ interface IpLockRecord {
 
 interface SiteVisitorRecord {
   ip: string;
+  country_code?: string | null;
   visit_count: number;
   first_visited_at: string;
   last_visited_at: string;
@@ -84,6 +87,9 @@ export function MasterControlView() {
   const [ipLocks, setIpLocks] = useState<IpLockRecord[]>([]);
   const [visitors, setVisitors] = useState<SiteVisitorRecord[]>([]);
 
+  // Country code cache mapping IP -> ISO Country (e.g. "IN", "US")
+  const [countryMap, setCountryMap] = useState<Record<string, string>>({});
+
   // Search & Filter
   const [ipSearch, setIpSearch] = useState("");
   const [visitorSearch, setVisitorSearch] = useState("");
@@ -92,6 +98,9 @@ export function MasterControlView() {
   // Manual actions
   const [customBlacklistIp, setCustomBlacklistIp] = useState("");
   const [customAllowedIp, setCustomAllowedIp] = useState("");
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+
+  // Premium Toast Notification State
   const [actionMessage, setActionMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -99,7 +108,9 @@ export function MasterControlView() {
 
   const showNotification = (text: string, type: "success" | "error" = "success") => {
     setActionMessage({ text, type });
-    setTimeout(() => setActionMessage(null), 4000);
+    setTimeout(() => {
+      setActionMessage((curr) => (curr?.text === text ? null : curr));
+    }, 3200);
   };
 
   const copyToClipboard = (text: string, id: string) => {
@@ -131,17 +142,39 @@ export function MasterControlView() {
     }
   }, []);
 
-  // Real-time listener & Auto-refresh (No manual refresh button needed)
+  // Background Country Resolver for IPs lacking country_code
+  useEffect(() => {
+    const allIps = [
+      ...ipLocks.map((l) => ({ ip: l.ip, code: l.country_code })),
+      ...visitors.map((v) => ({ ip: v.ip, code: v.country_code })),
+      { ip: clientIp, code: null },
+    ];
+
+    allIps.forEach(async ({ ip, code }) => {
+      if (!ip || isLocalOrPrivateIp(ip)) return;
+      if (code) {
+        setCountryMap((prev) => (prev[ip] ? prev : { ...prev, [ip]: code }));
+        return;
+      }
+      if (!countryMap[ip]) {
+        const resolved = await fetchIpCountry(ip);
+        if (resolved) {
+          setCountryMap((prev) => ({ ...prev, [ip]: resolved }));
+        }
+      }
+    });
+  }, [ipLocks, visitors, clientIp, countryMap]);
+
+  // Real-time listener & Auto-refresh (Zero refresh button needed)
   useEffect(() => {
     if (!isChief) {
       setIsLoading(false);
       return;
     }
 
-    // Initial fetch
     loadMasterData();
 
-    // 1. Supabase Realtime Channel
+    // 1. Supabase Realtime Subscription
     let channel: any = null;
     if (supabase) {
       channel = supabase
@@ -164,7 +197,7 @@ export function MasterControlView() {
         .subscribe();
     }
 
-    // 2. High-frequency 3.5s background polling fallback for instant UI updates
+    // 2. High-frequency 3.5s background polling fallback
     const pollInterval = setInterval(() => {
       loadMasterData(true);
     }, 3500);
@@ -177,8 +210,18 @@ export function MasterControlView() {
     };
   }, [isChief, loadMasterData]);
 
-  // Execute Master Actions
-  const executeAction = async (payload: any, successMsg: string) => {
+  // Ultra-Fast Optimistic Action Executor (0ms perceived latency)
+  const executeActionOptimistic = async (
+    payload: any,
+    optimisticUpdate: () => void,
+    rollbackUpdate: () => void,
+    successMsg: string
+  ) => {
+    // 1. Instantly update UI optimistically
+    optimisticUpdate();
+    showNotification(successMsg, "success");
+
+    // 2. Execute network request in background
     try {
       const res = await fetch("/api/master-control", {
         method: "POST",
@@ -186,33 +229,58 @@ export function MasterControlView() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (data.success) {
-        showNotification(successMsg, "success");
-        await loadMasterData(true);
-      } else {
+      if (!data.success) {
+        rollbackUpdate();
         showNotification(data.error || "Action failed", "error");
+      } else {
+        // Sync silently in background
+        loadMasterData(true);
       }
     } catch (err: any) {
-      showNotification(err.message || "Request failed", "error");
+      rollbackUpdate();
+      showNotification(err.message || "Network error", "error");
+    } finally {
+      setPendingActionId(null);
     }
   };
 
   // 1. Toggle Registrations
   const handleToggleRegistrations = () => {
     const nextState = !settings.registrations_allowed;
-    executeAction(
+    const prevState = settings.registrations_allowed;
+    setPendingActionId("registrations");
+
+    executeActionOptimistic(
       { action: "toggle_registrations", allowed: nextState },
-      nextState
-        ? "User registrations are now OPEN."
-        : "User registrations are PAUSED (Locked to 1 user)."
+      () => setSettings((prev) => ({ ...prev, registrations_allowed: nextState })),
+      () => setSettings((prev) => ({ ...prev, registrations_allowed: prevState })),
+      nextState ? "User registrations are now OPEN." : "Registrations PAUSED (Locked to 1 user)."
     );
   };
 
   // 2. Toggle Website Lockdown to Current IP
   const handleToggleLockdown = () => {
     const nextState = !settings.ip_lockdown_enabled;
-    executeAction(
+    const prevState = settings.ip_lockdown_enabled;
+    const prevAllowed = [...settings.allowed_ips];
+    setPendingActionId("lockdown");
+
+    executeActionOptimistic(
       { action: "toggle_lockdown", enabled: nextState },
+      () =>
+        setSettings((prev) => ({
+          ...prev,
+          ip_lockdown_enabled: nextState,
+          allowed_ips: nextState && !prev.allowed_ips.includes(clientIp)
+            ? [...prev.allowed_ips, clientIp]
+            : prev.allowed_ips,
+        })),
+      () =>
+        setSettings((prev) => ({
+          ...prev,
+          ip_lockdown_enabled: prevState,
+          allowed_ips: prevAllowed,
+        })),
       nextState
         ? `WEBSITE LOCKED DOWN: Access restricted strictly to IP ${clientIp}.`
         : "Website lockdown lifted. Standard IP monitoring active."
@@ -221,44 +289,112 @@ export function MasterControlView() {
 
   // 3. Blacklist an IP
   const handleBlacklistIp = (ipToBlacklist: string) => {
-    if (!ipToBlacklist.trim()) return;
-    if (ipToBlacklist === clientIp) {
+    const ip = ipToBlacklist.trim();
+    if (!ip) return;
+    if (ip === clientIp) {
       if (
         !confirm(
-          `WARNING: ${ipToBlacklist} is your CURRENT IP address! Are you sure you want to blacklist yourself?`
+          `WARNING: ${ip} is your CURRENT IP address! Are you sure you want to blacklist yourself?`
         )
       ) {
         return;
       }
     }
-    executeAction(
-      { action: "blacklist_ip", ip: ipToBlacklist.trim() },
-      `IP ${ipToBlacklist} permanently blacklisted.`
+
+    setPendingActionId(`blacklist-${ip}`);
+    const prevBlacklisted = [...settings.blacklisted_ips];
+    const prevLocks = [...ipLocks];
+
+    executeActionOptimistic(
+      { action: "blacklist_ip", ip },
+      () => {
+        setSettings((prev) => ({
+          ...prev,
+          blacklisted_ips: Array.from(new Set([...prev.blacklisted_ips, ip])),
+        }));
+        setIpLocks((prev) => {
+          const exists = prev.some((l) => l.ip === ip);
+          if (exists) {
+            return prev.map((l) =>
+              l.ip === ip ? { ...l, failed_attempts: 3, locked_until: "2099-12-31T23:59:59Z" } : l
+            );
+          }
+          return [
+            {
+              ip,
+              failed_attempts: 3,
+              locked_until: "2099-12-31T23:59:59Z",
+              last_attempt_at: new Date().toISOString(),
+            },
+            ...prev,
+          ];
+        });
+      },
+      () => {
+        setSettings((prev) => ({ ...prev, blacklisted_ips: prevBlacklisted }));
+        setIpLocks(prevLocks);
+      },
+      `IP ${ip} permanently blacklisted.`
     );
     setCustomBlacklistIp("");
   };
 
   // 4. Unblacklist / Reset IP Strikes
   const handleUnblacklistIp = (ipToUnban: string) => {
-    executeAction(
-      { action: "unblacklist_ip", ip: ipToUnban.trim() },
-      `IP ${ipToUnban} unbanned and strikes reset.`
+    const ip = ipToUnban.trim();
+    setPendingActionId(`unban-${ip}`);
+    const prevBlacklisted = [...settings.blacklisted_ips];
+    const prevLocks = [...ipLocks];
+
+    executeActionOptimistic(
+      { action: "unblacklist_ip", ip },
+      () => {
+        setSettings((prev) => ({
+          ...prev,
+          blacklisted_ips: prev.blacklisted_ips.filter((x) => x !== ip),
+        }));
+        setIpLocks((prev) =>
+          prev.map((l) => (l.ip === ip ? { ...l, failed_attempts: 0, locked_until: null } : l))
+        );
+      },
+      () => {
+        setSettings((prev) => ({ ...prev, blacklisted_ips: prevBlacklisted }));
+        setIpLocks(prevLocks);
+      },
+      `IP ${ip} unbanned and strikes reset.`
     );
   };
 
   // 5. Add / Remove Allowed IP
   const handleAddAllowedIp = () => {
-    if (!customAllowedIp.trim()) return;
-    executeAction(
-      { action: "add_allowed_ip", ip: customAllowedIp.trim() },
-      `IP ${customAllowedIp} added to whitelist.`
+    const ip = customAllowedIp.trim();
+    if (!ip) return;
+    const prevAllowed = [...settings.allowed_ips];
+
+    executeActionOptimistic(
+      { action: "add_allowed_ip", ip },
+      () =>
+        setSettings((prev) => ({
+          ...prev,
+          allowed_ips: Array.from(new Set([...prev.allowed_ips, ip])),
+        })),
+      () => setSettings((prev) => ({ ...prev, allowed_ips: prevAllowed })),
+      `IP ${ip} added to whitelist.`
     );
     setCustomAllowedIp("");
   };
 
   const handleRemoveAllowedIp = (ip: string) => {
-    executeAction(
+    const prevAllowed = [...settings.allowed_ips];
+
+    executeActionOptimistic(
       { action: "remove_allowed_ip", ip },
+      () =>
+        setSettings((prev) => ({
+          ...prev,
+          allowed_ips: prev.allowed_ips.filter((x) => x !== ip),
+        })),
+      () => setSettings((prev) => ({ ...prev, allowed_ips: prevAllowed })),
       `IP ${ip} removed from whitelist.`
     );
   };
@@ -270,11 +406,44 @@ export function MasterControlView() {
       return;
     }
     if (confirm(`Are you sure you want to permanently delete user account @${username}?`)) {
-      executeAction(
+      const prevUsers = [...users];
+      executeActionOptimistic(
         { action: "delete_user", userId },
+        () => setUsers((prev) => prev.filter((u) => u.id !== userId)),
+        () => setUsers(prevUsers),
         `User account @${username} deleted.`
       );
     }
+  };
+
+  // Render IP with Country Flag Badge
+  const renderIpWithFlag = (ip: string, storedCountry?: string | null) => {
+    const code = storedCountry || countryMap[ip] || null;
+    const flag = getCountryFlag(code, ip);
+    const countryName = getCountryName(code, ip);
+    const isCurrent = ip === clientIp;
+
+    return (
+      <div className="flex items-center gap-2">
+        <span
+          className="text-base select-none shrink-0 drop-shadow-2xs cursor-help"
+          title={`${countryName} (${code || "Unknown"})`}
+        >
+          {flag}
+        </span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-mono font-bold text-slate-800 tracking-tight truncate">{ip}</span>
+          {isCurrent && (
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-sans font-extrabold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+              Your IP
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] text-slate-400 font-semibold hidden md:inline truncate max-w-[110px]" title={countryName}>
+          {countryName}
+        </span>
+      </div>
+    );
   };
 
   // Filtered IP records (Auth attempts)
@@ -283,12 +452,14 @@ export function MasterControlView() {
       const q = ipSearch.toLowerCase().trim();
       if (!q) return true;
       const matchesIp = rec.ip.toLowerCase().includes(q);
+      const country = getCountryName(rec.country_code || countryMap[rec.ip]).toLowerCase();
+      const matchesCountry = country.includes(q);
       const matchesUsers = rec.attempt_history?.some((h) =>
         h.username.toLowerCase().includes(q)
       );
-      return matchesIp || matchesUsers;
+      return matchesIp || matchesCountry || matchesUsers;
     });
-  }, [ipLocks, ipSearch]);
+  }, [ipLocks, ipSearch, countryMap]);
 
   // Filtered Site Visitors (General web browsing traffic)
   const filteredVisitors = useMemo(() => {
@@ -296,10 +467,12 @@ export function MasterControlView() {
       const q = visitorSearch.toLowerCase().trim();
       if (!q) return true;
       const matchesIp = v.ip.toLowerCase().includes(q);
+      const country = getCountryName(v.country_code || countryMap[v.ip]).toLowerCase();
+      const matchesCountry = country.includes(q);
       const matchesAgent = v.user_agent?.toLowerCase().includes(q);
-      return matchesIp || matchesAgent;
+      return matchesIp || matchesCountry || matchesAgent;
     });
-  }, [visitors, visitorSearch]);
+  }, [visitors, visitorSearch, countryMap]);
 
   // Parse simple device name from User-Agent
   const formatUserAgent = (ua?: string) => {
@@ -351,25 +524,34 @@ export function MasterControlView() {
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
-      {/* Toast Notification */}
+      {/* Premium Elevated Toast Notification (Instant feedback) */}
       {actionMessage && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center gap-2.5 transition-all animate-bounce-short ${
-            actionMessage.type === "success"
-              ? "bg-slate-900 text-white border-slate-800"
-              : "bg-rose-600 text-white border-rose-700"
-          }`}
-        >
-          {actionMessage.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 text-white" />
-          )}
-          <span>{actionMessage.text}</span>
+        <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div
+            className={`px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold flex items-center gap-3 backdrop-blur-md transition-all ${
+              actionMessage.type === "success"
+                ? "bg-slate-900/95 text-white border-slate-700 shadow-slate-900/30"
+                : "bg-rose-600/95 text-white border-rose-500 shadow-rose-900/40"
+            }`}
+          >
+            <div
+              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                actionMessage.type === "success" ? "bg-emerald-500/20 text-emerald-400" : "bg-white/20 text-white"
+              }`}
+            >
+              {actionMessage.type === "success" ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-white" />
+              )}
+            </div>
+            <span className="tracking-wide">{actionMessage.text}</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-1" />
+          </div>
         </div>
       )}
 
-      {/* Header (No manual refresh button — Live Real-Time indicator instead) */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 pb-4 sm:pb-6 border-b border-slate-200/60">
         <div>
           <div className="flex items-center gap-2.5">
@@ -391,7 +573,7 @@ export function MasterControlView() {
           </p>
         </div>
 
-        {/* Live Real-Time Pulsing Status Indicator */}
+        {/* Live Real-Time Pulsing Status Indicator (No manual refresh needed) */}
         <div className="flex items-center gap-2">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
             <span className="relative flex h-2 w-2">
@@ -405,7 +587,7 @@ export function MasterControlView() {
 
       {/* Emergency Lockdown Active Alert (if enabled) */}
       {settings.ip_lockdown_enabled && (
-        <div className="bg-rose-500 text-white rounded-2xl p-4 sm:p-5 shadow-lg shadow-rose-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-pulse-slow">
+        <div className="bg-rose-500 text-white rounded-2xl p-4 sm:p-5 shadow-lg shadow-rose-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-150">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
               <ShieldAlert className="w-6 h-6 text-white" />
@@ -421,7 +603,7 @@ export function MasterControlView() {
           </div>
           <button
             onClick={handleToggleLockdown}
-            className="px-4 py-2 bg-white text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-50 transition-colors shrink-0 shadow-xs cursor-pointer"
+            className="px-4 py-2 bg-white text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-50 transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
           >
             Lift Website Lockdown
           </button>
@@ -455,7 +637,7 @@ export function MasterControlView() {
           </div>
           <button
             onClick={handleToggleRegistrations}
-            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
               settings.registrations_allowed
                 ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
                 : "bg-slate-900 text-white hover:bg-slate-800"
@@ -501,9 +683,9 @@ export function MasterControlView() {
           </div>
           <button
             onClick={handleToggleLockdown}
-            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
               settings.ip_lockdown_enabled
-                ? "bg-rose-600 text-white hover:bg-rose-700"
+                ? "bg-rose-600 text-white hover:bg-rose-700 shadow-xs"
                 : "bg-blue-600 text-white hover:bg-blue-700 shadow-xs"
             }`}
           >
@@ -548,7 +730,7 @@ export function MasterControlView() {
           </div>
         </div>
 
-        {/* Card 4: Your Current IP */}
+        {/* Card 4: Your Current IP & Country */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -557,19 +739,20 @@ export function MasterControlView() {
                 <Globe className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-base font-mono font-bold text-slate-900 truncate" title={clientIp}>
-              {clientIp}
+            <div className="text-base font-mono font-bold text-slate-900 flex items-center gap-1.5 truncate" title={clientIp}>
+              <span>{getCountryFlag(countryMap[clientIp], clientIp)}</span>
+              <span>{clientIp}</span>
             </div>
-            <div className="mt-1 flex items-center gap-1">
+            <div className="mt-1 flex items-center gap-1.5">
               <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Verified
+                {getCountryName(countryMap[clientIp], clientIp)}
               </span>
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2">
             <button
               onClick={() => copyToClipboard(clientIp, "my-ip")}
-              className="flex-1 py-1.5 px-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              className="flex-1 py-1.5 px-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
             >
               {copiedText === "my-ip" ? (
                 <>
@@ -585,13 +768,8 @@ export function MasterControlView() {
             </button>
             {!settings.allowed_ips?.includes(clientIp) && (
               <button
-                onClick={() =>
-                  executeAction(
-                    { action: "add_allowed_ip", ip: clientIp },
-                    `Current IP (${clientIp}) added to Whitelist.`
-                  )
-                }
-                className="py-1.5 px-2.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-semibold cursor-pointer"
+                onClick={() => handleAddAllowedIp()}
+                className="py-1.5 px-2.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-semibold cursor-pointer active:scale-95"
                 title="Add to Whitelist"
               >
                 Whitelist
@@ -673,7 +851,7 @@ export function MasterControlView() {
                   ) : (
                     <button
                       onClick={() => handleDeleteUser(u.id, u.username)}
-                      className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Delete Account</span>
@@ -704,11 +882,14 @@ export function MasterControlView() {
               placeholder="Add IP (e.g. 192.168.1.1)"
               value={customAllowedIp}
               onChange={(e) => setCustomAllowedIp(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddAllowedIp();
+              }}
               className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 font-mono"
             />
             <button
               onClick={handleAddAllowedIp}
-              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer shrink-0"
+              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer shrink-0 active:scale-95 transition-transform"
             >
               + Add Whitelist IP
             </button>
@@ -726,6 +907,7 @@ export function MasterControlView() {
                 key={ip}
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold"
               >
+                <span>{getCountryFlag(countryMap[ip], ip)}</span>
                 <span>{ip}</span>
                 {ip === clientIp && (
                   <span className="text-[10px] bg-emerald-200/60 px-1.5 py-0.2 rounded font-sans font-bold">
@@ -734,7 +916,7 @@ export function MasterControlView() {
                 )}
                 <button
                   onClick={() => handleRemoveAllowedIp(ip)}
-                  className="text-emerald-600 hover:text-rose-600 transition-colors cursor-pointer"
+                  className="text-emerald-600 hover:text-rose-600 transition-colors cursor-pointer p-0.5 rounded"
                   title="Remove from whitelist"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -745,7 +927,7 @@ export function MasterControlView() {
         </div>
       </div>
 
-      {/* Section 3: IP Traffic & Attack Defense Monitor (Authentication attempts) */}
+      {/* Section 3: IP Traffic & Attack Defense Monitor */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
@@ -754,7 +936,7 @@ export function MasterControlView() {
               <span>IP Traffic & Attack Defense Monitor ({ipLocks.length} Recorded IPs)</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Inspect all IP addresses attempting authentication, targeting administrator credentials, or blocked by 3-strike lockouts.
+              Inspect all IP addresses attempting authentication, targeting administrator credentials, or blocked by 3-strike lockouts. Country flags displayed for each network.
             </p>
           </div>
 
@@ -765,11 +947,14 @@ export function MasterControlView() {
               placeholder="Manual Blacklist IP..."
               value={customBlacklistIp}
               onChange={(e) => setCustomBlacklistIp(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleBlacklistIp(customBlacklistIp);
+              }}
               className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 text-slate-800 font-mono"
             />
             <button
               onClick={() => handleBlacklistIp(customBlacklistIp)}
-              className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer shrink-0 shadow-xs"
+              className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer shrink-0 shadow-xs active:scale-95 transition-all"
             >
               Blacklist IP
             </button>
@@ -781,7 +966,7 @@ export function MasterControlView() {
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search IP or targeted username..."
+            placeholder="Search IP, country, or targeted username..."
             value={ipSearch}
             onChange={(e) => setIpSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800"
@@ -793,7 +978,7 @@ export function MasterControlView() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
-                <th className="py-2.5 px-3">IP Address</th>
+                <th className="py-2.5 px-3">IP & Country</th>
                 <th className="py-2.5 px-3">Status / Enforcement</th>
                 <th className="py-2.5 px-3">Strikes</th>
                 <th className="py-2.5 px-3">Targeted Account(s)</th>
@@ -810,7 +995,6 @@ export function MasterControlView() {
                 </tr>
               ) : (
                 filteredIpLocks.map((item) => {
-                  const isCurrent = item.ip === clientIp;
                   const isPermanentlyBanned = settings.blacklisted_ips?.includes(item.ip);
                   const isLocked =
                     isPermanentlyBanned ||
@@ -818,22 +1002,15 @@ export function MasterControlView() {
 
                   return (
                     <tr key={item.ip} className="hover:bg-slate-50/60 transition-colors">
-                      {/* IP Address */}
-                      <td className="py-3 px-3 font-mono font-bold text-slate-800">
-                        <div className="flex items-center gap-1.5">
-                          <span>{item.ip}</span>
-                          {isCurrent && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-sans font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                              Your IP
-                            </span>
-                          )}
-                        </div>
+                      {/* IP Address with Flag */}
+                      <td className="py-3 px-3">
+                        {renderIpWithFlag(item.ip, item.country_code)}
                       </td>
 
                       {/* Status */}
                       <td className="py-3 px-3">
                         {isPermanentlyBanned ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 animate-in fade-in duration-100">
                             <Ban className="w-3 h-3" />
                             <span>Blacklisted</span>
                           </span>
@@ -902,13 +1079,13 @@ export function MasterControlView() {
                           : "Never"}
                       </td>
 
-                      {/* Actions */}
+                      {/* Actions with Instant Click Response */}
                       <td className="py-3 px-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {isLocked || isPermanentlyBanned || item.failed_attempts > 0 ? (
                             <button
                               onClick={() => handleUnblacklistIp(item.ip)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer active:scale-95 transition-all"
                               title="Reset strikes & unban"
                             >
                               Unban / Reset
@@ -916,7 +1093,7 @@ export function MasterControlView() {
                           ) : (
                             <button
                               onClick={() => handleBlacklistIp(item.ip)}
-                              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-[11px] cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-[11px] cursor-pointer active:scale-95 transition-all"
                               title="Blacklist this IP"
                             >
                               Blacklist
@@ -942,7 +1119,7 @@ export function MasterControlView() {
               <span>Live Website Visitor Traffic ({visitors.length} Visiting IPs)</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Tracks all IP addresses that visit or open your website in real time, even if they don’t attempt to log in. You can blacklist any visiting IP directly from here.
+              Tracks all IP addresses that visit or open your website in real time, even if they don’t attempt to log in. Country flags and 1-click blacklist actions are enabled.
             </p>
           </div>
 
@@ -951,7 +1128,7 @@ export function MasterControlView() {
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search visitor IP or device..."
+              placeholder="Search visitor IP, country, device..."
               value={visitorSearch}
               onChange={(e) => setVisitorSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
@@ -964,7 +1141,7 @@ export function MasterControlView() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
-                <th className="py-2.5 px-3">Visitor IP</th>
+                <th className="py-2.5 px-3">Visitor IP & Country</th>
                 <th className="py-2.5 px-3">Page Visits</th>
                 <th className="py-2.5 px-3">Device & Browser</th>
                 <th className="py-2.5 px-3">First Seen</th>
@@ -982,23 +1159,15 @@ export function MasterControlView() {
                 </tr>
               ) : (
                 filteredVisitors.map((visitor) => {
-                  const isCurrent = visitor.ip === clientIp;
                   const isBanned = settings.blacklisted_ips?.includes(visitor.ip);
                   const isWhitelisted = settings.allowed_ips?.includes(visitor.ip);
                   const isBlockedByLockdown = settings.ip_lockdown_enabled && !isWhitelisted;
 
                   return (
                     <tr key={visitor.ip} className="hover:bg-slate-50/60 transition-colors">
-                      {/* Visitor IP */}
-                      <td className="py-3 px-3 font-mono font-bold text-slate-800">
-                        <div className="flex items-center gap-1.5">
-                          <span>{visitor.ip}</span>
-                          {isCurrent && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-sans font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                              Your IP
-                            </span>
-                          )}
-                        </div>
+                      {/* Visitor IP with Country Flag */}
+                      <td className="py-3 px-3">
+                        {renderIpWithFlag(visitor.ip, visitor.country_code)}
                       </td>
 
                       {/* Visit Count */}
@@ -1031,7 +1200,7 @@ export function MasterControlView() {
                       {/* Access Status */}
                       <td className="py-3 px-3">
                         {isBanned ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 animate-in fade-in duration-100">
                             <Ban className="w-3 h-3" />
                             <span>Blacklisted</span>
                           </span>
@@ -1048,13 +1217,13 @@ export function MasterControlView() {
                         )}
                       </td>
 
-                      {/* Actions */}
+                      {/* Actions with Instant Click Response */}
                       <td className="py-3 px-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {isBanned ? (
                             <button
                               onClick={() => handleUnblacklistIp(visitor.ip)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer active:scale-95 transition-all"
                               title="Unban visitor IP"
                             >
                               Unban
@@ -1062,7 +1231,7 @@ export function MasterControlView() {
                           ) : (
                             <button
                               onClick={() => handleBlacklistIp(visitor.ip)}
-                              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-[11px] transition-colors cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-[11px] transition-all cursor-pointer active:scale-95 shadow-2xs"
                               title="Blacklist this visitor IP"
                             >
                               Blacklist IP
@@ -1070,13 +1239,21 @@ export function MasterControlView() {
                           )}
                           {!isWhitelisted && (
                             <button
-                              onClick={() =>
-                                executeAction(
+                              onClick={() => {
+                                setPendingActionId(`whitelist-${visitor.ip}`);
+                                const prevAllowed = [...settings.allowed_ips];
+                                executeActionOptimistic(
                                   { action: "add_allowed_ip", ip: visitor.ip },
+                                  () =>
+                                    setSettings((prev) => ({
+                                      ...prev,
+                                      allowed_ips: Array.from(new Set([...prev.allowed_ips, visitor.ip])),
+                                    })),
+                                  () => setSettings((prev) => ({ ...prev, allowed_ips: prevAllowed })),
                                   `IP (${visitor.ip}) added to Whitelist.`
-                                )
-                              }
-                              className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-[11px] cursor-pointer"
+                                );
+                              }}
+                              className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-[11px] cursor-pointer active:scale-95 transition-all"
                               title="Add to Whitelist"
                             >
                               Whitelist
