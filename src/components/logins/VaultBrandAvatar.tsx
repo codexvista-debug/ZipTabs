@@ -1,282 +1,712 @@
 "use client";
 
 import React from "react";
-import {
-  Landmark,
-  Building2,
-  Mail,
-  Database,
-  Server,
-  Shield,
-  KeyRound,
-  Briefcase,
-  ShoppingBag,
-  Terminal,
-  Globe,
-  Wifi,
-  Sparkles,
-  CreditCard,
-  Scale,
-  Cloud,
-  Layers,
-  Lock,
-  Cpu,
-  FileText,
-  UserCheck,
-  Check,
-} from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 
-export interface VaultIconPreset {
+export interface VaultAvatarItem {
   id: string;
-  name: string;
+  familyId: string;
+  familyName: string;
+  variantNumber: 1 | 2 | 3;
+  label: string;
+  themeName: string;
+  bgGradient: string;
+  borderClass: string;
+  accentColor: string;
   badgeBg: string;
-  badgeBorder: string;
-  renderIcon: (className?: string) => React.ReactNode;
 }
 
-export const VAULT_ICON_PRESETS: VaultIconPreset[] = [
+export interface VaultAvatarFamily {
+  familyId: string;
+  familyName: string;
+  description: string;
+  variants: VaultAvatarItem[];
+}
+
+export const VAULT_AVATAR_FAMILIES: VaultAvatarFamily[] = [
   {
-    id: "google",
-    name: "Google / Workspace",
-    badgeBg: "bg-white",
-    badgeBorder: "border-slate-200 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => (
-      <svg className={cls} viewBox="0 0 24 24">
-        <path
-          fill="#4285F4"
-          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-        />
-        <path
-          fill="#34A853"
-          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-        />
-        <path
-          fill="#FBBC05"
-          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-        />
-        <path
-          fill="#EA4335"
-          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-        />
-      </svg>
-    ),
+    familyId: "leopard",
+    familyName: "Leopard",
+    description: "Agile feline with spot patterns",
+    variants: [
+      {
+        id: "leopard-1",
+        familyId: "leopard",
+        familyName: "Leopard",
+        variantNumber: 1,
+        label: "Leopard Alpha",
+        themeName: "Gold / Amber",
+        bgGradient: "from-amber-400 via-amber-500 to-yellow-600",
+        borderClass: "border-amber-300/80 shadow-amber-500/15",
+        accentColor: "#F59E0B",
+        badgeBg: "bg-amber-600 text-amber-50",
+      },
+      {
+        id: "leopard-2",
+        familyId: "leopard",
+        familyName: "Leopard",
+        variantNumber: 2,
+        label: "Leopard Electric",
+        themeName: "Neon Cyan",
+        bgGradient: "from-cyan-400 via-teal-500 to-blue-600",
+        borderClass: "border-cyan-300/80 shadow-cyan-500/15",
+        accentColor: "#06B6D4",
+        badgeBg: "bg-teal-700 text-teal-50",
+      },
+      {
+        id: "leopard-3",
+        familyId: "leopard",
+        familyName: "Leopard",
+        variantNumber: 3,
+        label: "Leopard Stealth",
+        themeName: "Mystic Violet",
+        bgGradient: "from-purple-500 via-indigo-600 to-slate-900",
+        borderClass: "border-purple-300/80 shadow-purple-500/15",
+        accentColor: "#8B5CF6",
+        badgeBg: "bg-purple-800 text-purple-50",
+      },
+    ],
   },
   {
-    id: "microsoft",
-    name: "Microsoft / Office",
-    badgeBg: "bg-white",
-    badgeBorder: "border-slate-200 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => (
-      <svg className={cls} viewBox="0 0 24 24">
-        <path fill="#F25022" d="M2 2h9v9H2z" />
-        <path fill="#7FBA00" d="M13 2h9v9h-9z" />
-        <path fill="#00A4EF" d="M2 13h9v9H2z" />
-        <path fill="#FFB900" d="M13 13h9v9h-9z" />
-      </svg>
-    ),
+    familyId: "lion",
+    familyName: "Lion",
+    description: "Royal apex guardian with crown",
+    variants: [
+      {
+        id: "lion-1",
+        familyId: "lion",
+        familyName: "Lion",
+        variantNumber: 1,
+        label: "Lion Crown",
+        themeName: "Imperial Gold",
+        bgGradient: "from-yellow-400 via-amber-500 to-orange-600",
+        borderClass: "border-yellow-300/80 shadow-yellow-500/15",
+        accentColor: "#EAB308",
+        badgeBg: "bg-yellow-700 text-yellow-50",
+      },
+      {
+        id: "lion-2",
+        familyId: "lion",
+        familyName: "Lion",
+        variantNumber: 2,
+        label: "Lion Jade",
+        themeName: "Emerald Guardian",
+        bgGradient: "from-emerald-400 via-teal-600 to-slate-800",
+        borderClass: "border-emerald-300/80 shadow-emerald-500/15",
+        accentColor: "#10B981",
+        badgeBg: "bg-emerald-700 text-emerald-50",
+      },
+      {
+        id: "lion-3",
+        familyId: "lion",
+        familyName: "Lion",
+        variantNumber: 3,
+        label: "Lion Crimson",
+        themeName: "Ruby Monarch",
+        bgGradient: "from-rose-400 via-red-600 to-slate-900",
+        borderClass: "border-rose-300/80 shadow-rose-500/15",
+        accentColor: "#F43F5E",
+        badgeBg: "bg-rose-700 text-rose-50",
+      },
+    ],
   },
   {
-    id: "apple",
-    name: "Apple / iCloud",
-    badgeBg: "bg-slate-900 text-white",
-    badgeBorder: "border-slate-800 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => (
-      <svg className={cls} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.87c.6-.74 1.01-1.77.9-2.8-.88.04-1.95.59-2.58 1.33-.56.64-.99 1.68-.86 2.69.98.08 1.95-.49 2.54-1.22z" />
-      </svg>
-    ),
+    familyId: "bot",
+    familyName: "Cyber Bot",
+    description: "High-tech robotic unit with visor",
+    variants: [
+      {
+        id: "bot-1",
+        familyId: "bot",
+        familyName: "Cyber Bot",
+        variantNumber: 1,
+        label: "Bot Unit-01",
+        themeName: "Neon Cyan",
+        bgGradient: "from-sky-400 via-blue-600 to-slate-950",
+        borderClass: "border-sky-300/80 shadow-sky-500/15",
+        accentColor: "#38BDF8",
+        badgeBg: "bg-blue-700 text-blue-50",
+      },
+      {
+        id: "bot-2",
+        familyId: "bot",
+        familyName: "Cyber Bot",
+        variantNumber: 2,
+        label: "Bot Unit-02",
+        themeName: "Neon Violet",
+        bgGradient: "from-fuchsia-400 via-purple-600 to-slate-950",
+        borderClass: "border-fuchsia-300/80 shadow-fuchsia-500/15",
+        accentColor: "#C084FC",
+        badgeBg: "bg-purple-800 text-purple-50",
+      },
+      {
+        id: "bot-3",
+        familyId: "bot",
+        familyName: "Cyber Bot",
+        variantNumber: 3,
+        label: "Bot Unit-03",
+        themeName: "Solar Amber",
+        bgGradient: "from-amber-400 via-orange-600 to-slate-950",
+        borderClass: "border-amber-300/80 shadow-amber-500/15",
+        accentColor: "#FB923C",
+        badgeBg: "bg-orange-700 text-orange-50",
+      },
+    ],
   },
   {
-    id: "github",
-    name: "GitHub / Code",
-    badgeBg: "bg-[#24292e] text-white",
-    badgeBorder: "border-slate-800 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => (
-      <svg className={cls} viewBox="0 0 24 24" fill="currentColor">
-        <path
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-        />
-      </svg>
-    ),
+    familyId: "fox",
+    familyName: "Fox",
+    description: "Cunning fox with sharp ears",
+    variants: [
+      {
+        id: "fox-1",
+        familyId: "fox",
+        familyName: "Fox",
+        variantNumber: 1,
+        label: "Fox Blaze",
+        themeName: "Blaze Orange",
+        bgGradient: "from-orange-400 via-amber-600 to-red-700",
+        borderClass: "border-orange-300/80 shadow-orange-500/15",
+        accentColor: "#F97316",
+        badgeBg: "bg-orange-700 text-orange-50",
+      },
+      {
+        id: "fox-2",
+        familyId: "fox",
+        familyName: "Fox",
+        variantNumber: 2,
+        label: "Fox Arctic",
+        themeName: "Ice Frost",
+        bgGradient: "from-blue-200 via-cyan-400 to-slate-800",
+        borderClass: "border-blue-200/80 shadow-blue-500/15",
+        accentColor: "#67E8F9",
+        badgeBg: "bg-cyan-800 text-cyan-50",
+      },
+      {
+        id: "fox-3",
+        familyId: "fox",
+        familyName: "Fox",
+        variantNumber: 3,
+        label: "Fox Shadow",
+        themeName: "Midnight Violet",
+        bgGradient: "from-violet-400 via-indigo-700 to-slate-950",
+        borderClass: "border-violet-300/80 shadow-violet-500/15",
+        accentColor: "#A78BFA",
+        badgeBg: "bg-indigo-800 text-indigo-50",
+      },
+    ],
   },
   {
-    id: "aws",
-    name: "AWS / Cloud",
-    badgeBg: "bg-[#232F3E] text-[#FF9900]",
-    badgeBorder: "border-slate-800 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => (
-      <svg className={cls} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M18.77 15.68c-2.33 1.72-5.7 2.64-8.63 2.64-4.11 0-7.81-1.5-10.6-4.02-.22-.2-.02-.47.24-.32 3.01 1.74 6.74 2.79 10.59 2.79 2.6 0 5.48-.6 8.11-1.85.39-.19.7.27.29.76z" />
-        <path d="M19.78 14.54c-.3-.38-1.95-.18-2.7-.09-.23.03-.26-.16-.06-.31 1.35-.95 3.56-.68 3.82-.36.26.31-.07 2.55-1.35 3.58-.2.16-.38.07-.29-.14.28-.71.88-2.3.58-2.68z" />
-        <path d="M12.98 5.75c-.32-.23-.74-.35-1.27-.35-.86 0-1.58.33-2.17.98-.59.66-.88 1.55-.88 2.67 0 1.13.29 2.01.88 2.66.59.64 1.31.96 2.17.96.53 0 .95-.12 1.27-.35.32-.24.53-.58.63-1.02h1.6c-.15.89-.55 1.59-1.2 2.1-.65.51-1.46.77-2.42.77-1.38 0-2.52-.51-3.41-1.52-.89-1.02-1.33-2.32-1.33-3.92 0-1.6.44-2.9 1.33-3.91.89-1.02 2.03-1.52 3.41-1.52.96 0 1.77.26 2.42.77.65.51 1.05 1.21 1.2 2.1h-1.6c-.1-.44-.31-.78-.63-1.02z" />
-      </svg>
-    ),
+    familyId: "owl",
+    familyName: "Owl",
+    description: "Wise nocturnal scout with luminous eyes",
+    variants: [
+      {
+        id: "owl-1",
+        familyId: "owl",
+        familyName: "Owl",
+        variantNumber: 1,
+        label: "Owl Emerald",
+        themeName: "Forest Sage",
+        bgGradient: "from-teal-400 via-emerald-600 to-slate-900",
+        borderClass: "border-teal-300/80 shadow-teal-500/15",
+        accentColor: "#34D399",
+        badgeBg: "bg-emerald-800 text-emerald-50",
+      },
+      {
+        id: "owl-2",
+        familyId: "owl",
+        familyName: "Owl",
+        variantNumber: 2,
+        label: "Owl Night",
+        themeName: "Indigo Starlight",
+        bgGradient: "from-indigo-400 via-blue-700 to-slate-950",
+        borderClass: "border-indigo-300/80 shadow-indigo-500/15",
+        accentColor: "#818CF8",
+        badgeBg: "bg-indigo-900 text-indigo-50",
+      },
+      {
+        id: "owl-3",
+        familyId: "owl",
+        familyName: "Owl",
+        variantNumber: 3,
+        label: "Owl Solar",
+        themeName: "Golden Sun",
+        bgGradient: "from-yellow-300 via-amber-500 to-stone-900",
+        borderClass: "border-amber-300/80 shadow-amber-500/15",
+        accentColor: "#FBBF24",
+        badgeBg: "bg-amber-700 text-amber-50",
+      },
+    ],
   },
   {
-    id: "stripe",
-    name: "Stripe / Payments",
-    badgeBg: "bg-[#635BFF] text-white",
-    badgeBorder: "border-[#5349e5] shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => (
-      <svg className={cls} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.977 15.617.5 12.378.5 6.88.5 3.12 3.447 3.12 8.188c0 3.734 2.554 5.86 6.945 7.492 2.617.973 3.512 1.662 3.512 2.673 0 .99-.806 1.48-2.213 1.48-2.041 0-4.858-.946-6.84-2.106l-.92 5.578c1.92.83 4.887 1.495 7.64 1.495 5.762 0 9.756-2.735 9.756-7.814 0-4.017-2.617-5.918-7.023-7.836z" />
-      </svg>
-    ),
+    familyId: "chief",
+    familyName: "Commander",
+    description: "Star commander crest badge",
+    variants: [
+      {
+        id: "chief-1",
+        familyId: "chief",
+        familyName: "Commander",
+        variantNumber: 1,
+        label: "Chief Prime",
+        themeName: "Gold Star",
+        bgGradient: "from-amber-400 via-yellow-600 to-slate-900",
+        borderClass: "border-yellow-300/80 shadow-yellow-500/15",
+        accentColor: "#F59E0B",
+        badgeBg: "bg-yellow-800 text-yellow-50",
+      },
+      {
+        id: "chief-2",
+        familyId: "chief",
+        familyName: "Commander",
+        variantNumber: 2,
+        label: "Chief Tactical",
+        themeName: "Cobalt Star",
+        bgGradient: "from-blue-400 via-indigo-600 to-slate-950",
+        borderClass: "border-blue-300/80 shadow-blue-500/15",
+        accentColor: "#60A5FA",
+        badgeBg: "bg-blue-800 text-blue-50",
+      },
+      {
+        id: "chief-3",
+        familyId: "chief",
+        familyName: "Commander",
+        variantNumber: 3,
+        label: "Chief Stealth",
+        themeName: "Obsidian Star",
+        bgGradient: "from-slate-600 via-zinc-800 to-black",
+        borderClass: "border-slate-500/80 shadow-slate-900/20",
+        accentColor: "#94A3B8",
+        badgeBg: "bg-zinc-900 text-white",
+      },
+    ],
   },
   {
-    id: "slack",
-    name: "Slack / Teams",
-    badgeBg: "bg-[#4A154B] text-white",
-    badgeBorder: "border-[#3d113e] shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => (
-      <svg className={cls} viewBox="0 0 24 24">
-        <path
-          fill="#E01E5A"
-          d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z"
-        />
-        <path
-          fill="#36C5F0"
-          d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z"
-        />
-        <path
-          fill="#2EB67D"
-          d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312z"
-        />
-        <path
-          fill="#ECB22E"
-          d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"
-        />
-      </svg>
-    ),
+    familyId: "cosmo",
+    familyName: "Cosmonaut",
+    description: "Astronaut helmet in deep space",
+    variants: [
+      {
+        id: "cosmo-1",
+        familyId: "cosmo",
+        familyName: "Cosmonaut",
+        variantNumber: 1,
+        label: "Cosmo Lunar",
+        themeName: "Cyan Starlight",
+        bgGradient: "from-sky-300 via-blue-500 to-indigo-950",
+        borderClass: "border-sky-300/80 shadow-sky-500/15",
+        accentColor: "#38BDF8",
+        badgeBg: "bg-sky-800 text-sky-50",
+      },
+      {
+        id: "cosmo-2",
+        familyId: "cosmo",
+        familyName: "Cosmonaut",
+        variantNumber: 2,
+        label: "Cosmo Mars",
+        themeName: "Solar Flare",
+        bgGradient: "from-orange-400 via-rose-600 to-purple-950",
+        borderClass: "border-orange-300/80 shadow-orange-500/15",
+        accentColor: "#FB923C",
+        badgeBg: "bg-rose-800 text-rose-50",
+      },
+      {
+        id: "cosmo-3",
+        familyId: "cosmo",
+        familyName: "Cosmonaut",
+        variantNumber: 3,
+        label: "Cosmo Deep",
+        themeName: "Nebula Violet",
+        bgGradient: "from-pink-400 via-purple-600 to-slate-950",
+        borderClass: "border-pink-300/80 shadow-pink-500/15",
+        accentColor: "#F472B6",
+        badgeBg: "bg-purple-900 text-purple-50",
+      },
+    ],
   },
   {
-    id: "bank",
-    name: "Banking & Payroll",
-    badgeBg: "bg-emerald-50 text-emerald-600",
-    badgeBorder: "border-emerald-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Landmark className={cls} />,
+    familyId: "ninja",
+    familyName: "Ninja",
+    description: "Shadow shinobi with focus gaze",
+    variants: [
+      {
+        id: "ninja-1",
+        familyId: "ninja",
+        familyName: "Ninja",
+        variantNumber: 1,
+        label: "Ninja Crimson",
+        themeName: "Crimson Shadow",
+        bgGradient: "from-red-500 via-rose-700 to-black",
+        borderClass: "border-red-400/80 shadow-red-500/15",
+        accentColor: "#EF4444",
+        badgeBg: "bg-red-800 text-red-50",
+      },
+      {
+        id: "ninja-2",
+        familyId: "ninja",
+        familyName: "Ninja",
+        variantNumber: 2,
+        label: "Ninja Cobalt",
+        themeName: "Midnight Cobalt",
+        bgGradient: "from-blue-500 via-cyan-700 to-black",
+        borderClass: "border-blue-400/80 shadow-blue-500/15",
+        accentColor: "#3B82F6",
+        badgeBg: "bg-blue-900 text-blue-50",
+      },
+      {
+        id: "ninja-3",
+        familyId: "ninja",
+        familyName: "Ninja",
+        variantNumber: 3,
+        label: "Ninja Gold",
+        themeName: "Golden Blade",
+        bgGradient: "from-amber-400 via-stone-800 to-black",
+        borderClass: "border-amber-300/80 shadow-amber-500/15",
+        accentColor: "#F59E0B",
+        badgeBg: "bg-stone-900 text-amber-300",
+      },
+    ],
   },
   {
-    id: "tax",
-    name: "Tax & Government",
-    badgeBg: "bg-amber-50 text-amber-700",
-    badgeBorder: "border-amber-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Scale className={cls} />,
+    familyId: "dragon",
+    familyName: "Dragon",
+    description: "Mythical wyrm with ancient flame",
+    variants: [
+      {
+        id: "dragon-1",
+        familyId: "dragon",
+        familyName: "Dragon",
+        variantNumber: 1,
+        label: "Dragon Flame",
+        themeName: "Ruby Inferno",
+        bgGradient: "from-rose-500 via-orange-600 to-amber-900",
+        borderClass: "border-rose-300/80 shadow-rose-500/15",
+        accentColor: "#FB7185",
+        badgeBg: "bg-red-800 text-red-50",
+      },
+      {
+        id: "dragon-2",
+        familyId: "dragon",
+        familyName: "Dragon",
+        variantNumber: 2,
+        label: "Dragon Jade",
+        themeName: "Jade Wyrm",
+        bgGradient: "from-emerald-400 via-teal-700 to-slate-900",
+        borderClass: "border-emerald-300/80 shadow-emerald-500/15",
+        accentColor: "#34D399",
+        badgeBg: "bg-emerald-900 text-emerald-50",
+      },
+      {
+        id: "dragon-3",
+        familyId: "dragon",
+        familyName: "Dragon",
+        variantNumber: 3,
+        label: "Dragon Void",
+        themeName: "Storm Sapphire",
+        bgGradient: "from-indigo-400 via-purple-700 to-slate-950",
+        borderClass: "border-indigo-300/80 shadow-indigo-500/15",
+        accentColor: "#A5B4FC",
+        badgeBg: "bg-indigo-900 text-indigo-50",
+      },
+    ],
   },
   {
-    id: "mail",
-    name: "Corporate Email",
-    badgeBg: "bg-sky-50 text-sky-600",
-    badgeBorder: "border-sky-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Mail className={cls} />,
-  },
-  {
-    id: "database",
-    name: "Database / Cloud DB",
-    badgeBg: "bg-cyan-50 text-cyan-700",
-    badgeBorder: "border-cyan-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Database className={cls} />,
-  },
-  {
-    id: "server",
-    name: "Server & Hosting",
-    badgeBg: "bg-indigo-50 text-indigo-600",
-    badgeBorder: "border-indigo-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Server className={cls} />,
-  },
-  {
-    id: "shield",
-    name: "Security & VPN",
-    badgeBg: "bg-rose-50 text-rose-600",
-    badgeBorder: "border-rose-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Shield className={cls} />,
-  },
-  {
-    id: "key",
-    name: "Master Key & SSO",
-    badgeBg: "bg-amber-50 text-amber-600",
-    badgeBorder: "border-amber-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <KeyRound className={cls} />,
-  },
-  {
-    id: "briefcase",
-    name: "HR & Client Portal",
-    badgeBg: "bg-blue-50 text-blue-600",
-    badgeBorder: "border-blue-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Briefcase className={cls} />,
-  },
-  {
-    id: "ecommerce",
-    name: "Vendors & Commerce",
-    badgeBg: "bg-orange-50 text-orange-600",
-    badgeBorder: "border-orange-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <ShoppingBag className={cls} />,
-  },
-  {
-    id: "terminal",
-    name: "DevOps & Terminal",
-    badgeBg: "bg-slate-900 text-emerald-400",
-    badgeBorder: "border-slate-800 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Terminal className={cls} />,
-  },
-  {
-    id: "globe",
-    name: "Web & Global Portal",
-    badgeBg: "bg-slate-100 text-slate-700",
-    badgeBorder: "border-slate-200 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Globe className={cls} />,
-  },
-  {
-    id: "wifi",
-    name: "Network & DNS",
-    badgeBg: "bg-teal-50 text-teal-600",
-    badgeBorder: "border-teal-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Wifi className={cls} />,
-  },
-  {
-    id: "sparkles",
-    name: "AI & Modern Tools",
-    badgeBg: "bg-purple-50 text-purple-600",
-    badgeBorder: "border-purple-200/90 shadow-xs",
-    renderIcon: (cls = "w-5 h-5") => <Sparkles className={cls} />,
+    familyId: "falcon",
+    familyName: "Falcon",
+    description: "Sharp raptor soaring across realms",
+    variants: [
+      {
+        id: "falcon-1",
+        familyId: "falcon",
+        familyName: "Falcon",
+        variantNumber: 1,
+        label: "Falcon Talon",
+        themeName: "Desert Gold",
+        bgGradient: "from-amber-300 via-yellow-600 to-stone-900",
+        borderClass: "border-amber-300/80 shadow-amber-500/15",
+        accentColor: "#FBBF24",
+        badgeBg: "bg-amber-800 text-amber-50",
+      },
+      {
+        id: "falcon-2",
+        familyId: "falcon",
+        familyName: "Falcon",
+        variantNumber: 2,
+        label: "Falcon Sky",
+        themeName: "High Altitude",
+        bgGradient: "from-cyan-300 via-blue-600 to-slate-900",
+        borderClass: "border-cyan-300/80 shadow-cyan-500/15",
+        accentColor: "#38BDF8",
+        badgeBg: "bg-blue-800 text-blue-50",
+      },
+      {
+        id: "falcon-3",
+        familyId: "falcon",
+        familyName: "Falcon",
+        variantNumber: 3,
+        label: "Falcon Dusk",
+        themeName: "Night Talon",
+        bgGradient: "from-slate-400 via-purple-800 to-slate-950",
+        borderClass: "border-purple-300/80 shadow-purple-500/15",
+        accentColor: "#C084FC",
+        badgeBg: "bg-purple-900 text-purple-50",
+      },
+    ],
   },
 ];
 
+// Flat list of all 30 avatars
+export const ALL_VAULT_AVATARS: VaultAvatarItem[] = VAULT_AVATAR_FAMILIES.flatMap(
+  (f) => f.variants
+);
+
 /**
- * Intelligent auto-detection for icons based on item title, category, and url.
+ * Renders the unique vector character face inside a 40x40 canvas
  */
-export function detectVaultIcon(
-  title = "",
-  category = "",
-  url = ""
-): string {
-  const t = (title + " " + url).toLowerCase();
-  const c = category.toLowerCase();
+function renderMascotFace(familyId: string, variantNum: 1 | 2 | 3) {
+  switch (familyId) {
+    case "leopard":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Ears */}
+          <path d="M9 13 C6 8, 14 6, 16 11 Z" fill="#FDE68A" />
+          <path d="M10 12 C8 9, 13 8, 14 11 Z" fill="#F59E0B" />
+          <path d="M31 13 C34 8, 26 6, 24 11 Z" fill="#FDE68A" />
+          <path d="M30 12 C32 9, 27 8, 26 11 Z" fill="#F59E0B" />
+          {/* Head */}
+          <ellipse cx="20" cy="22" rx="14" ry="12" fill="#FEF3C7" />
+          {/* Spots */}
+          <circle cx="13" cy="16" r="1.6" fill="#78350F" opacity="0.8" />
+          <circle cx="27" cy="16" r="1.6" fill="#78350F" opacity="0.8" />
+          <circle cx="20" cy="14" r="1.4" fill="#78350F" opacity="0.8" />
+          <circle cx="10" cy="23" r="1.5" fill="#78350F" opacity="0.7" />
+          <circle cx="30" cy="23" r="1.5" fill="#78350F" opacity="0.7" />
+          {/* Eyes with slant */}
+          <ellipse cx="15" cy="20" rx="2.5" ry="3.2" fill="#065F46" />
+          <ellipse cx="25" cy="20" rx="2.5" ry="3.2" fill="#065F46" />
+          <ellipse cx="15.5" cy="19.5" rx="0.9" ry="1.4" fill="#FFFFFF" />
+          <ellipse cx="25.5" cy="19.5" rx="0.9" ry="1.4" fill="#FFFFFF" />
+          {/* Snout & Nose */}
+          <ellipse cx="20" cy="25" rx="4.5" ry="3" fill="#FFFFFF" />
+          <polygon points="18.5,23.8 21.5,23.8 20,25.4" fill="#EA580C" />
+          {/* Whiskers */}
+          <line x1="8" y1="24" x2="15" y2="25" stroke="#78350F" strokeWidth="0.8" opacity="0.6" />
+          <line x1="8" y1="26" x2="15" y2="26" stroke="#78350F" strokeWidth="0.8" opacity="0.6" />
+          <line x1="32" y1="24" x2="25" y2="25" stroke="#78350F" strokeWidth="0.8" opacity="0.6" />
+          <line x1="32" y1="26" x2="25" y2="26" stroke="#78350F" strokeWidth="0.8" opacity="0.6" />
+        </svg>
+      );
 
-  if (t.includes("google") || t.includes("workspace") || t.includes("gmail")) return "google";
-  if (t.includes("microsoft") || t.includes("azure") || t.includes("office") || t.includes("outlook") || t.includes("o365")) return "microsoft";
-  if (t.includes("apple") || t.includes("icloud")) return "apple";
-  if (t.includes("github") || t.includes("gitlab") || t.includes("git")) return "github";
-  if (t.includes("aws") || t.includes("amazon web") || t.includes("s3") || t.includes("ec2")) return "aws";
-  if (t.includes("stripe") || t.includes("paypal") || t.includes("square")) return "stripe";
-  if (t.includes("slack") || t.includes("discord") || t.includes("zoom")) return "slack";
-  if (t.includes("adp") || t.includes("payroll") || t.includes("bank") || t.includes("chase") || t.includes("wells") || t.includes("bofa") || t.includes("fidelity")) return "bank";
-  if (t.includes("e-verify") || t.includes("uscis") || t.includes("irs") || t.includes("tax") || t.includes("gov")) return "tax";
-  if (t.includes("supabase") || t.includes("postgres") || t.includes("database") || t.includes("mysql") || t.includes("redis")) return "database";
-  if (t.includes("vercel") || t.includes("server") || t.includes("digitalocean") || t.includes("cloudflare") || t.includes("linode")) return "server";
-  if (t.includes("vpn") || t.includes("1password") || t.includes("bitwarden") || t.includes("security") || t.includes("auth")) return "shield";
-  if (t.includes("okta") || t.includes("auth0") || t.includes("sso") || t.includes("passkey") || t.includes("key")) return "key";
-  if (t.includes("shopify") || t.includes("amazon") || t.includes("vendor") || t.includes("store")) return "ecommerce";
-  if (t.includes("ssh") || t.includes("terminal") || t.includes("cli") || t.includes("devops")) return "terminal";
+    case "lion":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Majestic Mane */}
+          <circle cx="20" cy="21" r="15" fill="#B45309" />
+          <circle cx="20" cy="21" r="12.5" fill="#D97706" />
+          {/* Crown */}
+          <polygon points="13,10 16.5,13 20,8 23.5,13 27,10 26,14 14,14" fill="#FACC15" />
+          <circle cx="20" cy="8" r="1" fill="#DC2626" />
+          {/* Face */}
+          <ellipse cx="20" cy="22" rx="9" ry="8.5" fill="#FEF08A" />
+          {/* Eyes */}
+          <circle cx="16.5" cy="20" r="1.8" fill="#1E293B" />
+          <circle cx="23.5" cy="20" r="1.8" fill="#1E293B" />
+          <circle cx="16" cy="19.5" r="0.6" fill="#FFFFFF" />
+          <circle cx="23" cy="19.5" r="0.6" fill="#FFFFFF" />
+          {/* Muzzle */}
+          <ellipse cx="20" cy="24.5" rx="3.5" ry="2.5" fill="#FFFBEB" />
+          <polygon points="18.8,23.5 21.2,23.5 20,24.8" fill="#78350F" />
+        </svg>
+      );
 
-  // Category fallback
-  if (c.includes("email")) return "mail";
-  if (c.includes("banking") || c.includes("payroll")) return "bank";
-  if (c.includes("tax") || c.includes("government")) return "tax";
-  if (c.includes("client") || c.includes("vendor")) return "briefcase";
-  return "globe";
+    case "bot":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Antenna */}
+          <line x1="20" y1="6" x2="20" y2="10" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="20" cy="5" r="2.2" fill={variantNum === 1 ? "#38BDF8" : variantNum === 2 ? "#C084FC" : "#FB923C"} />
+          {/* Head Chassis */}
+          <rect x="9" y="10" width="22" height="20" rx="6" fill="#1E293B" stroke="#475569" strokeWidth="1.5" />
+          {/* Ear Bolts */}
+          <rect x="6" y="16" width="3" height="8" rx="1.5" fill="#64748B" />
+          <rect x="31" y="16" width="3" height="8" rx="1.5" fill="#64748B" />
+          {/* Glowing Visor Screen */}
+          <rect
+            x="12"
+            y="14"
+            width="16"
+            height="8"
+            rx="3"
+            fill={variantNum === 1 ? "#0284C7" : variantNum === 2 ? "#7E22CE" : "#C2410C"}
+          />
+          {/* Eye Pixels / Scanning Line */}
+          <ellipse cx="16" cy="18" rx="2" ry="1.5" fill="#FFFFFF" />
+          <ellipse cx="24" cy="18" rx="2" ry="1.5" fill="#FFFFFF" />
+          {/* Mouth Grille */}
+          <line x1="15" y1="25" x2="25" y2="25" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="2 1" />
+        </svg>
+      );
+
+    case "fox":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Pointy Ears */}
+          <polygon points="10,8 18,17 7,18" fill="#C2410C" />
+          <polygon points="10,10 16,16 8,17" fill="#FDBA74" />
+          <polygon points="30,8 22,17 33,18" fill="#C2410C" />
+          <polygon points="30,10 24,16 32,17" fill="#FDBA74" />
+          {/* Head Triangle */}
+          <polygon points="20,30 7,16 33,16" fill="#EA580C" />
+          {/* White Cheeks */}
+          <polygon points="20,30 7,16 14,23" fill="#FFFFFF" />
+          <polygon points="20,30 33,16 26,23" fill="#FFFFFF" />
+          {/* Eyes */}
+          <polygon points="14,19 18,20 15,22" fill="#0F172A" />
+          <polygon points="26,19 22,20 25,22" fill="#0F172A" />
+          {/* Dark Nose Tip */}
+          <circle cx="20" cy="28.5" r="1.8" fill="#0F172A" />
+        </svg>
+      );
+
+    case "owl":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Ear Tufts */}
+          <polygon points="11,8 17,14 9,16" fill="#065F46" />
+          <polygon points="29,8 23,14 31,16" fill="#065F46" />
+          {/* Head Body */}
+          <ellipse cx="20" cy="22" rx="13" ry="12" fill="#047857" />
+          <ellipse cx="20" cy="24" rx="10" ry="9" fill="#A7F3D0" />
+          {/* Big Owl Eyes */}
+          <circle cx="15" cy="19" r="4.2" fill="#FFFFFF" stroke="#064E3B" strokeWidth="1" />
+          <circle cx="25" cy="19" r="4.2" fill="#FFFFFF" stroke="#064E3B" strokeWidth="1" />
+          <circle cx="15" cy="19" r="2.2" fill="#0F172A" />
+          <circle cx="25" cy="19" r="2.2" fill="#0F172A" />
+          <circle cx="14" cy="18" r="0.8" fill="#FFFFFF" />
+          <circle cx="24" cy="18" r="0.8" fill="#FFFFFF" />
+          {/* Sharp Beak */}
+          <polygon points="18.5,21.5 21.5,21.5 20,25.5" fill="#F59E0B" />
+        </svg>
+      );
+
+    case "chief":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Shield Emblem Outline */}
+          <path d="M20 7 L32 12 L32 24 C32 30 20 35 20 35 C20 35 8 30 8 24 L8 12 Z" fill="#1E293B" stroke="#F59E0B" strokeWidth="1.5" />
+          {/* Inner Plate */}
+          <path d="M20 10 L29 14 L29 23 C29 28 20 32 20 32 C20 32 11 28 11 23 L11 14 Z" fill="#0F172A" />
+          {/* Commander Gold Star */}
+          <polygon points="20,13 22,18 27,18 23,21 24.5,26 20,23 15.5,26 17,21 13,18 18,18" fill="#FBBF24" />
+          {/* Star Highlight */}
+          <circle cx="20" cy="20" r="1.5" fill="#FEF08A" />
+        </svg>
+      );
+
+    case "cosmo":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Outer Helmet */}
+          <circle cx="20" cy="21" r="13" fill="#F8FAFC" stroke="#CBD5E1" strokeWidth="1.5" />
+          {/* Glossy Visor */}
+          <ellipse cx="20" cy="21" rx="9" ry="7" fill="#0284C7" />
+          {/* Reflection Wave */}
+          <path d="M14 18 C17 16, 23 16, 26 18 C24 20, 16 20, 14 18 Z" fill="#BAE6FD" opacity="0.7" />
+          <circle cx="15" cy="22" r="1" fill="#FFFFFF" opacity="0.8" />
+          {/* Chin Mic */}
+          <rect x="18" y="29.5" width="4" height="2" rx="1" fill="#64748B" />
+        </svg>
+      );
+
+    case "ninja":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Hood */}
+          <circle cx="20" cy="21" r="13" fill="#0F172A" />
+          {/* Headband */}
+          <rect x="9" y="12" width="22" height="4.5" rx="1.5" fill="#DC2626" />
+          <circle cx="20" cy="14.2" r="1.2" fill="#FEF08A" />
+          {/* Eye Opening Slit */}
+          <ellipse cx="20" cy="20.5" rx="8" ry="3.2" fill="#FED7AA" />
+          {/* Fierce Eyes */}
+          <polygon points="14,20 18,20.5 15,21.5" fill="#0F172A" />
+          <polygon points="26,20 22,20.5 25,21.5" fill="#0F172A" />
+          <circle cx="16" cy="20.5" r="0.5" fill="#FFFFFF" />
+          <circle cx="24" cy="20.5" r="0.5" fill="#FFFFFF" />
+          {/* Mask Wrap Bottom */}
+          <path d="M9 22 C13 25, 27 25, 31 22 C31 29, 27 34, 20 34 C13 34, 9 29, 9 22 Z" fill="#0F172A" />
+        </svg>
+      );
+
+    case "dragon":
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Horns */}
+          <path d="M12 14 C8 6, 17 8, 16 13 Z" fill="#EA580C" />
+          <path d="M28 14 C32 6, 23 8, 24 13 Z" fill="#EA580C" />
+          {/* Head */}
+          <ellipse cx="20" cy="22" rx="12" ry="10" fill="#BE123C" />
+          {/* Brow Scale */}
+          <path d="M12 17 C16 15, 24 15, 28 17" stroke="#881337" strokeWidth="1.5" fill="none" />
+          {/* Slit Dragon Eyes */}
+          <ellipse cx="15" cy="20" rx="2.5" ry="3.5" fill="#FACC15" />
+          <ellipse cx="25" cy="20" rx="2.5" ry="3.5" fill="#FACC15" />
+          <line x1="15" y1="17.5" x2="15" y2="22.5" stroke="#000000" strokeWidth="1.2" />
+          <line x1="25" y1="17.5" x2="25" y2="22.5" stroke="#000000" strokeWidth="1.2" />
+          {/* Nostrils with Smoke Spurt */}
+          <ellipse cx="18" cy="26" rx="1" ry="1.5" fill="#4C0519" />
+          <ellipse cx="22" cy="26" rx="1" ry="1.5" fill="#4C0519" />
+          <circle cx="20" cy="29" r="1.2" fill="#F97316" />
+        </svg>
+      );
+
+    case "falcon":
+    default:
+      return (
+        <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-sm">
+          {/* Feather Crest */}
+          <polygon points="16,8 20,4 21,11" fill="#78350F" />
+          <polygon points="20,7 24,5 23,12" fill="#78350F" />
+          {/* Head */}
+          <ellipse cx="20" cy="20" rx="12" ry="11" fill="#F59E0B" />
+          {/* Sharp Curved Beak */}
+          <path d="M17 21 C20 21, 23 21, 23 24 C23 28, 19 28, 17 26 Z" fill="#FACC15" stroke="#B45309" strokeWidth="0.8" />
+          {/* Raptor Eye */}
+          <circle cx="15" cy="18" r="3" fill="#1C1917" />
+          <circle cx="25" cy="18" r="3" fill="#1C1917" />
+          <circle cx="15" cy="18" r="1.5" fill="#F59E0B" />
+          <circle cx="25" cy="18" r="1.5" fill="#F59E0B" />
+          <circle cx="14.5" cy="17.5" r="0.6" fill="#FFFFFF" />
+          <circle cx="24.5" cy="17.5" r="0.6" fill="#FFFFFF" />
+        </svg>
+      );
+  }
+}
+
+/**
+ * Smart automatic fallback if none is chosen
+ */
+export function detectVaultAvatar(title = "", category = "", url = ""): string {
+  const t = (title + " " + category + " " + url).toLowerCase();
+
+  if (t.includes("leopard")) return "leopard-1";
+  if (t.includes("quickbooks") || t.includes("intuit") || t.includes("accounting")) return "lion-1";
+  if (t.includes("paychex") || t.includes("adp") || t.includes("payroll")) return "bot-1";
+  if (t.includes("chief") || t.includes("master") || t.includes("admin")) return "chief-1";
+  if (t.includes("google") || t.includes("workspace") || t.includes("mail")) return "fox-1";
+  if (t.includes("security") || t.includes("verify") || t.includes("tax") || t.includes("irs")) return "owl-1";
+  if (t.includes("aws") || t.includes("cloud") || t.includes("space") || t.includes("azure")) return "cosmo-1";
+  if (t.includes("git") || t.includes("code") || t.includes("dev") || t.includes("terminal")) return "ninja-1";
+  if (t.includes("bank") || t.includes("stripe") || t.includes("vault")) return "dragon-1";
+
+  // Pick deterministic based on title hash
+  let sum = 0;
+  for (let i = 0; i < t.length; i++) {
+    sum += t.charCodeAt(i);
+  }
+  const pickedFamily = VAULT_AVATAR_FAMILIES[sum % VAULT_AVATAR_FAMILIES.length];
+  return pickedFamily.variants[0].id;
 }
 
 interface VaultBrandAvatarProps {
@@ -296,25 +726,43 @@ export function VaultBrandAvatar({
   size = "md",
   className = "",
 }: VaultBrandAvatarProps) {
-  const finalId = iconId || detectVaultIcon(title, category, url);
-  const preset = VAULT_ICON_PRESETS.find((p) => p.id === finalId) || VAULT_ICON_PRESETS[VAULT_ICON_PRESETS.length - 1];
+  // If iconId matches one of our 30 avatars, use it; else detect one
+  let avatar = ALL_VAULT_AVATARS.find((a) => a.id === iconId);
+  if (!avatar) {
+    const fallbackId = detectVaultAvatar(title, category, url);
+    avatar = ALL_VAULT_AVATARS.find((a) => a.id === fallbackId) || ALL_VAULT_AVATARS[0];
+  }
 
   const sizeClasses =
     size === "sm"
-      ? "w-8 h-8 rounded-lg text-xs"
+      ? "w-8 h-8 rounded-xl"
       : size === "lg"
-      ? "w-12 h-12 sm:w-14 sm:h-14 rounded-2xl text-base"
-      : "w-10 h-10 sm:w-11 sm:h-11 rounded-xl text-sm";
+      ? "w-14 h-14 rounded-2xl"
+      : "w-11 h-11 rounded-2xl";
 
-  const iconSizeClasses =
-    size === "sm" ? "w-4 h-4" : size === "lg" ? "w-6 h-6 sm:w-7 sm:h-7" : "w-5 h-5";
+  const badgeSizeClasses =
+    size === "sm"
+      ? "w-3.5 h-3.5 text-[8px] -bottom-1 -right-1"
+      : size === "lg"
+      ? "w-5 h-5 text-[10px] -bottom-1 -right-1"
+      : "w-4 h-4 text-[9px] -bottom-1 -right-1";
 
   return (
     <div
-      className={`shrink-0 flex items-center justify-center border transition-all duration-200 ${sizeClasses} ${preset.badgeBg} ${preset.badgeBorder} ${className}`}
-      title={preset.name}
+      className={`relative shrink-0 flex items-center justify-center p-1 bg-gradient-to-br ${avatar.bgGradient} border ${avatar.borderClass} shadow-md transition-all duration-200 ${sizeClasses} ${className}`}
+      title={`${avatar.label} (${avatar.themeName})`}
     >
-      {preset.renderIcon(iconSizeClasses)}
+      {/* Mascot Graphic */}
+      <div className="w-full h-full flex items-center justify-center">
+        {renderMascotFace(avatar.familyId, avatar.variantNumber)}
+      </div>
+
+      {/* Variation Number Pill Badge */}
+      <div
+        className={`absolute rounded-full font-black flex items-center justify-center shadow-xs border border-white/60 ${avatar.badgeBg} ${badgeSizeClasses}`}
+      >
+        {avatar.variantNumber}
+      </div>
     </div>
   );
 }
@@ -328,59 +776,89 @@ interface VaultIconPickerProps {
 export function VaultIconPicker({
   selectedIcon,
   onSelect,
-  detectedFallback = "globe",
+  detectedFallback = "leopard-1",
 }: VaultIconPickerProps) {
+  const currentAvatar =
+    ALL_VAULT_AVATARS.find((a) => a.id === selectedIcon) ||
+    ALL_VAULT_AVATARS.find((a) => a.id === detectedFallback) ||
+    ALL_VAULT_AVATARS[0];
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-xs">
-        <label className="font-bold text-slate-800 flex items-center gap-1.5">
-          <span>Login Avatar & Icon</span>
-          <span className="text-[10px] font-normal text-slate-400">
-            (Pick an icon for instant visual recognition)
-          </span>
-        </label>
+    <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
+      {/* Header with preview */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <VaultBrandAvatar iconId={currentAvatar.id} size="md" />
+          <div>
+            <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+              <span>{currentAvatar.label}</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-blue-100 text-blue-700 font-extrabold">
+                Variation #{currentAvatar.variantNumber}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">{currentAvatar.themeName} theme</p>
+          </div>
+        </div>
+
         {selectedIcon && (
           <button
             type="button"
             onClick={() => onSelect("")}
             className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
           >
-            Reset to Auto
+            Auto-Detect
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 p-2 bg-slate-50/80 rounded-2xl border border-slate-200/80 max-h-40 overflow-y-auto scrollbar-thin">
-        {VAULT_ICON_PRESETS.map((preset) => {
-          const isSelected = selectedIcon === preset.id || (!selectedIcon && preset.id === detectedFallback);
-          return (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => onSelect(preset.id)}
-              className={`relative flex flex-col items-center justify-center p-2 rounded-xl transition-all cursor-pointer group active:scale-95 ${
-                isSelected
-                  ? "bg-white shadow-md ring-2 ring-blue-600 border border-blue-200 scale-105 z-10"
-                  : "hover:bg-white/80 hover:shadow-xs border border-transparent"
-              }`}
-              title={preset.name}
-            >
-              <div
-                className={`w-7 h-7 rounded-lg flex items-center justify-center ${preset.badgeBg} ${preset.badgeBorder}`}
-              >
-                {preset.renderIcon("w-4 h-4")}
-              </div>
-              <span className="text-[9px] font-semibold text-slate-600 truncate max-w-[50px] mt-1 group-hover:text-blue-600">
-                {preset.name.split("/")[0].trim()}
+      <div className="text-[11px] font-semibold text-slate-600 flex items-center justify-between border-t border-slate-200/60 pt-2.5">
+        <span>Select Mascot Persona & Variation (3 variations per persona for multiple accounts)</span>
+      </div>
+
+      {/* Grid of 10 Character Families × 3 Variations */}
+      <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
+        {VAULT_AVATAR_FAMILIES.map((family) => (
+          <div
+            key={family.familyId}
+            className="flex items-center justify-between gap-3 p-2 bg-white rounded-xl border border-slate-200/70 hover:border-slate-300 transition-colors"
+          >
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-slate-800 block truncate">
+                {family.familyName}
               </span>
-              {isSelected && (
-                <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                  <Check className="w-2.5 h-2.5" />
-                </div>
-              )}
-            </button>
-          );
-        })}
+              <span className="text-[10px] text-slate-400 block truncate">
+                {family.description}
+              </span>
+            </div>
+
+            {/* 3 Variations */}
+            <div className="flex items-center gap-2 shrink-0">
+              {family.variants.map((v) => {
+                const isSelected = selectedIcon === v.id || (!selectedIcon && v.id === detectedFallback);
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => onSelect(v.id)}
+                    className={`group relative p-1 rounded-xl transition-all cursor-pointer active:scale-95 ${
+                      isSelected
+                        ? "ring-2 ring-blue-600 ring-offset-2 scale-105 shadow-md z-10"
+                        : "hover:scale-105 opacity-85 hover:opacity-100"
+                    }`}
+                    title={`${v.label} (${v.themeName}) - Variant #${v.variantNumber}`}
+                  >
+                    <VaultBrandAvatar iconId={v.id} size="sm" />
+                    {isSelected && (
+                      <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                        <Check className="w-2.5 h-2.5" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

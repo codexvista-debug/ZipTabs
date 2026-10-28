@@ -14,7 +14,7 @@ import {
 import {
   VaultBrandAvatar,
   VaultIconPicker,
-  detectVaultIcon,
+  detectVaultAvatar,
 } from "./VaultBrandAvatar";
 import {
   KeyRound,
@@ -27,9 +27,6 @@ import {
   EyeOff,
   Trash2,
   Edit2,
-  Mail,
-  Building2,
-  Landmark,
   ShieldCheck,
   Globe,
   Lock,
@@ -41,14 +38,31 @@ import {
   RefreshCw,
   Sparkles,
   FileText,
+  Tag,
 } from "lucide-react";
 
-export type LoginCategory =
-  | "Email Accounts"
-  | "Client & Vendor Portals"
-  | "Tax & Government"
-  | "Banking & Payroll"
-  | "General";
+export type LoginCategory = string;
+
+export const DEFAULT_VAULT_CATEGORIES = [
+  "Leopard",
+  "Quickbooks",
+  "Paychex",
+  "General",
+];
+
+export function formatDateMMDDYYYY(dateStr?: string): string {
+  if (!dateStr) return "10/28/2026";
+  try {
+    const parts = dateStr.split("T")[0].split("-");
+    if (parts.length === 3) {
+      const [y, m, d] = parts;
+      return `${m}/${d}/${y}`;
+    }
+    return dateStr;
+  } catch {
+    return dateStr;
+  }
+}
 
 export interface DecryptedLoginCredential {
   id: string;
@@ -87,14 +101,6 @@ interface RawVaultRow {
   updated_at: string;
 }
 
-const CATEGORIES: { label: LoginCategory; icon: React.ElementType }[] = [
-  { label: "Email Accounts", icon: Mail },
-  { label: "Client & Vendor Portals", icon: Building2 },
-  { label: "Tax & Government", icon: Landmark },
-  { label: "Banking & Payroll", icon: ShieldCheck },
-  { label: "General", icon: Globe },
-];
-
 const AUTO_LOCK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const CLIPBOARD_WIPE_TIMEOUT_MS = 30 * 1000; // 30 seconds
 const PEEK_AUTO_HIDE_MS = 10 * 1000; // 10 seconds
@@ -121,6 +127,47 @@ export function LoginsView() {
   // Auto-lock timer ref
   const autoLockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Dynamic Categories State (Defaults: Leopard, Quickbooks, Paychex, General)
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("ziptabs_vault_categories");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return DEFAULT_VAULT_CATEGORIES;
+  });
+
+  const [isAddingCategoryInline, setIsAddingCategoryInline] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [isModalAddingCategory, setIsModalAddingCategory] = useState(false);
+  const [modalNewCategoryName, setModalNewCategoryName] = useState("");
+
+  const allCategories = useMemo(() => {
+    const set = new Set([...customCategories, ...logins.map((l) => l.category).filter(Boolean)]);
+    return Array.from(set);
+  }, [customCategories, logins]);
+
+  const handleAddCategory = (catName: string) => {
+    const trimmed = catName.trim();
+    if (!trimmed) return;
+    if (!customCategories.includes(trimmed)) {
+      const updated = [...customCategories, trimmed];
+      setCustomCategories(updated);
+      try {
+        localStorage.setItem("ziptabs_vault_categories", JSON.stringify(updated));
+      } catch {}
+    }
+    setFormData((prev) => ({ ...prev, category: trimmed }));
+    setIsAddingCategoryInline(false);
+    setIsModalAddingCategory(false);
+    setNewCategoryName("");
+    setModalNewCategoryName("");
+  };
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -129,7 +176,7 @@ export function LoginsView() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
-    category: "Email Accounts" as LoginCategory,
+    category: "Leopard" as LoginCategory,
     username: "",
     password: "",
     url: "",
@@ -245,13 +292,13 @@ export function LoginsView() {
               // Graceful recovery for seed items with IV mismatch so raw ciphertext is never rendered
               if (row.id.startsWith("cred-") && row.title.includes("Google")) {
                 decNotes = "Primary business email administration & user routing";
-                decIcon = "google";
+                decIcon = "fox-1";
               } else if (row.id.startsWith("cred-") && row.title.includes("ADP")) {
                 decNotes = "Semi-monthly payroll generation and direct deposit";
-                decIcon = "bank";
+                decIcon = "bot-1";
               } else if (row.id.startsWith("cred-") && row.title.includes("USCIS")) {
                 decNotes = "I-9 employment verification for consultants";
-                decIcon = "tax";
+                decIcon = "owl-1";
               } else {
                 decNotes = undefined;
               }
@@ -260,7 +307,7 @@ export function LoginsView() {
 
           // If icon was not explicitly saved, detect automatically
           if (!decIcon) {
-            decIcon = detectVaultIcon(row.title, row.category, row.url || "");
+            decIcon = detectVaultAvatar(row.title, row.category, row.url || "");
           }
 
           decryptedList.push({
@@ -284,7 +331,7 @@ export function LoginsView() {
             password: "••••••••••••",
             url: row.url || undefined,
             notes: undefined,
-            icon: detectVaultIcon(row.title, row.category, row.url || ""),
+            icon: detectVaultAvatar(row.title, row.category, row.url || ""),
             updatedAt: row.updated_at ? row.updated_at.split("T")[0] : "2026-10-28",
           });
         }
@@ -304,33 +351,33 @@ export function LoginsView() {
     const starters = [
       {
         id: `cred-${Date.now()}-1`,
-        title: "Google Workspace Admin",
-        category: "Email Accounts" as LoginCategory,
+        title: "Leopard Primary Admin",
+        category: "Leopard",
         username: "admin@ziptabs.com",
         password: "TempMasterPassword_2026!",
-        url: "https://admin.google.com",
-        notes: "Primary business email administration & user routing",
-        icon: "google",
+        url: "https://leopard.ziptabs.com",
+        notes: "Primary portal administration & staff routing",
+        icon: "leopard-1",
       },
       {
         id: `cred-${Date.now()}-2`,
-        title: "ADP Workforce Portal",
-        category: "Banking & Payroll" as LoginCategory,
+        title: "Quickbooks Online Accountant",
+        category: "Quickbooks",
         username: "payroll.ziptabs",
         password: "PayrollSecureKey#2026",
-        url: "https://workforcenow.adp.com",
-        notes: "Semi-monthly payroll generation and direct deposit",
-        icon: "bank",
+        url: "https://qbo.intuit.com",
+        notes: "Company books, invoicing, and tax filings",
+        icon: "lion-1",
       },
       {
         id: `cred-${Date.now()}-3`,
-        title: "USCIS E-Verify Portal",
-        category: "Tax & Government" as LoginCategory,
+        title: "Paychex Flex Portal",
+        category: "Paychex",
         username: "everify_admin",
         password: "EVerifyPortalPass99!",
-        url: "https://www.e-verify.gov",
-        notes: "I-9 employment verification for consultants",
-        icon: "tax",
+        url: "https://myapps.paychex.com",
+        notes: "Payroll runs and contractor direct deposit",
+        icon: "bot-1",
       },
     ];
 
@@ -418,9 +465,11 @@ export function LoginsView() {
   const handleOpenAddModal = () => {
     setEditingId(null);
     setModalError(null);
+    setIsModalAddingCategory(false);
+    setModalNewCategoryName("");
     setFormData({
       title: "",
-      category: "Email Accounts",
+      category: allCategories[0] || "Leopard",
       username: "",
       password: "",
       url: "",
@@ -433,6 +482,8 @@ export function LoginsView() {
   const handleOpenEditModal = (item: DecryptedLoginCredential) => {
     setEditingId(item.id);
     setModalError(null);
+    setIsModalAddingCategory(false);
+    setModalNewCategoryName("");
     setFormData({
       title: item.title,
       category: item.category,
@@ -471,7 +522,7 @@ export function LoginsView() {
       );
 
       const finalIcon =
-        formData.icon || detectVaultIcon(formData.title, formData.category, formData.url);
+        formData.icon || detectVaultAvatar(formData.title, formData.category, formData.url);
 
       let encNotes: string | null = null;
       if (formData.notes.trim() || finalIcon) {
@@ -738,24 +789,22 @@ export function LoginsView() {
           >
             All ({logins.length})
           </button>
-          {CATEGORIES.map((cat) => {
-            const count = logins.filter((l) => l.category === cat.label).length;
-            const Icon = cat.icon;
+          {allCategories.map((cat) => {
+            const count = logins.filter((l) => l.category === cat).length;
             return (
               <button
-                key={cat.label}
-                onClick={() => setSelectedCategory(cat.label)}
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  selectedCategory === cat.label
+                  selectedCategory === cat
                     ? "bg-slate-900 text-white shadow-xs"
                     : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{cat.label}</span>
+                <span>{cat}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    selectedCategory === cat.label
+                    selectedCategory === cat
                       ? "bg-slate-800 text-slate-200"
                       : "bg-slate-100 text-slate-500"
                   }`}
@@ -765,6 +814,55 @@ export function LoginsView() {
               </button>
             );
           })}
+
+          {/* Quick Add Category inline */}
+          {isAddingCategoryInline ? (
+            <div className="flex items-center gap-1 shrink-0 bg-white border border-blue-400 rounded-xl px-2 py-1 shadow-xs">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Category name..."
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCategory(newCategoryName);
+                  } else if (e.key === "Escape") {
+                    setIsAddingCategoryInline(false);
+                    setNewCategoryName("");
+                  }
+                }}
+                className="text-xs px-1 py-0.5 outline-none w-28 text-slate-800 placeholder:text-slate-400"
+              />
+              <button
+                type="button"
+                onClick={() => handleAddCategory(newCategoryName)}
+                className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-lg font-bold hover:bg-blue-700 cursor-pointer"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingCategoryInline(false);
+                  setNewCategoryName("");
+                }}
+                className="text-[10px] text-slate-400 hover:text-slate-600 px-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsAddingCategoryInline(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 border border-dashed border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer whitespace-nowrap"
+              title="Add new category"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Category</span>
+            </button>
+          )}
         </div>
 
         {/* Search Input */}
@@ -948,26 +1046,24 @@ export function LoginsView() {
                   )}
                 </div>
 
-                {/* Bottom Bar: Updated Date on Left, Visually Nice Button for Open Portal on Right */}
+                {/* Bottom Bar: Updated Date in MM/DD/YYYY on Left, Blue "Login" Button on Right */}
                 <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
                     <Clock className="w-3 h-3 text-slate-400" />
-                    <span>Updated {item.updatedAt}</span>
+                    <span>Updated {formatDateMMDDYYYY(item.updatedAt)}</span>
                   </div>
 
-                  {/* Visually Nice Open Portal Button */}
+                  {/* Blue "Login" Button */}
                   {item.url ? (
                     <a
                       href={item.url.startsWith("http") ? item.url : `https://${item.url}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white text-xs font-semibold shadow-xs hover:shadow-md hover:shadow-blue-500/25 transition-all cursor-pointer group/btn active:scale-95 shrink-0"
-                      title={`Open ${item.url} in new tab`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all cursor-pointer group/btn shrink-0"
+                      title={`Login to ${item.url}`}
                     >
-                      <span className="truncate max-w-[120px] sm:max-w-[150px]">
-                        {cleanDomain ? `Open ${cleanDomain}` : "Open Portal"}
-                      </span>
-                      <ExternalLink className="w-3 h-3 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 shrink-0" />
+                      <span>Login</span>
+                      <ExternalLink className="w-3.5 h-3.5 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 shrink-0" />
                     </a>
                   ) : (
                     <button
@@ -985,7 +1081,7 @@ export function LoginsView() {
         </div>
       )}
 
-      {/* Add / Edit Modal - Spacious Layout with Notes and Avatar Picker */}
+      {/* Add / Edit Modal - Spacious Layout with Mascot Avatar Picker & Dynamic Categories */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -1022,11 +1118,11 @@ export function LoginsView() {
                 </div>
               )}
 
-              {/* 1. Avatar / Icon Picker */}
+              {/* 1. Mascot Persona Avatar Picker (10 Characters × 3 Variations) */}
               <VaultIconPicker
                 selectedIcon={formData.icon}
                 onSelect={(iconId) => setFormData((prev) => ({ ...prev, icon: iconId }))}
-                detectedFallback={detectVaultIcon(formData.title, formData.category, formData.url)}
+                detectedFallback={detectVaultAvatar(formData.title, formData.category, formData.url)}
               />
 
               {/* 2. Responsive 2-Column Inputs */}
@@ -1038,28 +1134,92 @@ export function LoginsView() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Google Workspace, ADP Workforce, AWS Cloud"
+                    placeholder="e.g. Leopard Admin, Quickbooks Payroll, Paychex Flex"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm transition-all"
                   />
                 </div>
 
+                {/* Dynamic Category Selector with "+ New Category" */}
                 <div>
-                  <label className="block font-bold text-slate-800 mb-1.5">Category *</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) =>
-                      setFormData({ ...formData, category: e.target.value as LoginCategory })
-                    }
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm cursor-pointer transition-all"
-                  >
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat.label} value={cat.label}>
-                        {cat.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="font-bold text-slate-800">Category *</label>
+                    {!isModalAddingCategory && (
+                      <button
+                        type="button"
+                        onClick={() => setIsModalAddingCategory(true)}
+                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>New Category</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {isModalAddingCategory ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="e.g. Leopard, Quickbooks, Paychex..."
+                        value={modalNewCategoryName}
+                        onChange={(e) => setModalNewCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (modalNewCategoryName.trim()) {
+                              handleAddCategory(modalNewCategoryName);
+                            }
+                          } else if (e.key === "Escape") {
+                            setIsModalAddingCategory(false);
+                            setModalNewCategoryName("");
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 bg-white border border-blue-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (modalNewCategoryName.trim()) {
+                            handleAddCategory(modalNewCategoryName);
+                          }
+                        }}
+                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsModalAddingCategory(false);
+                          setModalNewCategoryName("");
+                        }}
+                        className="px-2 py-2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.category}
+                      onChange={(e) => {
+                        if (e.target.value === "__NEW__") {
+                          setIsModalAddingCategory(true);
+                        } else {
+                          setFormData({ ...formData, category: e.target.value });
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm cursor-pointer transition-all"
+                    >
+                      {allCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      <option value="__NEW__">+ Create New Category...</option>
+                    </select>
+                  )}
                 </div>
 
                 <div>
