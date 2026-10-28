@@ -93,14 +93,25 @@ export function Sidebar({
               const Icon = item.icon;
               const isActive = activeItem === item.id;
               return (
-                <button
+                <a
                   key={item.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect && onSelect(item.id);
-                    if (onClose) onClose();
+                  href={`#${item.id}`}
+                  onClick={(e) => {
+                    // Left click without modifier keys -> normal client-side tab change
+                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                      e.preventDefault();
+                      onSelect && onSelect(item.id);
+                      if (onClose) onClose();
+                    }
                   }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-all text-left cursor-pointer ${
+                  onAuxClick={(e) => {
+                    // Middle click (scroll wheel click) -> open in new browser tab
+                    if (e.button === 1) {
+                      e.preventDefault();
+                      window.open(`/#${item.id}`, "_blank");
+                    }
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-all text-left cursor-pointer select-none no-underline ${
                     isActive
                       ? "bg-[#2563eb] text-white shadow-md shadow-[#2563eb]/30 font-semibold"
                       : "text-slate-300 hover:text-white hover:bg-slate-800/50"
@@ -112,7 +123,7 @@ export function Sidebar({
                     }`}
                   />
                   <span className="truncate">{item.label}</span>
-                </button>
+                </a>
               );
             })}
           </nav>
