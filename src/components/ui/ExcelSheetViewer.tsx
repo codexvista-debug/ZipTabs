@@ -227,8 +227,117 @@ function getCellFont(cell: any): {
   };
 }
 
+// Helper: Evaluate Excel formulas when cached result is not stored in the workbook
+function evaluateExcelFormula(
+  formulaStr: string,
+  getCellValue?: (addr: string) => any,
+  depth = 0
+): any {
+  if (depth > 8 || !getCellValue) return undefined;
+  let expr = String(formulaStr || "").trim();
+  if (expr.startsWith("=")) expr = expr.slice(1).trim();
+  if (!expr) return undefined;
+
+  // 1. Direct single cell reference e.g. "I25", "$I$25", "+I25"
+  const singleMatch = expr.match(/^\+?\$?([A-Za-z]+)\$?([0-9]+)$/);
+  if (singleMatch) {
+    const targetAddr = `${singleMatch[1]}${singleMatch[2]}`.toUpperCase();
+    return getCellValue(targetAddr);
+  }
+
+  // Helper to extract numeric value of a cell
+  const resolveAddrNum = (addr: string): number => {
+    const raw = getCellValue(addr.toUpperCase().replace(/\$/g, ""));
+    if (typeof raw === "number") return raw;
+    if (typeof raw === "string") {
+      const clean = raw.replace(/[$, ]/g, "").replace(/%$/, "");
+      const num = parseFloat(clean);
+      if (!isNaN(num)) return raw.endsWith("%") ? num / 100 : num;
+    }
+    return 0;
+  };
+
+  // Helper to resolve range e.g. "A1:A10"
+  const resolveRangeNums = (start: string, end: string): number[] => {
+    const parseCol = (c: string) => {
+      let col = 0;
+      for (let i = 0; i < c.length; i++) {
+        col = col * 26 + (c.charCodeAt(i) - 64);
+      }
+      return col;
+    };
+    const toColName = (n: number) => {
+      let s = "";
+      while (n > 0) {
+        const m = (n - 1) % 26;
+        s = String.fromCharCode(65 + m) + s;
+        n = Math.floor((n - m) / 26);
+      }
+      return s;
+    };
+    const mStart = start.toUpperCase().match(/^([A-Z]+)([0-9]+)$/);
+    const mEnd = end.toUpperCase().match(/^([A-Z]+)([0-9]+)$/);
+    if (!mStart || !mEnd) return [];
+    const c1 = parseCol(mStart[1]), r1 = parseInt(mStart[2], 10);
+    const c2 = parseCol(mEnd[1]), r2 = parseInt(mEnd[2], 10);
+    const minC = Math.min(c1, c2), maxC = Math.max(c1, c2);
+    const minR = Math.min(r1, r2), maxR = Math.max(r1, r2);
+    const values: number[] = [];
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        values.push(resolveAddrNum(`${toColName(c)}${r}`));
+      }
+    }
+    return values;
+  };
+
+  // 2. SUM / SUBTOTAL
+  expr = expr.replace(/(?:SUM|SUBTOTAL\s*\(\s*[0-9]+\s*,)\s*\(\s*([A-Za-z0-9$]+):([A-Za-z0-9$]+)\s*\)/gi, (_, a, b) => {
+    const nums = resolveRangeNums(a, b);
+    return String(nums.reduce((sum, n) => sum + n, 0));
+  });
+
+  // 3. AVERAGE
+  expr = expr.replace(/AVERAGE\s*\(\s*([A-Za-z0-9$]+):([A-Za-z0-9$]+)\s*\)/gi, (_, a, b) => {
+    const nums = resolveRangeNums(a, b);
+    return nums.length ? String(nums.reduce((sum, n) => sum + n, 0) / nums.length) : "0";
+  });
+
+  // 4. MIN / MAX
+  expr = expr.replace(/MIN\s*\(\s*([A-Za-z0-9$]+):([A-Za-z0-9$]+)\s*\)/gi, (_, a, b) => {
+    const nums = resolveRangeNums(a, b);
+    return nums.length ? String(Math.min(...nums)) : "0";
+  });
+  expr = expr.replace(/MAX\s*\(\s*([A-Za-z0-9$]+):([A-Za-z0-9$]+)\s*\)/gi, (_, a, b) => {
+    const nums = resolveRangeNums(a, b);
+    return nums.length ? String(Math.max(...nums)) : "0";
+  });
+
+  // 5. Replace single cell references with resolved numbers e.g. G25 -> 80, L25 -> 52
+  expr = expr.replace(/\$?([A-Za-z]+)\$?([0-9]+)/g, (match, col, row) => {
+    const addr = `${col}${row}`.toUpperCase();
+    const val = resolveAddrNum(addr);
+    return String(val);
+  });
+
+  // 6. Safely evaluate arithmetic (+, -, *, /, parentheses)
+  try {
+    if (/^[0-9.+\-*/() ]+$/.test(expr)) {
+      const calc = new Function(`return (${expr});`)();
+      if (typeof calc === "number" && !isNaN(calc) && isFinite(calc)) {
+        return Math.round(calc * 10000) / 10000;
+      }
+    }
+  } catch {}
+
+  return undefined;
+}
+
 // Helper: Format cell value cleanly (Unpacks formulas, shared formulas, currency, dates, percentages, integers)
-function getCellFormattedValue(cell: any): {
+function getCellFormattedValue(
+  cell: any,
+  getCellValue?: (addr: string) => any
+): {
   formattedText: string;
   rawValue: any;
   formula?: string;
@@ -239,6 +348,17 @@ function getCellFormattedValue(cell: any): {
 
   let val = cell.value;
   let formula: string | undefined = undefined;
+
+  // Plain string formula e.g. "=G25+H25"
+  if (typeof val === "string" && val.startsWith("=")) {
+    formula = val;
+    if (getCellValue) {
+      const calculated = evaluateExcelFormula(val, getCellValue);
+      if (calculated !== undefined && calculated !== null && calculated !== "") {
+        val = calculated;
+      }
+    }
+  }
 
   // Thoroughly unpack object structures (ExcelJS can wrap formulas, shared formulas, hyperlinks, richText, errors)
   let loopCount = 0;
@@ -253,6 +373,14 @@ function getCellFormattedValue(cell: any): {
       }
       if (val.result !== undefined && val.result !== null) {
         val = val.result;
+      } else if (getCellValue && formula) {
+        const calculated = evaluateExcelFormula(formula, getCellValue);
+        if (calculated !== undefined && calculated !== null && calculated !== "") {
+          val = calculated;
+        } else {
+          val = formula || "";
+          break;
+        }
       } else {
         val = formula || "";
         break;
@@ -351,7 +479,9 @@ function getCellFormattedValue(cell: any): {
     }
 
     // 2. Intelligent currency / accounting format detection:
-    const isCurrencyFmt = cell.numFmt && String(cell.numFmt).includes("$");
+    const isCurrencyFmt =
+      (cell.numFmt && String(cell.numFmt).includes("$")) ||
+      (formula && formula.includes("*") && /[JLMNjlnm][0-9]+/.test(formula));
     if (isCurrencyFmt) {
       if (val === 0) {
         return { formattedText: "$ -", rawValue: val, formula };
@@ -478,6 +608,48 @@ export function ExcelSheetViewer({ fileUrl, fileName, isCsv = false }: ExcelShee
                 colWidths.push(w);
               }
 
+              // Build initial cell map for formula evaluation across the sheet
+              const sheetCellMap = new Map<string, { cell: any; val: any; formula?: string }>();
+              ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+                for (let c = 1; c <= maxCols; c++) {
+                  const cell = row.getCell(c);
+                  const addr = `${getColumnLetter(c)}${rowNumber}`;
+                  let v: any = cell.value;
+                  let f: string | undefined = undefined;
+                  if (typeof v === "object" && v !== null && !(v instanceof Date)) {
+                    if (v.formula || v.sharedFormula) {
+                      f = v.formula || v.sharedFormula;
+                      v = v.result !== undefined ? v.result : f;
+                    } else if ("result" in v) {
+                      v = v.result;
+                    }
+                  }
+                  sheetCellMap.set(addr, { cell, val: v, formula: f });
+                }
+              });
+
+              // Recursive resolver for formula evaluator
+              const getCellValue = (addr: string): any => {
+                const item = sheetCellMap.get(addr.toUpperCase());
+                if (!item) return 0;
+                let v = item.val;
+                if (typeof v === "object" && v !== null && "result" in v && v.result !== undefined) {
+                  v = v.result;
+                }
+                if (typeof v === "string" && v.startsWith("=")) {
+                  const evaled = evaluateExcelFormula(v, getCellValue);
+                  if (evaled !== undefined && evaled !== null) return evaled;
+                }
+                if (v === undefined || v === null) {
+                  if (item.formula) {
+                    const evaled = evaluateExcelFormula(item.formula, getCellValue);
+                    if (evaled !== undefined && evaled !== null) return evaled;
+                  }
+                  return 0;
+                }
+                return v;
+              };
+
               const rows: RichExcelRow[] = [];
 
               ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
@@ -494,7 +666,7 @@ export function ExcelSheetViewer({ fileUrl, fileName, isCsv = false }: ExcelShee
 
                   const bgColor = getCellBgColor(cell, row);
                   const fontInfo = getCellFont(cell);
-                  const valInfo = getCellFormattedValue(cell);
+                  const valInfo = getCellFormattedValue(cell, getCellValue);
 
                   // Alignment
                   let hAlign: "left" | "center" | "right" = "left";
@@ -596,6 +768,18 @@ export function ExcelSheetViewer({ fileUrl, fileName, isCsv = false }: ExcelShee
             colWidths.push(125);
           }
 
+          // Build SheetJS cell resolver
+          const getSheetJSVal = (addr: string): any => {
+            const cObj = ws[addr.toUpperCase()];
+            if (!cObj) return 0;
+            if (cObj.v !== undefined && cObj.v !== null) return cObj.v;
+            if (cObj.f) {
+              const evaled = evaluateExcelFormula(cObj.f, getSheetJSVal);
+              if (evaled !== undefined && evaled !== null) return evaled;
+            }
+            return 0;
+          };
+
           const rows: RichExcelRow[] = [];
 
           for (let R = range.s.r; R <= range.e.r; R++) {
@@ -616,7 +800,10 @@ export function ExcelSheetViewer({ fileUrl, fileName, isCsv = false }: ExcelShee
                 fontColor = "#" + cell.s.font.color.rgb;
               }
 
-              const valInfo = getCellFormattedValue({ value: cell?.v, numFmt: cell?.z });
+              const valInfo = getCellFormattedValue(
+                { value: cell?.v, numFmt: cell?.z, formula: cell?.f },
+                getSheetJSVal
+              );
               const formattedText = cell?.w ? String(cell.w) : valInfo.formattedText;
               const formula = cell?.f ? "=" + cell.f : valInfo.formula;
 

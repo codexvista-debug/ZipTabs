@@ -154,6 +154,19 @@ export function FullAttachmentViewer({
   ].includes(ext) || mimeType.startsWith("text/");
   const isVideo = mimeType.startsWith("video/") || ["mp4", "webm", "ogg"].includes(ext);
   const isAudio = mimeType.startsWith("audio/") || ["mp3", "wav", "aac"].includes(ext);
+  const isOfficeFile =
+    isExcel ||
+    isWord ||
+    ["pptx", "ppt"].includes(ext) ||
+    mimeType.includes("presentationml") ||
+    mimeType.includes("powerpoint");
+
+  // Microsoft Office Web Viewer / Editor integration
+  // Opens the file directly in full Microsoft Excel for the Web / Word for the Web in a new tab
+  const officeOnlineUrl =
+    isOfficeFile && fileUrl && fileUrl.startsWith("http")
+      ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`
+      : fileUrl;
 
   // 1. Esc key listener (Always runs unconditionally)
   useEffect(() => {
@@ -403,14 +416,18 @@ export function FullAttachmentViewer({
             </button>
           )}
 
-          {/* Open Raw in New Window */}
+          {/* Open in Microsoft Office for the Web or Raw New Tab */}
           {fileUrl && (
             <a
-              href={fileUrl}
+              href={officeOnlineUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors hidden md:block"
-              title="Open raw attachment in new tab"
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors flex items-center justify-center cursor-pointer"
+              title={
+                isOfficeFile
+                  ? "Open in Microsoft Office for the Web (Excel / Word Web)"
+                  : "Open file in new tab"
+              }
             >
               <ExternalLink className="w-4 h-4" />
             </a>
