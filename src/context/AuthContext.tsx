@@ -17,6 +17,8 @@ export interface LockoutInfo {
   remainingAttempts: number;
   lockedUntil: string | null;
   remainingMs: number;
+  isLockdown?: boolean;
+  isBlacklisted?: boolean;
 }
 
 interface AuthContextType {

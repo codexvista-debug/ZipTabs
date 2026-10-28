@@ -78,7 +78,7 @@ export function AuthScreen() {
         {/* Main Portal Card */}
         <div className="bg-[#17171a] border border-[#26262b] rounded-2xl p-8 sm:p-9 shadow-2xl">
           {isLocked ? (
-            /* 24-Hour Security Lockout View */
+            /* Security Lockout / Lockdown View */
             <div className="text-center py-1 animate-in fade-in zoom-in-95 duration-200">
               <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 mb-5 shadow-lg shadow-rose-500/20 animate-pulse">
                 <ShieldAlert className="w-9 h-9" />
@@ -86,38 +86,53 @@ export function AuthScreen() {
 
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[11px] font-bold uppercase tracking-wider mb-3">
                 <Lock className="w-3.5 h-3.5 text-rose-400" />
-                <span>24-Hour Security Lockout</span>
+                <span>
+                  {lockoutInfo?.isLockdown
+                    ? "Perimeter Lockdown Active"
+                    : lockoutInfo?.isBlacklisted
+                    ? "IP Blacklisted"
+                    : "Security Lockout"}
+                </span>
               </div>
 
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                IP Address Locked Out
+                {lockoutInfo?.isLockdown
+                  ? "Access Restricted"
+                  : lockoutInfo?.isBlacklisted
+                  ? "IP Address Blacklisted"
+                  : "IP Address Locked Out"}
               </h2>
 
               <p className="text-xs text-zinc-300 mt-2 leading-relaxed max-w-xs mx-auto">
-                Access to ZipTabs has been locked from your IP address after{" "}
-                <strong className="text-rose-400">3 consecutive failed password attempts</strong>.
+                {lockoutInfo?.isLockdown
+                  ? "Website Lockdown is active. Access to this workspace is restricted strictly to authorized network IP addresses."
+                  : lockoutInfo?.isBlacklisted
+                  ? "Your IP address has been permanently blacklisted by the Administrator. Access denied."
+                  : "Access to ZipTabs has been locked from your IP address after 3 consecutive failed password attempts."}
               </p>
 
-              {/* Live Countdown Box */}
-              <div className="my-6 p-4 rounded-xl bg-[#201518] border border-rose-900/50 text-center">
-                <div className="flex items-center justify-center gap-1.5 text-xs text-rose-300 font-medium mb-1.5">
-                  <Clock className="w-4 h-4 text-rose-400" />
-                  <span>Lockout Expires In</span>
+              {/* Live Countdown Box (Only for temporary 3-strike lockout) */}
+              {!lockoutInfo?.isLockdown && !lockoutInfo?.isBlacklisted && (
+                <div className="my-6 p-4 rounded-xl bg-[#201518] border border-rose-900/50 text-center">
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-rose-300 font-medium mb-1.5">
+                    <Clock className="w-4 h-4 text-rose-400" />
+                    <span>Lockout Expires In</span>
+                  </div>
+                  <div className="text-2xl font-black text-white tracking-wider font-mono">
+                    {timeLeft
+                      ? `${String(timeLeft.hours).padStart(2, "0")}h : ${String(timeLeft.minutes).padStart(2, "0")}m : ${String(timeLeft.seconds).padStart(2, "0")}s`
+                      : "24h 00m 00s"}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 mt-1">
+                    Automatic unblock after 24-hour security window
+                  </div>
                 </div>
-                <div className="text-2xl font-black text-white tracking-wider font-mono">
-                  {timeLeft
-                    ? `${String(timeLeft.hours).padStart(2, "0")}h : ${String(timeLeft.minutes).padStart(2, "0")}m : ${String(timeLeft.seconds).padStart(2, "0")}s`
-                    : "24h 00m 00s"}
-                </div>
-                <div className="text-[10px] text-zinc-400 mt-1">
-                  Automatic unblock after 24-hour security window
-                </div>
-              </div>
+              )}
 
-              {/* Lockout Details Info */}
-              <div className="bg-[#1f1f24] rounded-xl p-3 border border-[#2d2d35] text-left text-xs space-y-2 mb-6">
+              {/* Lockout Details Info (Zero username disclosure) */}
+              <div className="bg-[#1f1f24] rounded-xl p-3 border border-[#2d2d35] text-left text-xs space-y-2 my-6">
                 <div className="flex justify-between items-center">
-                  <span className="text-zinc-400">Blocked IP:</span>
+                  <span className="text-zinc-400">Client IP:</span>
                   <span className="font-mono font-bold text-white text-[11px]">
                     {lockoutInfo?.ip || "Client IP"}
                   </span>
@@ -125,19 +140,23 @@ export function AuthScreen() {
                 <div className="flex justify-between items-center">
                   <span className="text-zinc-400">Enforcement:</span>
                   <span className="text-rose-400 font-semibold text-[11px]">
-                    Server-Level Lockout (3 Strikes)
+                    {lockoutInfo?.isLockdown
+                      ? "Perimeter Whitelist Firewall"
+                      : lockoutInfo?.isBlacklisted
+                      ? "Permanent Administrator Ban"
+                      : "Server-Level Lockout (3 Strikes)"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-zinc-400">Account Target:</span>
-                  <span className="text-white font-mono font-semibold text-[11px]">
-                    @chief
+                  <span className="text-zinc-400">Status:</span>
+                  <span className="text-zinc-300 font-semibold text-[11px]">
+                    Connection Rejected
                   </span>
                 </div>
               </div>
 
               <div className="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800 text-[11px] text-zinc-400 text-center">
-                All login attempts from this network are rejected until the countdown expires.
+                All authentication requests from this network are rejected.
               </div>
             </div>
           ) : (
