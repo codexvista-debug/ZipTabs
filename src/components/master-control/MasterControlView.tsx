@@ -31,6 +31,7 @@ import {
   EyeOff,
   KeyRound,
   Loader2,
+  Ghost,
 } from "lucide-react";
 
 interface AppUserRecord {
@@ -69,6 +70,7 @@ interface SystemSecuritySettings {
   id: string;
   registrations_allowed: boolean;
   ip_lockdown_enabled: boolean;
+  vanish_mode_enabled?: boolean;
   allowed_ips: string[];
   blacklisted_ips: string[];
   updated_at?: string;
@@ -164,8 +166,8 @@ export function MasterControlView() {
     title: string;
     description: React.ReactNode;
     confirmText: string;
-    confirmVariant?: "danger" | "primary" | "warning";
-    icon?: "logout" | "trash" | "lock" | "warning";
+    confirmVariant?: "danger" | "primary" | "warning" | "purple";
+    icon?: "logout" | "trash" | "lock" | "warning" | "ghost";
     onConfirm: () => void | Promise<void>;
   } | null>(null);
 
@@ -354,6 +356,59 @@ export function MasterControlView() {
         ? `WEBSITE LOCKED DOWN: Access restricted strictly to IP ${clientIp}.`
         : "Website lockdown lifted. Standard IP monitoring active."
     );
+  };
+
+  // 2.1 Toggle Vanish Mode (Immediate eviction of non-whitelisted visitors to Wikipedia)
+  const executeToggleVanishMode = (nextState: boolean) => {
+    const prevState = Boolean(settings.vanish_mode_enabled);
+    const prevAllowed = [...settings.allowed_ips];
+    setPendingActionId("vanish");
+
+    executeActionOptimistic(
+      { action: "toggle_vanish_mode", enabled: nextState },
+      () =>
+        setSettings((prev) => ({
+          ...prev,
+          vanish_mode_enabled: nextState,
+          allowed_ips: nextState && !prev.allowed_ips.includes(clientIp)
+            ? [...prev.allowed_ips, clientIp]
+            : prev.allowed_ips,
+        })),
+      () =>
+        setSettings((prev) => ({
+          ...prev,
+          vanish_mode_enabled: prevState,
+          allowed_ips: prevAllowed,
+        })),
+      nextState
+        ? `VANISH MODE ACTIVATED: Non-whitelisted visitors are evicted to Wikipedia immediately.`
+        : "Vanish Mode deactivated. Normal access restored."
+    );
+  };
+
+  const handleToggleVanishMode = () => {
+    const nextState = !settings.vanish_mode_enabled;
+    if (nextState) {
+      setConfirmDialog({
+        title: "Activate Vanish Mode?",
+        description: (
+          <span>
+            When Vanish Mode is active, <strong>any visitor visiting any part of this site</strong> whose IP is not on your whitelist will be <strong>instantly evicted and redirected to Wikipedia</strong> (<code className="text-purple-600 bg-purple-50 px-1 py-0.5 rounded font-mono text-[11px]">https://www.wikipedia.org</code>).
+            <br /><br />
+            They will never be able to access or remain on your website link at all. Your current IP (<strong className="text-slate-900">{clientIp}</strong>) will be kept whitelisted so you are never locked out.
+          </span>
+        ),
+        confirmText: "Activate Vanish Mode",
+        confirmVariant: "purple",
+        icon: "ghost",
+        onConfirm: () => {
+          setConfirmDialog(null);
+          executeToggleVanishMode(true);
+        },
+      });
+    } else {
+      executeToggleVanishMode(false);
+    }
   };
 
   // 3. Blacklist an IP
@@ -677,7 +732,8 @@ export function MasterControlView() {
   const renderActivePill = (
     lastVisitedAt?: string | null,
     isBanned?: boolean,
-    isBlockedByLockdown?: boolean
+    isBlockedByLockdown?: boolean,
+    isVanished?: boolean
   ) => {
     const active = isIpActiveOnSite(lastVisitedAt);
     if (!active) return null;
@@ -687,7 +743,12 @@ export function MasterControlView() {
     let pingClass = "bg-emerald-400";
     let dotClass = "bg-emerald-500";
 
-    if (isBanned) {
+    if (isVanished) {
+      text = "Evicted (Wikipedia)";
+      badgeClass = "bg-purple-50 text-purple-800 border-purple-300";
+      pingClass = "bg-purple-400";
+      dotClass = "bg-purple-500";
+    } else if (isBanned) {
       text = "Active (Blacklisted Screen)";
       badgeClass = "bg-rose-50 text-rose-800 border-rose-300";
       pingClass = "bg-rose-400";
@@ -947,8 +1008,38 @@ export function MasterControlView() {
         </div>
       )}
 
+      {/* Vanish Mode Active Alert (if enabled) */}
+      {settings.vanish_mode_enabled && (
+        <div className="bg-gradient-to-r from-purple-800 to-indigo-900 text-white rounded-2xl p-4 sm:p-5 shadow-lg shadow-purple-900/30 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-150 border border-purple-500/30">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+              <Ghost className="w-6 h-6 text-purple-200 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-black tracking-tight">
+                  VANISH MODE IS ACTIVE
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 text-white uppercase tracking-wider">
+                  Decoy: Wikipedia
+                </span>
+              </div>
+              <p className="text-xs text-purple-100 mt-0.5">
+                Non-whitelisted visitors are immediately evicted and redirected to Wikipedia (<span className="font-mono text-purple-200 underline">https://www.wikipedia.org</span>). They cannot stay on any part of this site. Your IP (<span className="font-mono font-bold text-white">{clientIp}</span>) is whitelisted.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleToggleVanishMode}
+            className="px-4 py-2 bg-white text-purple-800 rounded-xl font-bold text-xs hover:bg-purple-50 transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
+          >
+            Disable Vanish Mode
+          </button>
+        </div>
+      )}
+
       {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Users & Registration */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
           <div>
@@ -1040,7 +1131,60 @@ export function MasterControlView() {
           </button>
         </div>
 
-        {/* Card 3: Blacklisted & Locked IPs */}
+        {/* Card 3: Vanish Mode Switch */}
+        <div className={`rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all ${
+          settings.vanish_mode_enabled
+            ? "bg-purple-50/60 border-purple-300 ring-2 ring-purple-500/20"
+            : "bg-white border-slate-200/90"
+        }`}>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-slate-400">Vanish Mode</span>
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                  settings.vanish_mode_enabled
+                    ? "bg-purple-100 text-purple-700 animate-pulse"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                <Ghost className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              {settings.vanish_mode_enabled ? "Active" : "Standard"}
+              {settings.vanish_mode_enabled && (
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-ping" />
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              {settings.vanish_mode_enabled
+                ? "Non-whitelisted visitors redirected to Wikipedia"
+                : "Decoy Wikipedia redirect is currently off"}
+            </p>
+          </div>
+          <button
+            onClick={handleToggleVanishMode}
+            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+              settings.vanish_mode_enabled
+                ? "bg-purple-700 text-white hover:bg-purple-800 shadow-xs"
+                : "bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 shadow-xs"
+            }`}
+          >
+            {settings.vanish_mode_enabled ? (
+              <>
+                <Unlock className="w-3.5 h-3.5" />
+                <span>Disable Vanish</span>
+              </>
+            ) : (
+              <>
+                <Ghost className="w-3.5 h-3.5" />
+                <span>Enable Vanish Mode</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Card 4: Blacklisted & Locked IPs */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1350,9 +1494,11 @@ export function MasterControlView() {
               ) : (
                 filteredIpLocks.map((item) => {
                   const isPermanentlyBanned = settings.blacklisted_ips?.includes(item.ip);
+                  const isWhitelisted = settings.allowed_ips?.includes(item.ip);
                   const isLocked =
                     isPermanentlyBanned ||
                     (item.locked_until && new Date(item.locked_until).getTime() > Date.now());
+                  const isVanished = Boolean(settings.vanish_mode_enabled && !isWhitelisted);
 
                   return (
                     <tr key={item.ip} className="hover:bg-slate-50/60 transition-colors">
@@ -1366,7 +1512,8 @@ export function MasterControlView() {
                             return renderActivePill(
                               latestActiveTime,
                               isPermanentlyBanned,
-                              settings.ip_lockdown_enabled && !settings.allowed_ips?.includes(item.ip)
+                              settings.ip_lockdown_enabled && !isWhitelisted,
+                              isVanished
                             );
                           })()}
                         </div>
@@ -1378,6 +1525,11 @@ export function MasterControlView() {
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 animate-in fade-in duration-100">
                             <Ban className="w-3 h-3" />
                             <span>Blacklisted</span>
+                          </span>
+                        ) : isVanished ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            <Ghost className="w-3 h-3 text-purple-600" />
+                            <span>Vanished (Wikipedia)</span>
                           </span>
                         ) : isLocked ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
@@ -1546,13 +1698,16 @@ export function MasterControlView() {
               const isBanned = settings.blacklisted_ips?.includes(v.ip);
               const isWhitelisted = settings.allowed_ips?.includes(v.ip);
               const isBlocked = settings.ip_lockdown_enabled && !isWhitelisted;
+              const isVanished = Boolean(settings.vanish_mode_enabled && !isWhitelisted);
               const isCurrent = v.ip === clientIp;
 
               return (
                 <div
                   key={v.ip}
                   className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border shadow-2xs transition-all ${
-                    isBanned
+                    isVanished
+                      ? "bg-purple-50 text-purple-900 border-purple-300"
+                      : isBanned
                       ? "bg-rose-50 text-rose-800 border-rose-200"
                       : isBlocked
                       ? "bg-amber-50 text-amber-800 border-amber-200"
@@ -1568,14 +1723,18 @@ export function MasterControlView() {
                   )}
                   <span
                     className={`text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.2 rounded ${
-                      isBanned
+                      isVanished
+                        ? "bg-purple-200/70 text-purple-900"
+                        : isBanned
                         ? "bg-rose-200/70 text-rose-900"
                         : isBlocked
                         ? "bg-amber-200/70 text-amber-900"
                         : "bg-emerald-200/70 text-emerald-900"
                     }`}
                   >
-                    {isBanned
+                    {isVanished
+                      ? "Vanished -> Wikipedia"
+                      : isBanned
                       ? "Blacklist Screen"
                       : isBlocked
                       ? "Lockdown Screen"
@@ -1624,6 +1783,7 @@ export function MasterControlView() {
                   const isBanned = settings.blacklisted_ips?.includes(visitor.ip);
                   const isWhitelisted = settings.allowed_ips?.includes(visitor.ip);
                   const isBlockedByLockdown = settings.ip_lockdown_enabled && !isWhitelisted;
+                  const isVanished = Boolean(settings.vanish_mode_enabled && !isWhitelisted);
 
                   return (
                     <tr key={visitor.ip} className="hover:bg-slate-50/60 transition-colors">
@@ -1634,7 +1794,8 @@ export function MasterControlView() {
                           {renderActivePill(
                             visitor.last_visited_at,
                             isBanned,
-                            isBlockedByLockdown
+                            isBlockedByLockdown,
+                            isVanished
                           )}
                         </div>
                       </td>
@@ -1668,6 +1829,11 @@ export function MasterControlView() {
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 animate-in fade-in duration-100">
                             <Ban className="w-3 h-3" />
                             <span>Blacklisted</span>
+                          </span>
+                        ) : isVanished ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            <Ghost className="w-3 h-3 text-purple-600" />
+                            <span>Vanished (Wikipedia)</span>
                           </span>
                         ) : isBlockedByLockdown ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
@@ -1854,14 +2020,18 @@ export function MasterControlView() {
           >
             <div
               className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 shadow-xs ${
-                confirmDialog.confirmVariant === "danger"
+                confirmDialog.confirmVariant === "purple"
+                  ? "bg-purple-50 border border-purple-200/80 text-purple-600"
+                  : confirmDialog.confirmVariant === "danger"
                   ? "bg-rose-50 border border-rose-200/80 text-rose-600"
                   : confirmDialog.confirmVariant === "warning"
                   ? "bg-amber-50 border border-amber-200/80 text-amber-600"
                   : "bg-blue-50 border border-blue-200/80 text-blue-600"
               }`}
             >
-              {confirmDialog.icon === "logout" ? (
+              {confirmDialog.icon === "ghost" ? (
+                <Ghost className="w-6 h-6 animate-pulse" />
+              ) : confirmDialog.icon === "logout" ? (
                 <LogOut className="w-6 h-6" />
               ) : confirmDialog.icon === "trash" ? (
                 <Trash2 className="w-6 h-6" />
@@ -1892,7 +2062,9 @@ export function MasterControlView() {
                 type="button"
                 onClick={confirmDialog.onConfirm}
                 className={`px-4 py-2 rounded-xl text-white text-xs font-bold transition-all shadow-md cursor-pointer active:scale-95 ${
-                  confirmDialog.confirmVariant === "danger"
+                  confirmDialog.confirmVariant === "purple"
+                    ? "bg-purple-600 hover:bg-purple-700 shadow-purple-500/20"
+                    : confirmDialog.confirmVariant === "danger"
                     ? "bg-rose-600 hover:bg-rose-700 shadow-rose-500/20"
                     : confirmDialog.confirmVariant === "warning"
                     ? "bg-amber-600 hover:bg-amber-700 shadow-amber-500/20"

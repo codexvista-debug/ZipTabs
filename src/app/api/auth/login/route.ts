@@ -46,12 +46,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 0. Check Master Control Security Settings (Blacklist & Lockdown Mode)
-    const { data: settings } = await supabase
+    // 0. Check Master Control Security Settings (Global & Vanish Mode)
+    const { data: allSettings } = await supabase
       .from("system_security_settings")
       .select("*")
-      .eq("id", "global")
-      .maybeSingle();
+      .in("id", ["global", "vanish_mode"]);
+
+    const settings = allSettings?.find((s) => s.id === "global");
+    const vanishSettings = allSettings?.find((s) => s.id === "vanish_mode");
+    const isVanishMode = Boolean(vanishSettings?.ip_lockdown_enabled);
+
+    if (isVanishMode) {
+      const isAllowed = Array.isArray(settings?.allowed_ips) && settings.allowed_ips.includes(clientIp);
+      if (!isAllowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            locked: true,
+            isVanishMode: true,
+            vanishRedirectUrl: "https://www.wikipedia.org",
+            error: "Vanish Mode Active. Access Denied.",
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     if (settings) {
       // Check if IP is explicitly blacklisted

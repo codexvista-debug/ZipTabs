@@ -28,6 +28,13 @@ export function AuthScreen() {
     seconds: number;
   } | null>(null);
 
+  // Immediate Vanish Mode Eviction
+  useEffect(() => {
+    if (lockoutInfo?.isVanishMode && typeof window !== "undefined") {
+      window.location.replace(lockoutInfo.vanishRedirectUrl || "https://www.wikipedia.org");
+    }
+  }, [lockoutInfo]);
+
   useEffect(() => {
     if (!lockoutInfo?.locked || !lockoutInfo?.lockedUntil) {
       setTimeLeft(null);

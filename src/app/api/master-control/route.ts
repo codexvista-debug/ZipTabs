@@ -27,11 +27,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [settingsRes, usersRes, ipLocksRes, visitorsRes] = await Promise.all([
+    const [settingsRes, vanishRes, usersRes, ipLocksRes, visitorsRes] = await Promise.all([
       supabase
         .from("system_security_settings")
         .select("*")
         .eq("id", "global")
+        .maybeSingle(),
+      supabase
+        .from("system_security_settings")
+        .select("*")
+        .eq("id", "vanish_mode")
         .maybeSingle(),
       supabase
         .from("app_users")
@@ -48,12 +53,17 @@ export async function GET(req: NextRequest) {
         .limit(100),
     ]);
 
-    const settings = settingsRes.data || {
+    const globalData = settingsRes.data || {
       id: "global",
       registrations_allowed: false,
       ip_lockdown_enabled: false,
       allowed_ips: [],
       blacklisted_ips: [],
+    };
+
+    const settings = {
+      ...globalData,
+      vanish_mode_enabled: Boolean(vanishRes.data?.ip_lockdown_enabled),
     };
 
     return NextResponse.json({
@@ -125,6 +135,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         ip_lockdown_enabled: enabled,
+        allowed_ips: updatedAllowed,
+      });
+    }
+
+    if (action === "toggle_vanish_mode") {
+      const enabled = Boolean(body.enabled);
+      let updatedAllowed = [...allowedIps];
+      // If enabling vanish mode and current IP isn't allowed, auto-whitelist current IP so Chief is never ejected
+      if (enabled && clientIp && !updatedAllowed.includes(clientIp)) {
+        updatedAllowed.push(clientIp);
+        await supabase
+          .from("system_security_settings")
+          .upsert({
+            id: "global",
+            allowed_ips: updatedAllowed,
+            updated_at: new Date().toISOString(),
+            updated_by: "chief",
+          });
+      }
+
+      await supabase
+        .from("system_security_settings")
+        .upsert({
+          id: "vanish_mode",
+          ip_lockdown_enabled: enabled,
+          updated_at: new Date().toISOString(),
+          updated_by: "chief",
+        });
+
+      return NextResponse.json({
+        success: true,
+        vanish_mode_enabled: enabled,
         allowed_ips: updatedAllowed,
       });
     }

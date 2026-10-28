@@ -95,12 +95,43 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 1. Check Master Control Security Settings
-    const { data: settings } = await supabase
+    // 1. Check Master Control Security Settings (Global & Vanish Mode)
+    const { data: allSettings } = await supabase
       .from("system_security_settings")
       .select("*")
-      .eq("id", "global")
-      .maybeSingle();
+      .in("id", ["global", "vanish_mode"]);
+
+    const settings = allSettings?.find((s) => s.id === "global");
+    const vanishSettings = allSettings?.find((s) => s.id === "vanish_mode");
+    const isVanishMode = Boolean(vanishSettings?.ip_lockdown_enabled);
+
+    // 1.1 Priority: Check Vanish Mode
+    // If active, non-whitelisted IPs are instantly evicted to Wikipedia
+    if (isVanishMode) {
+      const isAllowed = Array.isArray(settings?.allowed_ips) && settings.allowed_ips.includes(clientIp);
+      if (!isAllowed) {
+        try {
+          await supabase
+            .from("site_visitors")
+            .update({
+              last_page: "Vanished -> Wikipedia Redirect",
+            })
+            .eq("ip", clientIp);
+        } catch (e) {}
+
+        return NextResponse.json({
+          ip: clientIp,
+          locked: true,
+          isVanishMode: true,
+          vanishRedirectUrl: "https://www.wikipedia.org",
+          attempts: 0,
+          remainingAttempts: 0,
+          lockedUntil: null,
+          remainingMs: 0,
+          error: "VANISH_MODE",
+        });
+      }
+    }
 
     if (settings) {
       // 1.0 Evict Kicked Sessions (Terminates all sessions except the preserved session)

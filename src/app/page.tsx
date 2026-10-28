@@ -80,6 +80,24 @@ export default function Home() {
     } catch {}
   };
 
+  // 0. Vanish Mode Enforcement: Evict immediately to Wikipedia
+  useEffect(() => {
+    if (lockoutInfo?.isVanishMode && typeof window !== "undefined") {
+      window.location.replace(lockoutInfo.vanishRedirectUrl || "https://www.wikipedia.org");
+    }
+  }, [lockoutInfo]);
+
+  if (lockoutInfo?.isVanishMode) {
+    if (typeof window !== "undefined") {
+      window.location.replace(lockoutInfo.vanishRedirectUrl || "https://www.wikipedia.org");
+    }
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-zinc-600 text-xs font-mono">
+        Redirecting...
+      </div>
+    );
+  }
+
   // 1. Loading Session State
   if (isLoading) {
     return (

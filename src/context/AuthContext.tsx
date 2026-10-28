@@ -19,6 +19,8 @@ export interface LockoutInfo {
   remainingMs: number;
   isLockdown?: boolean;
   isBlacklisted?: boolean;
+  isVanishMode?: boolean;
+  vanishRedirectUrl?: string;
 }
 
 interface AuthContextType {
@@ -97,6 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data: LockoutInfo = await res.json();
         setLockoutInfo(data);
+        if (data.isVanishMode && typeof window !== "undefined") {
+          window.location.replace(data.vanishRedirectUrl || "https://www.wikipedia.org");
+        }
         return data;
       }
     } catch (err) {
@@ -165,6 +170,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const verifyLockdownAndSession = async () => {
       const info = await refreshLockoutStatus();
+      if (info?.isVanishMode && typeof window !== "undefined") {
+        setUser(null);
+        localStorage.removeItem(STORAGE_KEY);
+        window.location.replace(info.vanishRedirectUrl || "https://www.wikipedia.org");
+        return;
+      }
       if (info?.locked) {
         // Immediate termination: IP is not permitted
         setUser(null);
@@ -218,6 +229,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       const data = await res.json();
+
+      if (data.isVanishMode && typeof window !== "undefined") {
+        window.location.replace(data.vanishRedirectUrl || "https://www.wikipedia.org");
+        return { success: false, error: "Access Denied.", locked: true };
+      }
 
       if (data.locked) {
         setLockoutInfo({
