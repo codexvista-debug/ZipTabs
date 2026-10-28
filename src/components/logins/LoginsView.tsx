@@ -39,6 +39,7 @@ import {
   Sparkles,
   FileText,
   Tag,
+  User,
 } from "lucide-react";
 
 export type LoginCategory = string;
@@ -62,6 +63,69 @@ export function formatDateMMDDYYYY(dateStr?: string): string {
   } catch {
     return dateStr;
   }
+}
+
+export function getCategoryBadgeStyle(cat?: string): {
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+} {
+  const c = (cat || "").toLowerCase();
+  if (c.includes("leopard")) {
+    return {
+      bg: "bg-amber-50/90",
+      text: "text-amber-800",
+      border: "border-amber-200",
+      dot: "bg-amber-500",
+    };
+  }
+  if (c.includes("quickbook")) {
+    return {
+      bg: "bg-emerald-50/90",
+      text: "text-emerald-800",
+      border: "border-emerald-200",
+      dot: "bg-emerald-500",
+    };
+  }
+  if (c.includes("paychex")) {
+    return {
+      bg: "bg-blue-50/90",
+      text: "text-blue-800",
+      border: "border-blue-200",
+      dot: "bg-blue-500",
+    };
+  }
+  if (c.includes("email")) {
+    return {
+      bg: "bg-sky-50/90",
+      text: "text-sky-800",
+      border: "border-sky-200",
+      dot: "bg-sky-500",
+    };
+  }
+  if (c.includes("tax") || c.includes("gov") || c.includes("uscis")) {
+    return {
+      bg: "bg-purple-50/90",
+      text: "text-purple-800",
+      border: "border-purple-200",
+      dot: "bg-purple-500",
+    };
+  }
+  if (c.includes("bank") || c.includes("payroll")) {
+    return {
+      bg: "bg-teal-50/90",
+      text: "text-teal-800",
+      border: "border-teal-200",
+      dot: "bg-teal-500",
+    };
+  }
+  return {
+    bg: "bg-slate-100",
+    text: "text-slate-700",
+    border: "border-slate-200",
+    dot: "bg-slate-400",
+  };
 }
 
 export interface DecryptedLoginCredential {
@@ -909,23 +973,29 @@ export function LoginsView() {
           {filteredLogins.map((item) => {
             const isVisible = visiblePasswords[item.id] || false;
             const cleanDomain = getCleanDomain(item.url);
+            const catStyle = getCategoryBadgeStyle(item.category);
 
             return (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400/80 p-5 shadow-xs hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-200 flex flex-col justify-between group relative"
+                className="relative bg-gradient-to-b from-white via-slate-50/25 to-slate-50/70 rounded-2xl border border-slate-200/90 hover:border-blue-400/80 p-5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_28px_-6px_rgba(37,99,235,0.09)] transition-all duration-200 flex flex-col justify-between group overflow-hidden"
               >
+                {/* Top subtle decorative accent line */}
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500/60 via-indigo-500/50 to-sky-400/40 opacity-70 group-hover:opacity-100 transition-opacity" />
+
                 <div>
-                  {/* Top Bar: Brand Avatar + Title + Actions */}
+                  {/* Top Bar: Brand Avatar + Title + Category Pill + Actions */}
                   <div className="flex items-start justify-between gap-3 mb-3.5">
                     <div className="flex items-center gap-3 min-w-0">
-                      <VaultBrandAvatar
-                        iconId={item.icon}
-                        title={item.title}
-                        category={item.category}
-                        url={item.url}
-                        size="md"
-                      />
+                      <div className="shrink-0">
+                        <VaultBrandAvatar
+                          iconId={item.icon}
+                          title={item.title}
+                          category={item.category}
+                          url={item.url}
+                          size="md"
+                        />
+                      </div>
                       <div className="min-w-0">
                         <h3
                           className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate"
@@ -933,19 +1003,28 @@ export function LoginsView() {
                         >
                           {item.title}
                         </h3>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 truncate">
-                            {item.category}
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border truncate ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${catStyle.dot}`} />
+                            <span>{item.category}</span>
                           </span>
+                          {cleanDomain && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-mono truncate bg-slate-100/70 px-1.5 py-0.5 rounded-md border border-slate-200/50">
+                              <Globe className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                              <span>{cleanDomain}</span>
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* Edit & Delete Action Buttons */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 bg-slate-100/70 p-0.5 rounded-xl border border-slate-200/60">
                       <button
                         onClick={() => handleOpenEditModal(item)}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white rounded-lg transition-colors cursor-pointer"
                         title="Edit credential"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -961,10 +1040,11 @@ export function LoginsView() {
                   </div>
 
                   {/* Username / Email Row */}
-                  <div className="mt-3 bg-slate-50/80 rounded-xl p-2.5 border border-slate-100 space-y-1.5">
+                  <div className="mt-3 bg-white/90 rounded-xl p-2.5 border border-slate-200/80 shadow-2xs space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider">
-                        Username / Email
+                      <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
+                        <User className="w-3 h-3 text-slate-400" />
+                        <span>Username / Email</span>
                       </span>
                       <button
                         onClick={() => copyToClipboard(item.username, `user-${item.id}`, false)}
@@ -983,17 +1063,18 @@ export function LoginsView() {
                         )}
                       </button>
                     </div>
-                    <div className="text-xs font-mono font-medium text-slate-800 select-all truncate bg-white px-2 py-1 rounded-md border border-slate-200/60">
+                    <div className="text-xs font-mono font-medium text-slate-800 select-all truncate bg-slate-50/80 px-2.5 py-1.5 rounded-lg border border-slate-200/60">
                       {item.username}
                     </div>
                   </div>
 
                   {/* Password Row */}
-                  <div className="mt-2 bg-slate-50/80 rounded-xl p-2.5 border border-slate-100 space-y-1.5">
+                  <div className="mt-2 bg-white/90 rounded-xl p-2.5 border border-slate-200/80 shadow-2xs space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider">
-                          Password
+                        <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
+                          <KeyRound className="w-3 h-3 text-slate-400" />
+                          <span>Password</span>
                         </span>
                         {isVisible && (
                           <span className="text-[9px] text-amber-600 font-bold bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
@@ -1032,38 +1113,47 @@ export function LoginsView() {
                         </button>
                       </div>
                     </div>
-                    <div className="text-xs font-mono font-medium text-slate-800 select-all truncate bg-white px-2 py-1 rounded-md border border-slate-200/60 tracking-wider">
+                    <div className="text-xs font-mono font-medium text-slate-800 select-all truncate bg-slate-50/80 px-2.5 py-1.5 rounded-lg border border-slate-200/60 tracking-wider">
                       {isVisible ? item.password : "••••••••••••••••"}
                     </div>
                   </div>
 
-                  {/* Notes & Security Hints (More Detailing) */}
+                  {/* Notes & Security Hints (Modern Slate & Indigo Pill) */}
                   {item.notes && item.notes.trim() && !item.notes.includes("=") && (
-                    <div className="mt-3 bg-amber-50/70 rounded-xl p-2.5 border border-amber-200/80 text-[11px] text-amber-900/90 leading-relaxed flex items-start gap-2">
-                      <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                      <span className="line-clamp-3 leading-relaxed">{item.notes}</span>
+                    <div className="mt-3 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-xl p-2.5 border border-indigo-100/90 text-[11px] text-slate-700 leading-relaxed shadow-2xs">
+                      <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
+                        <FileText className="w-3 h-3 text-indigo-500 shrink-0" />
+                        <span>Note & 2FA Hint</span>
+                      </div>
+                      <p className="line-clamp-3 leading-relaxed text-slate-600 text-[11px] font-medium pl-1">
+                        {item.notes}
+                      </p>
                     </div>
                   )}
                 </div>
 
-                {/* Bottom Bar: Updated Date in MM/DD/YYYY on Left, Blue "Login" Button on Right */}
-                <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
-                    <Clock className="w-3 h-3 text-slate-400" />
-                    <span>Updated {formatDateMMDDYYYY(item.updatedAt)}</span>
+                {/* Bottom Bar: Updated Date in MM/DD/YYYY on Left, Blue "Login" Button on Right (No Arrow) */}
+                <div className="mt-4 pt-3.5 border-t border-slate-100/90 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      <span>Updated {formatDateMMDDYYYY(item.updatedAt)}</span>
+                    </div>
+                    <span className="hidden sm:inline-block text-[9px] font-extrabold text-slate-400 bg-slate-100/90 border border-slate-200/60 px-1.5 py-0.5 rounded-md">
+                      AES-256
+                    </span>
                   </div>
 
-                  {/* Blue "Login" Button */}
+                  {/* Blue "Login" Button (No arrow) */}
                   {item.url ? (
                     <a
                       href={item.url.startsWith("http") ? item.url : `https://${item.url}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all cursor-pointer group/btn shrink-0"
+                      className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all cursor-pointer shrink-0"
                       title={`Login to ${item.url}`}
                     >
-                      <span>Login</span>
-                      <ExternalLink className="w-3.5 h-3.5 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 shrink-0" />
+                      Login
                     </a>
                   ) : (
                     <button
