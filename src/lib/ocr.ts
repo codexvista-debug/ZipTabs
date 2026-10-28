@@ -2,76 +2,87 @@
 
 import { createWorker } from "tesseract.js";
 
-// Cached client worker for ultra-fast, in-browser OCR extractions
-let cachedWorkerPromise: Promise<any> | null = null;
-let currentProgressCallback: ((progress: number) => void) | null = null;
+// Cached client worker for in-browser OCR fallback
+let cachedBrowserWorker: any = null;
 
-async function getOCRWorker() {
-  if (!cachedWorkerPromise) {
-    cachedWorkerPromise = (async () => {
-      const worker = await createWorker("eng", 1, {
-        logger: (m) => {
-          if (m && typeof m.progress === "number") {
-            const pct = Math.round(m.progress * 100);
-            if (currentProgressCallback) {
-              currentProgressCallback(pct);
-            }
-          }
-        },
-      });
-      return worker;
-    })().catch((err) => {
-      cachedWorkerPromise = null;
-      throw err;
+async function runBrowserTesseractOCR(
+  fileOrUrl: File | Blob | string,
+  onProgress?: (progress: number) => void
+): Promise<string> {
+  if (!cachedBrowserWorker) {
+    cachedBrowserWorker = await createWorker("eng", 1, {
+      logger: (m) => {
+        if (m && typeof m.progress === "number") {
+          onProgress?.(Math.round(m.progress * 100));
+        }
+      },
     });
   }
-  return cachedWorkerPromise;
+
+  const ret = await cachedBrowserWorker.recognize(fileOrUrl);
+  const rawText = ret?.data?.text || "";
+
+  return rawText
+    .split("\n")
+    .map((line: string) => line.trimEnd())
+    .filter((line: string, idx: number, arr: string[]) => {
+      if (line.trim().length > 0) return true;
+      return idx > 0 && arr[idx - 1].trim().length > 0;
+    })
+    .join("\n")
+    .trim();
 }
 
 export async function extractTextFromImageFile(
   fileOrUrl: File | Blob | string,
   onProgress?: (progress: number) => void
 ): Promise<string> {
-  currentProgressCallback = onProgress || null;
-
+  // Strategy 1: Fast cloud OCR via /api/extract-text (no wasm download overhead)
   try {
-    const worker = await getOCRWorker();
+    onProgress?.(25);
+    const formData = new FormData();
 
-    // Recognize with 40s safety timeout to accommodate slower cold starts
-    const recognitionPromise = worker.recognize(fileOrUrl);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Extraction took too long. Please ensure your internet is active and try again.")),
-        40000
-      )
-    );
+    if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
+      formData.append("file", fileOrUrl);
+    } else if (typeof fileOrUrl === "string") {
+      formData.append("imageUrl", fileOrUrl);
+    }
 
-    const ret: any = await Promise.race([recognitionPromise, timeoutPromise]);
-    const rawText = ret?.data?.text || "";
+    const abortCtrl = new AbortController();
+    const timer = setTimeout(() => abortCtrl.abort(), 12000);
 
-    // Clean up excessive whitespace while preserving line structure
-    const cleanedText = rawText
-      .split("\n")
-      .map((line: string) => line.trimEnd())
-      .filter((line: string, idx: number, arr: string[]) => {
-        if (line.trim().length > 0) return true;
-        return idx > 0 && arr[idx - 1].trim().length > 0;
-      })
-      .join("\n")
-      .trim();
+    const res = await fetch("/api/extract-text", {
+      method: "POST",
+      body: formData,
+      signal: abortCtrl.signal,
+    });
 
-    return cleanedText;
-  } catch (err) {
-    // Reset worker if an unexpected failure happens
-    try {
-      const oldWorker = await cachedWorkerPromise;
-      if (oldWorker) {
-        await oldWorker.terminate();
+    clearTimeout(timer);
+    onProgress?.(70);
+
+    // Guard against HTML error pages (e.g. 404/500 <!DOCTYPE html>)
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await res.json();
+      if (data?.success && typeof data?.text === "string") {
+        onProgress?.(100);
+        return data.text;
       }
-    } catch {}
-    cachedWorkerPromise = null;
-    throw err;
-  } finally {
-    currentProgressCallback = null;
+    }
+  } catch (serverErr) {
+    console.warn("Server OCR failed, attempting client WebAssembly fallback:", serverErr);
+  }
+
+  // Strategy 2: Client-side in-browser WebAssembly OCR fallback
+  try {
+    onProgress?.(80);
+    const clientText = await runBrowserTesseractOCR(fileOrUrl, onProgress);
+    onProgress?.(100);
+    return clientText;
+  } catch (clientErr) {
+    console.error("All OCR methods failed:", clientErr);
+    throw new Error(
+      "Could not extract text from this image. Please ensure the image is clear and try again."
+    );
   }
 }
