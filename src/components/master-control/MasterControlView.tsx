@@ -70,6 +70,53 @@ interface SystemSecuritySettings {
   updated_by?: string;
 }
 
+// Universal Cross-Platform Country Flag (Renders real graphical flags on Windows PC & Mobile)
+function CountryFlagBadge({
+  code,
+  ip,
+  className = "w-4 h-2.5",
+}: {
+  code?: string | null;
+  ip?: string;
+  className?: string;
+}) {
+  const [imgError, setImgError] = useState(false);
+
+  if (ip && isLocalOrPrivateIp(ip)) {
+    return <span className="select-none text-sm inline-block" title="Local Network">💻</span>;
+  }
+
+  const cleanCode = code && code.length === 2 ? code.toUpperCase() : null;
+  const countryName = getCountryName(cleanCode, ip);
+
+  if (!cleanCode) {
+    return <span className="select-none text-sm inline-block" title="Unknown Location">🌐</span>;
+  }
+
+  const flagEmoji = getCountryFlag(cleanCode, ip);
+
+  if (imgError) {
+    return (
+      <span className="select-none text-sm inline-block cursor-help" title={`${countryName} (${cleanCode})`}>
+        {flagEmoji}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center shrink-0 cursor-help" title={`${countryName} (${cleanCode})`}>
+      <img
+        src={`https://flagcdn.com/w40/${cleanCode.toLowerCase()}.png`}
+        srcSet={`https://flagcdn.com/w80/${cleanCode.toLowerCase()}.png 2x`}
+        alt={cleanCode}
+        className={`object-cover rounded-[2px] shadow-2xs border border-slate-300/80 shrink-0 select-none ${className}`}
+        loading="lazy"
+        onError={() => setImgError(true)}
+      />
+    </span>
+  );
+}
+
 export function MasterControlView() {
   const { user } = useAuth();
   const isChief = user?.username?.toLowerCase() === "chief";
@@ -423,21 +470,15 @@ export function MasterControlView() {
     }
   };
 
-  // Render IP with Country Flag Badge
+  // Render IP with Country Flag Badge (Cross-platform graphics for PC & Mobile)
   const renderIpWithFlag = (ip: string, storedCountry?: string | null) => {
     const code = storedCountry || countryMap[ip] || null;
-    const flag = getCountryFlag(code, ip);
     const countryName = getCountryName(code, ip);
     const isCurrent = ip === clientIp;
 
     return (
       <div className="flex items-center gap-2">
-        <span
-          className="text-base select-none shrink-0 drop-shadow-2xs cursor-help"
-          title={`${countryName} (${code || "Unknown"})`}
-        >
-          {flag}
-        </span>
+        <CountryFlagBadge code={code} ip={ip} className="w-5 h-3.5" />
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="font-mono font-bold text-slate-800 tracking-tight truncate">{ip}</span>
           {isCurrent && (
@@ -882,8 +923,8 @@ export function MasterControlView() {
                 <Globe className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-base font-mono font-bold text-slate-900 flex items-center gap-1.5 truncate" title={clientIp}>
-              <span>{getCountryFlag(countryMap[clientIp], clientIp)}</span>
+            <div className="text-base font-mono font-bold text-slate-900 flex items-center gap-2 truncate" title={clientIp}>
+              <CountryFlagBadge code={countryMap[clientIp]} ip={clientIp} className="w-5 h-3.5" />
               <span>{clientIp}</span>
             </div>
             <div className="mt-1 flex items-center gap-1.5">
@@ -1050,7 +1091,7 @@ export function MasterControlView() {
                 key={ip}
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold"
               >
-                <span>{getCountryFlag(countryMap[ip], ip)}</span>
+                <CountryFlagBadge code={countryMap[ip]} ip={ip} className="w-4 h-2.5" />
                 <span>{ip}</span>
                 {ip === clientIp && (
                   <span className="text-[10px] bg-emerald-200/60 px-1.5 py-0.2 rounded font-sans font-bold">
@@ -1338,9 +1379,7 @@ export function MasterControlView() {
                       : "bg-emerald-50 text-emerald-800 border-emerald-200"
                   }`}
                 >
-                  <span className="text-sm select-none">
-                    {getCountryFlag(v.country_code || countryMap[v.ip], v.ip)}
-                  </span>
+                  <CountryFlagBadge code={v.country_code || countryMap[v.ip]} ip={v.ip} className="w-4 h-2.5" />
                   <span className="font-mono font-bold">{v.ip}</span>
                   {isCurrent && (
                     <span className="text-[10px] bg-emerald-200/70 text-emerald-900 px-1.5 py-0.2 rounded font-sans font-bold">

@@ -23,6 +23,14 @@ export function isLocalOrPrivateIp(ip: string): boolean {
 }
 
 /**
+ * Returns a high-res flag image URL for universal cross-platform rendering (Windows, Mac, iOS, Android).
+ */
+export function getCountryFlagImgUrl(countryCode?: string | null): string | null {
+  if (!countryCode || countryCode.length !== 2) return null;
+  return `https://flagcdn.com/w40/${countryCode.toLowerCase()}.png`;
+}
+
+/**
  * Converts a 2-letter ISO country code (e.g. 'US', 'IN') into an emoji flag (🇺🇸, 🇮🇳).
  */
 export function getCountryFlag(countryCode?: string | null, ip?: string): string {
