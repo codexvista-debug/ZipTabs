@@ -237,6 +237,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === "kick_other_sessions") {
+      const keepSessionId = (body.keepSessionId || "").trim();
+      const now = new Date().toISOString();
+
+      await supabase
+        .from("system_security_settings")
+        .upsert({
+          id: "global",
+          kick_sessions_before: now,
+          active_session_id: keepSessionId,
+          updated_at: now,
+          updated_by: "chief",
+        });
+
+      return NextResponse.json({
+        success: true,
+        message: "All other active sessions have been evicted and logged out.",
+        activeSessionId: keepSessionId,
+        kickedAt: now,
+      });
+    }
+
     return NextResponse.json({ success: false, error: "Invalid action" }, { status: 400 });
   } catch (err: any) {
     console.error("Master Control POST error:", err);

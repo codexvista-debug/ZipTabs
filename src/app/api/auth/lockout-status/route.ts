@@ -33,6 +33,10 @@ export async function GET(req: NextRequest) {
   try {
     // 0. Record visitor IP traffic with country (even without login)
     const userAgent = req.headers.get("user-agent") || "unknown";
+    const reqSessionId = req.headers.get("x-session-id")?.trim() || "";
+    const reqSessionCreated = parseInt(req.headers.get("x-session-created") || "0", 10) || 0;
+    const authUser = req.headers.get("x-auth-user")?.trim().toLowerCase();
+
     try {
       await supabase.rpc("record_site_visitor", {
         p_ip: clientIp,
@@ -40,12 +44,21 @@ export async function GET(req: NextRequest) {
         p_page: "/",
         p_country: clientCountry,
       });
+
+      if (reqSessionId || authUser) {
+        await supabase
+          .from("site_visitors")
+          .update({
+            active_session_id: reqSessionId || null,
+            username: authUser || null,
+          })
+          .eq("ip", clientIp);
+      }
     } catch (e) {
       // Non-blocking fallback
     }
 
     // 0.1 Associate authenticated user session with IP locks if present
-    const authUser = req.headers.get("x-auth-user")?.trim().toLowerCase();
     if (authUser) {
       try {
         const { data: currentLock } = await supabase
@@ -90,6 +103,27 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     if (settings) {
+      // 1.0 Evict Kicked Sessions (Terminates all sessions except the preserved session)
+      if (settings.kick_sessions_before && authUser) {
+        const kickBeforeMs = new Date(settings.kick_sessions_before).getTime();
+        const isPreservedSession = Boolean(
+          settings.active_session_id && settings.active_session_id === reqSessionId
+        );
+
+        if (!isPreservedSession && (reqSessionCreated < kickBeforeMs || !settings.active_session_id)) {
+          return NextResponse.json({
+            ip: clientIp,
+            locked: true,
+            sessionTerminated: true,
+            attempts: 0,
+            remainingAttempts: 0,
+            lockedUntil: null,
+            remainingMs: 0,
+            error: "SESSION TERMINATED: Your session was logged out by the Chief Administrator from Master Control.",
+          });
+        }
+      }
+
       if (Array.isArray(settings.blacklisted_ips) && settings.blacklisted_ips.includes(clientIp)) {
         return NextResponse.json({
           ip: clientIp,

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, getOrCreateSessionId } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getCountryFlag, getCountryName, fetchIpCountry, isLocalOrPrivateIp } from "@/lib/geo";
 import {
@@ -26,6 +26,7 @@ import {
   Compass,
   Zap,
   Sparkles,
+  LogOut,
 } from "lucide-react";
 
 interface AppUserRecord {
@@ -467,6 +468,44 @@ export function MasterControlView() {
         () => setUsers(prevUsers),
         `User account @${username} deleted.`
       );
+    }
+  };
+
+  // 7. Kick Out / Terminate All Other Active Sessions Except Current One
+  const [isKickingSessions, setIsKickingSessions] = useState(false);
+
+  const handleKickOtherSessions = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to terminate and log out all active sessions on other devices? (Your current device will stay logged in)."
+      )
+    ) {
+      return;
+    }
+
+    setIsKickingSessions(true);
+    const { sessionId } = getOrCreateSessionId();
+
+    try {
+      const res = await fetch("/api/master-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "kick_other_sessions",
+          keepSessionId: sessionId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification("All other active sessions have been evicted and logged out.", "success");
+        loadMasterData(true);
+      } else {
+        showNotification(data.error || "Failed to kick other sessions", "error");
+      }
+    } catch (err: any) {
+      showNotification(err.message || "Network error", "error");
+    } finally {
+      setIsKickingSessions(false);
     }
   };
 
@@ -975,7 +1014,16 @@ export function MasterControlView() {
               1-User workspace enforcement. Any extra unauthorized user account can be reviewed and deleted here.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleKickOtherSessions}
+              disabled={isKickingSessions}
+              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Immediately log out and evict all active sessions on other devices except this browser"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{isKickingSessions ? "Evicting..." : "Kick Out All Other Sessions"}</span>
+            </button>
             <span
               className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
                 settings.registrations_allowed
@@ -1405,6 +1453,17 @@ export function MasterControlView() {
               );
             })
           )}
+
+          {/* Quick Evict Button in presence bar */}
+          <button
+            onClick={handleKickOtherSessions}
+            disabled={isKickingSessions}
+            className="ml-auto px-3 py-1 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer shrink-0 disabled:opacity-50"
+            title="Terminate all active sessions on other devices except this browser"
+          >
+            <LogOut className="w-3 h-3" />
+            <span>{isKickingSessions ? "Evicting..." : "Kick Other Sessions"}</span>
+          </button>
         </div>
 
         {/* Visitors Table */}

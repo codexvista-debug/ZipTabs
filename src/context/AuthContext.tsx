@@ -35,6 +35,36 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = "ziptabs_logged_user";
+const SESSION_ID_KEY = "ziptabs_session_id";
+const SESSION_CREATED_KEY = "ziptabs_session_created";
+
+export function getOrCreateSessionId(): { sessionId: string; sessionCreated: number } {
+  if (typeof window === "undefined") {
+    return { sessionId: "server_session", sessionCreated: Date.now() };
+  }
+  let sessId = localStorage.getItem(SESSION_ID_KEY);
+  let sessCreatedStr = localStorage.getItem(SESSION_CREATED_KEY);
+  let sessCreated = sessCreatedStr ? parseInt(sessCreatedStr, 10) : 0;
+
+  if (!sessId || !sessCreated) {
+    sessId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    sessCreated = Date.now();
+    localStorage.setItem(SESSION_ID_KEY, sessId);
+    localStorage.setItem(SESSION_CREATED_KEY, sessCreated.toString());
+  }
+  return { sessionId: sessId, sessionCreated: sessCreated };
+}
+
+export function generateNewSessionId(): { sessionId: string; sessionCreated: number } {
+  if (typeof window === "undefined") {
+    return { sessionId: "server_session", sessionCreated: Date.now() };
+  }
+  const sessId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  const sessCreated = Date.now();
+  localStorage.setItem(SESSION_ID_KEY, sessId);
+  localStorage.setItem(SESSION_CREATED_KEY, sessCreated.toString());
+  return { sessionId: sessId, sessionCreated: sessCreated };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -54,7 +84,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch {}
       }
 
-      const headers: Record<string, string> = {};
+      const { sessionId, sessionCreated } = getOrCreateSessionId();
+      const headers: Record<string, string> = {
+        "x-session-id": sessionId,
+        "x-session-created": sessionCreated.toString(),
+      };
       if (currentUsername) {
         headers["x-auth-user"] = currentUsername;
       }
@@ -212,6 +246,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Login Successful!
+      generateNewSessionId();
       const loggedUser: AppUser = data.user;
       setUser(loggedUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
