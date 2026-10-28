@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import ExcelJS from "exceljs";
 import {
   CalendarDays,
   ChevronLeft,
@@ -14,6 +15,9 @@ import {
   HelpCircle,
   LayoutGrid,
   List,
+  FileSpreadsheet,
+  Loader2,
+  Download,
 } from "lucide-react";
 
 export interface HolidayItem {
@@ -132,6 +136,8 @@ export function USCalendarView() {
   const [hoursPerDay, setHoursPerDay] = useState<number>(8); // Standard 8 working hours per day
   const [selectedDay, setSelectedDay] = useState<number>(today.getDate());
   const [viewMode, setViewMode] = useState<"grid" | "agenda">("grid");
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportSuccess, setExportSuccess] = useState<boolean>(false);
 
   // Navigation handlers
   const handlePrevMonth = () => {
@@ -251,6 +257,184 @@ export function USCalendarView() {
     };
   })();
 
+  // Export to Excel sheet with prefilled hours for consultants
+  const handleExportToExcel = async () => {
+    try {
+      setIsExporting(true);
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "ZipTabs";
+      workbook.created = new Date();
+
+      const monthName = MONTH_NAMES[selectedMonth];
+      const sheetName = `${monthName} ${selectedYear}`;
+      const worksheet = workbook.addWorksheet(sheetName, {
+        views: [{ showGridLines: true }],
+      });
+
+      // Columns requested: Date, Day, Hours Worked (and Notes / Description)
+      worksheet.columns = [
+        { header: "Date", key: "date", width: 16 },
+        { header: "Day", key: "day", width: 16 },
+        { header: "Hours Worked", key: "hours", width: 16 },
+        { header: "Notes / Description", key: "notes", width: 34 },
+      ];
+
+      // Style Header Row
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 26;
+      headerRow.eachCell((cell) => {
+        cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF2563EB" }, // Brand blue
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF1E40AF" } },
+          left: { style: "thin", color: { argb: "FF1E40AF" } },
+          bottom: { style: "medium", color: { argb: "FF1E40AF" } },
+          right: { style: "thin", color: { argb: "FF1E40AF" } },
+        };
+      });
+
+      // Populate every day of the month
+      for (let day = 1; day <= daysInCurrentMonth; day++) {
+        const d = new Date(selectedYear, selectedMonth, day);
+        const dayOfWeek = d.toLocaleDateString("en-US", { weekday: "long" });
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const holiday = holidayMap.get(day);
+        const isHoliday = Boolean(holiday);
+
+        const hours = isWeekend || isHoliday ? 0 : hoursPerDay;
+        const notes = isHoliday
+          ? `${holiday?.name} (US Federal Holiday)`
+          : isWeekend
+          ? "Weekend"
+          : day <= 15
+          ? "P1 Workday"
+          : "P2 Workday";
+
+        const mm = String(selectedMonth + 1).padStart(2, "0");
+        const dd = String(day).padStart(2, "0");
+
+        const row = worksheet.addRow({
+          date: `${mm}/${dd}/${selectedYear}`,
+          day: dayOfWeek,
+          hours: hours,
+          notes: notes,
+        });
+
+        row.height = 20;
+
+        let bgColor = "FFFFFFFF";
+        if (isHoliday) {
+          bgColor = "FFFFF1F2"; // Soft rose for holidays
+        } else if (isWeekend) {
+          bgColor = "FFF8FAFC"; // Soft slate for weekends
+        }
+
+        row.eachCell((cell, colNumber) => {
+          cell.font = {
+            name: "Calibri",
+            size: 11,
+            color: isHoliday
+              ? { argb: "FFE11D48" }
+              : isWeekend
+              ? { argb: "FF64748B" }
+              : { argb: "FF0F172A" },
+            bold: isHoliday,
+          };
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: bgColor },
+          };
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFE2E8F0" } },
+            bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+            left: { style: "thin", color: { argb: "FFE2E8F0" } },
+            right: { style: "thin", color: { argb: "FFE2E8F0" } },
+          };
+          cell.alignment = {
+            vertical: "middle",
+            horizontal:
+              colNumber === 1 || colNumber === 2
+                ? "center"
+                : colNumber === 3
+                ? "right"
+                : "left",
+          };
+          if (colNumber === 3) {
+            cell.numFmt = "0.0";
+          }
+        });
+      }
+
+      // Summary Total Row (Formula =SUM(C2:C{lastRow}) so consultant modifications recalculate automatically)
+      const totalRowNumber = daysInCurrentMonth + 2;
+      const totalRow = worksheet.addRow({
+        date: "Total",
+        day: "Total Hours",
+        hours: {
+          formula: `SUM(C2:C${totalRowNumber - 1})`,
+          result: totalWorkingHours,
+        },
+        notes: `${totalWorkingDays} Workdays (${totalWorkingHours} hrs)`,
+      });
+
+      totalRow.height = 24;
+      totalRow.eachCell((cell, colNumber) => {
+        cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FF1E3A8A" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFEFF6FF" }, // Light blue
+        };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF3B82F6" } },
+          bottom: { style: "double", color: { argb: "FF1E40AF" } }, // Accounting double underline
+          left: { style: "thin", color: { argb: "FFBFDBFE" } },
+          right: { style: "thin", color: { argb: "FFBFDBFE" } },
+        };
+        cell.alignment = {
+          vertical: "middle",
+          horizontal:
+            colNumber === 1 || colNumber === 2
+              ? "center"
+              : colNumber === 3
+              ? "right"
+              : "left",
+        };
+        if (colNumber === 3) {
+          cell.numFmt = "0.0";
+        }
+      });
+
+      // Write to buffer and trigger browser download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Timesheet_${monthName}_${selectedYear}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 2500);
+    } catch (err) {
+      console.error("Failed to export Excel timesheet:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6 relative pb-16">
       {/* Top Header Row with Navigation */}
@@ -270,7 +454,38 @@ export function USCalendarView() {
         </div>
 
         {/* Month Selector Controls */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {/* Export to Excel Sheet Button */}
+          <button
+            type="button"
+            onClick={handleExportToExcel}
+            disabled={isExporting}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer border ${
+              exportSuccess
+                ? "bg-emerald-50 border-emerald-400 text-emerald-700"
+                : "bg-white border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-slate-700 hover:text-emerald-700"
+            } disabled:opacity-50`}
+            title={`Export ${MONTH_NAMES[selectedMonth]} ${selectedYear} into an Excel sheet with hours`}
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                <span>Exporting...</span>
+              </>
+            ) : exportSuccess ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Exported!</span>
+              </>
+            ) : (
+              <>
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span className="hidden sm:inline">Export to Excel</span>
+                <span className="sm:hidden">Export</span>
+              </>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={handleJumpToToday}
