@@ -315,11 +315,17 @@ export function FullAttachmentViewer({
 
   return (
     <aside
-      className="fixed inset-y-0 right-0 left-0 lg:left-[260px] z-50 flex flex-col bg-[#070c18] border-l border-[#15203b] shadow-2xl text-slate-200 animate-in fade-in duration-200 select-none"
+      className="fixed inset-y-0 right-0 left-0 lg:left-[260px] z-50 flex flex-col bg-slate-950/70 backdrop-blur-md border-l border-white/10 shadow-2xl text-slate-200 animate-in fade-in duration-200 select-none"
       aria-label="Attachment Preview Canvas"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       {/* Top Header Bar */}
-      <header className="h-16 px-4 sm:px-6 border-b border-[#15203b] bg-[#0c1427] flex items-center justify-between gap-3 shrink-0">
+      <header
+        className="h-16 px-4 sm:px-6 border-b border-white/10 bg-slate-950/80 backdrop-blur-md flex items-center justify-between gap-3 shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Left: Attachment Info */}
         <div className="flex items-center gap-3 min-w-0 max-w-[55%] sm:max-w-xl">
           <FileBrandIcon fileName={fileName} mimeType={file.type} size="md" />
@@ -468,7 +474,12 @@ export function FullAttachmentViewer({
 
       {/* Main Full-Space Canvas wrapped in ViewerErrorBoundary */}
       <ViewerErrorBoundary fileName={fileName} fileUrl={fileUrl}>
-        <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col relative bg-[#050811]">
+        <div
+          className="flex-1 min-h-0 w-full overflow-hidden flex flex-col relative bg-transparent"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+        >
           {/* Loading Spinner */}
           {isLoading && (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-slate-400 p-6">
@@ -481,44 +492,66 @@ export function FullAttachmentViewer({
 
           {/* Fallback Notice Card */}
           {!isLoading && loadError && (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
-              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mb-3">
-                <AlertCircle className="w-8 h-8" />
-              </div>
-              <h3 className="text-base font-bold text-white">Preview Notice</h3>
-              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{loadError}</p>
-              <div className="mt-5 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  disabled={isDownloading}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-75 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer"
-                >
-                  {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  <span>{isDownloading ? "Downloading..." : "Download File"}</span>
-                </button>
-                <a
-                  href={fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Open Raw Link</span>
-                </a>
+            <div
+              className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto cursor-pointer w-full h-full"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+              }}
+            >
+              <div
+                className="bg-slate-900/95 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col items-center cursor-default"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mb-3">
+                  <AlertCircle className="w-8 h-8" />
+                </div>
+                <h3 className="text-base font-bold text-white">Preview Notice</h3>
+                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{loadError}</p>
+                <div className="mt-5 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    disabled={isDownloading}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-75 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+                  >
+                    {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    <span>{isDownloading ? "Downloading..." : "Download File"}</span>
+                  </button>
+                  <a
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Open Raw Link</span>
+                  </a>
+                </div>
               </div>
             </div>
           )}
 
           {/* 1. Full-Space Image Viewer */}
           {!isLoading && !loadError && isImage && (
-            <div className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-4 sm:p-8 select-none">
-              <img
-                src={fileUrl}
-                alt={fileName}
-                style={{ transform: `scale(${zoomLevel})`, transition: "transform 0.15s ease-out" }}
-                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl origin-center"
-              />
+            <div
+              className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-4 sm:p-8 select-none cursor-pointer"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  onClose();
+                }
+              }}
+            >
+              <div
+                className="relative max-w-full max-h-full flex items-center justify-center cursor-default"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img
+                  src={fileUrl}
+                  alt={fileName}
+                  style={{ transform: `scale(${zoomLevel})`, transition: "transform 0.15s ease-out" }}
+                  className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl origin-center border border-white/10"
+                />
+              </div>
             </div>
           )}
 
@@ -529,9 +562,15 @@ export function FullAttachmentViewer({
 
           {/* 3. Full-Space Word Document Canvas (.docx) */}
           {!isLoading && !loadError && isWord && docxHtml && (
-            <div className="flex-1 overflow-auto p-4 sm:p-10 bg-[#080d1a] select-text">
+            <div
+              className="flex-1 overflow-auto p-4 sm:p-10 bg-transparent select-text cursor-pointer"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+              }}
+            >
               <div
-                className="max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl shadow-2xl p-6 sm:p-14 min-h-full border border-slate-200 font-serif leading-relaxed prose prose-slate max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2 [&_th]:bg-slate-100 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3"
+                className="max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl shadow-2xl p-6 sm:p-14 min-h-full border border-slate-200 font-serif leading-relaxed prose prose-slate max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2 [&_th]:bg-slate-100 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-3 cursor-default"
+                onClick={(e) => e.stopPropagation()}
                 dangerouslySetInnerHTML={{ __html: docxHtml }}
               />
             </div>
