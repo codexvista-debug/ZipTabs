@@ -95,6 +95,13 @@ export function MasterControlView() {
   const [visitorSearch, setVisitorSearch] = useState("");
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
+  // Live real-time 1-second clock tick for instant relative time and active presence detection
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Manual actions
   const [customBlacklistIp, setCustomBlacklistIp] = useState("");
   const [customAllowedIp, setCustomAllowedIp] = useState("");
@@ -450,7 +457,7 @@ export function MasterControlView() {
   const formatRelativeTime = (dateString?: string | null): string => {
     if (!dateString) return "Never";
     const date = new Date(dateString);
-    const diffInSeconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    const diffInSeconds = Math.floor((nowTick - date.getTime()) / 1000);
     if (diffInSeconds < 0 || diffInSeconds < 5) return "Just now";
     if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
     const diffInMinutes = Math.floor(diffInSeconds / 60);
@@ -462,6 +469,77 @@ export function MasterControlView() {
     const diffInMonths = Math.floor(diffInDays / 30);
     if (diffInMonths < 12) return `${diffInMonths}mo ago`;
     return `${Math.floor(diffInDays / 365)}y ago`;
+  };
+
+  // Real-time Active Presence Detection:
+  // Clients emit heartbeats every 4s. A visitor seen within the last 60 seconds is actively on the website.
+  const ACTIVE_THRESHOLD_MS = 60 * 1000;
+
+  const isIpActiveOnSite = useCallback(
+    (lastVisitedAt?: string | null) => {
+      if (!lastVisitedAt) return false;
+      const lastTime = new Date(lastVisitedAt).getTime();
+      return nowTick - lastTime < ACTIVE_THRESHOLD_MS;
+    },
+    [nowTick]
+  );
+
+  // Map of IP -> visitor record for fast lookups in attack monitor
+  const visitorByIp = useMemo(() => {
+    const map = new Map<string, SiteVisitorRecord>();
+    for (const v of visitors) {
+      map.set(v.ip, v);
+    }
+    return map;
+  }, [visitors]);
+
+  // Visitors who are currently actively connected to the website right now
+  const activeVisitors = useMemo(() => {
+    return visitors.filter((v) => isIpActiveOnSite(v.last_visited_at));
+  }, [visitors, isIpActiveOnSite]);
+
+  // Render Live Active Pill Badge
+  const renderActivePill = (
+    lastVisitedAt?: string | null,
+    isBanned?: boolean,
+    isBlockedByLockdown?: boolean
+  ) => {
+    const active = isIpActiveOnSite(lastVisitedAt);
+    if (!active) return null;
+
+    let text = "Active on Site";
+    let badgeClass = "bg-emerald-50 text-emerald-800 border-emerald-300";
+    let pingClass = "bg-emerald-400";
+    let dotClass = "bg-emerald-500";
+
+    if (isBanned) {
+      text = "Active (Blacklisted Screen)";
+      badgeClass = "bg-rose-50 text-rose-800 border-rose-300";
+      pingClass = "bg-rose-400";
+      dotClass = "bg-rose-500";
+    } else if (isBlockedByLockdown) {
+      text = "Active (Lockdown Screen)";
+      badgeClass = "bg-amber-50 text-amber-850 border-amber-300";
+      pingClass = "bg-amber-400";
+      dotClass = "bg-amber-500";
+    }
+
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs shrink-0 select-none ${badgeClass}`}
+        title={`Live visitor connection detected within the last 60 seconds (${text})`}
+      >
+        <span className="relative flex h-1.5 w-1.5 shrink-0">
+          <span
+            className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pingClass}`}
+          ></span>
+          <span
+            className={`relative inline-flex rounded-full h-1.5 w-1.5 ${dotClass}`}
+          ></span>
+        </span>
+        <span>{text}</span>
+      </span>
+    );
   };
 
   // Render Combined Timestamp (Relative + Real Clock Time with pulse for recent)
@@ -479,7 +557,7 @@ export function MasterControlView() {
       minute: "2-digit",
       second: "2-digit",
     });
-    const isRecent = Date.now() - date.getTime() < 5 * 60 * 1000; // within last 5 minutes
+    const isRecent = nowTick - date.getTime() < 5 * 60 * 1000; // within last 5 minutes
 
     return (
       <div className="flex flex-col">
@@ -1067,9 +1145,20 @@ export function MasterControlView() {
 
                   return (
                     <tr key={item.ip} className="hover:bg-slate-50/60 transition-colors">
-                      {/* IP Address with Flag */}
+                      {/* IP Address with Flag & Active Pill */}
                       <td className="py-3 px-3">
-                        {renderIpWithFlag(item.ip, item.country_code)}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {renderIpWithFlag(item.ip, item.country_code)}
+                          {(() => {
+                            const vRecord = visitorByIp.get(item.ip);
+                            const latestActiveTime = vRecord?.last_visited_at || item.last_attempt_at;
+                            return renderActivePill(
+                              latestActiveTime,
+                              isPermanentlyBanned,
+                              settings.ip_lockdown_enabled && !settings.allowed_ips?.includes(item.ip)
+                            );
+                          })()}
+                        </div>
                       </td>
 
                       {/* Status */}
@@ -1199,6 +1288,68 @@ export function MasterControlView() {
           </div>
         </div>
 
+        {/* Real-time Currently Active Visitors Presence Bar */}
+        <div className="p-3 rounded-xl bg-slate-50/90 border border-slate-200/90 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mr-2 shrink-0">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Currently Active on Site ({activeVisitors.length}):</span>
+          </div>
+
+          {activeVisitors.length === 0 ? (
+            <span className="text-xs text-slate-400 italic">
+              No devices currently active on the site.
+            </span>
+          ) : (
+            activeVisitors.map((v) => {
+              const isBanned = settings.blacklisted_ips?.includes(v.ip);
+              const isWhitelisted = settings.allowed_ips?.includes(v.ip);
+              const isBlocked = settings.ip_lockdown_enabled && !isWhitelisted;
+              const isCurrent = v.ip === clientIp;
+
+              return (
+                <div
+                  key={v.ip}
+                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border shadow-2xs transition-all ${
+                    isBanned
+                      ? "bg-rose-50 text-rose-800 border-rose-200"
+                      : isBlocked
+                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  }`}
+                >
+                  <span className="text-sm select-none">
+                    {getCountryFlag(v.country_code || countryMap[v.ip], v.ip)}
+                  </span>
+                  <span className="font-mono font-bold">{v.ip}</span>
+                  {isCurrent && (
+                    <span className="text-[10px] bg-emerald-200/70 text-emerald-900 px-1.5 py-0.2 rounded font-sans font-bold">
+                      You
+                    </span>
+                  )}
+                  <span
+                    className={`text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.2 rounded ${
+                      isBanned
+                        ? "bg-rose-200/70 text-rose-900"
+                        : isBlocked
+                        ? "bg-amber-200/70 text-amber-900"
+                        : "bg-emerald-200/70 text-emerald-900"
+                    }`}
+                  >
+                    {isBanned
+                      ? "Blacklist Screen"
+                      : isBlocked
+                      ? "Lockdown Screen"
+                      : "Active on Site"}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
+
         {/* Visitors Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -1228,9 +1379,16 @@ export function MasterControlView() {
 
                   return (
                     <tr key={visitor.ip} className="hover:bg-slate-50/60 transition-colors">
-                      {/* Visitor IP with Country Flag */}
+                      {/* Visitor IP with Country Flag & Active Pill */}
                       <td className="py-3 px-3">
-                        {renderIpWithFlag(visitor.ip, visitor.country_code)}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {renderIpWithFlag(visitor.ip, visitor.country_code)}
+                          {renderActivePill(
+                            visitor.last_visited_at,
+                            isBanned,
+                            isBlockedByLockdown
+                          )}
+                        </div>
                       </td>
 
                       {/* Visit Count */}
