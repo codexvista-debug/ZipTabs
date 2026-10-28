@@ -446,32 +446,97 @@ export function MasterControlView() {
     );
   };
 
-  // Filtered IP records (Auth attempts)
-  const filteredIpLocks = useMemo(() => {
-    return ipLocks.filter((rec) => {
-      const q = ipSearch.toLowerCase().trim();
-      if (!q) return true;
-      const matchesIp = rec.ip.toLowerCase().includes(q);
-      const country = getCountryName(rec.country_code || countryMap[rec.ip]).toLowerCase();
-      const matchesCountry = country.includes(q);
-      const matchesUsers = rec.attempt_history?.some((h) =>
-        h.username.toLowerCase().includes(q)
-      );
-      return matchesIp || matchesCountry || matchesUsers;
+  // Format Relative Time (e.g. "Just now", "2m ago", "1h ago")
+  const formatRelativeTime = (dateString?: string | null): string => {
+    if (!dateString) return "Never";
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (diffInSeconds < 0 || diffInSeconds < 5) return "Just now";
+    if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `${diffInDays}d ago`;
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) return `${diffInMonths}mo ago`;
+    return `${Math.floor(diffInDays / 365)}y ago`;
+  };
+
+  // Render Combined Timestamp (Relative + Real Clock Time with pulse for recent)
+  const renderTimestamp = (dateString?: string | null) => {
+    if (!dateString) {
+      return <span className="text-slate-400 italic">Never</span>;
+    }
+    const date = new Date(dateString);
+    const relative = formatRelativeTime(dateString);
+    const real = date.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
     });
+    const isRecent = Date.now() - date.getTime() < 5 * 60 * 1000; // within last 5 minutes
+
+    return (
+      <div className="flex flex-col">
+        <span className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
+          {isRecent && (
+            <span className="relative flex h-1.5 w-1.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+            </span>
+          )}
+          <span>{relative}</span>
+        </span>
+        <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+          {real}
+        </span>
+      </div>
+    );
+  };
+
+  // Filtered IP records (Auth attempts) - Sorted by latest relative attempt at the top
+  const filteredIpLocks = useMemo(() => {
+    return ipLocks
+      .filter((rec) => {
+        const q = ipSearch.toLowerCase().trim();
+        if (!q) return true;
+        const matchesIp = rec.ip.toLowerCase().includes(q);
+        const country = getCountryName(rec.country_code || countryMap[rec.ip]).toLowerCase();
+        const matchesCountry = country.includes(q);
+        const matchesUsers = rec.attempt_history?.some((h) =>
+          h.username.toLowerCase().includes(q)
+        );
+        return matchesIp || matchesCountry || matchesUsers;
+      })
+      .sort((a, b) => {
+        const timeA = a.last_attempt_at ? new Date(a.last_attempt_at).getTime() : 0;
+        const timeB = b.last_attempt_at ? new Date(b.last_attempt_at).getTime() : 0;
+        return timeB - timeA;
+      });
   }, [ipLocks, ipSearch, countryMap]);
 
-  // Filtered Site Visitors (General web browsing traffic)
+  // Filtered Site Visitors (General web browsing traffic) - Sorted by latest relative activity at the top
   const filteredVisitors = useMemo(() => {
-    return visitors.filter((v) => {
-      const q = visitorSearch.toLowerCase().trim();
-      if (!q) return true;
-      const matchesIp = v.ip.toLowerCase().includes(q);
-      const country = getCountryName(v.country_code || countryMap[v.ip]).toLowerCase();
-      const matchesCountry = country.includes(q);
-      const matchesAgent = v.user_agent?.toLowerCase().includes(q);
-      return matchesIp || matchesCountry || matchesAgent;
-    });
+    return visitors
+      .filter((v) => {
+        const q = visitorSearch.toLowerCase().trim();
+        if (!q) return true;
+        const matchesIp = v.ip.toLowerCase().includes(q);
+        const country = getCountryName(v.country_code || countryMap[v.ip]).toLowerCase();
+        const matchesCountry = country.includes(q);
+        const matchesAgent = v.user_agent?.toLowerCase().includes(q);
+        return matchesIp || matchesCountry || matchesAgent;
+      })
+      .sort((a, b) => {
+        const timeA = a.last_visited_at ? new Date(a.last_visited_at).getTime() : 0;
+        const timeB = b.last_visited_at ? new Date(b.last_visited_at).getTime() : 0;
+        return timeB - timeA;
+      });
   }, [visitors, visitorSearch, countryMap]);
 
   // Parse simple device name from User-Agent
@@ -1073,10 +1138,8 @@ export function MasterControlView() {
                       </td>
 
                       {/* Last Attempt */}
-                      <td className="py-3 px-3 text-slate-500 text-[11px]">
-                        {item.last_attempt_at
-                          ? new Date(item.last_attempt_at).toLocaleString()
-                          : "Never"}
+                      <td className="py-3 px-3">
+                        {renderTimestamp(item.last_attempt_at)}
                       </td>
 
                       {/* Actions with Instant Click Response */}
@@ -1184,17 +1247,13 @@ export function MasterControlView() {
                       </td>
 
                       {/* First Seen */}
-                      <td className="py-3 px-3 text-slate-500 text-[11px]">
-                        {visitor.first_visited_at
-                          ? new Date(visitor.first_visited_at).toLocaleString()
-                          : "N/A"}
+                      <td className="py-3 px-3">
+                        {renderTimestamp(visitor.first_visited_at)}
                       </td>
 
                       {/* Last Active */}
-                      <td className="py-3 px-3 text-slate-600 font-medium text-[11px]">
-                        {visitor.last_visited_at
-                          ? new Date(visitor.last_visited_at).toLocaleString()
-                          : "Just now"}
+                      <td className="py-3 px-3">
+                        {renderTimestamp(visitor.last_visited_at)}
                       </td>
 
                       {/* Access Status */}
