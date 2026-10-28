@@ -4,7 +4,6 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
-  serverExternalPackages: ["tesseract.js"],
   turbopack: {
     rules: {
       "*.css": {

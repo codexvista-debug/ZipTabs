@@ -43,6 +43,7 @@ import {
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 import { downloadFileDirectly } from "@/lib/download";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
+import { extractTextFromImageFile } from "@/lib/ocr";
 
 export interface NoteAttachment {
   id: string;
@@ -424,6 +425,7 @@ export function NotesView() {
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [extractingId, setExtractingId] = useState<string | null>(null);
+  const [extractProgress, setExtractProgress] = useState<number>(0);
 
   // Category Creation State
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
@@ -869,63 +871,20 @@ export function NotesView() {
     setNewFilesToUpload((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Extract text from image attachment via OCR
+  // Extract text from image attachment via client-side OCR (direct in-browser, no server timeout)
   const handleExtractTextFromImage = async (
     item: File | NoteAttachment,
     idKey: string
   ) => {
-    // 15-second safety controller to avoid infinite "Extracting..." state
-    const abortController = new AbortController();
-    const timer = setTimeout(() => abortController.abort(), 15000);
-
     try {
       setExtractingId(idKey);
+      setExtractProgress(0);
 
-      let res: Response;
-      if (item instanceof File) {
-        const formData = new FormData();
-        formData.append("file", item);
-        res = await fetch("/api/extract-text", {
-          method: "POST",
-          body: formData,
-          signal: abortController.signal,
-        });
-      } else {
-        // For existing attachments with URL: fetch blob locally first if possible to avoid server CORS
-        let blobToSend: Blob | null = null;
-        try {
-          const fetchImg = await fetch(item.url);
-          if (fetchImg.ok) {
-            blobToSend = await fetchImg.blob();
-          }
-        } catch {}
+      const source = item instanceof File ? item : item.url;
+      const extracted = await extractTextFromImageFile(source, (pct) => {
+        setExtractProgress(pct);
+      });
 
-        if (blobToSend) {
-          const formData = new FormData();
-          formData.append("file", blobToSend, item.name || "image.png");
-          res = await fetch("/api/extract-text", {
-            method: "POST",
-            body: formData,
-            signal: abortController.signal,
-          });
-        } else {
-          res = await fetch("/api/extract-text", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageUrl: item.url }),
-            signal: abortController.signal,
-          });
-        }
-      }
-
-      clearTimeout(timer);
-
-      const result = await res.json();
-      if (!res.ok || !result.success) {
-        throw new Error(result.error || "Failed to extract text from image.");
-      }
-
-      const extracted = (result.text || "").trim();
       if (!extracted) {
         showToast(
           "No Readable Text Found",
@@ -948,18 +907,15 @@ export function NotesView() {
         "success"
       );
     } catch (err: any) {
-      clearTimeout(timer);
       console.error("Text extraction failed:", err);
-      const isTimeout = err.name === "AbortError";
       showToast(
         "Extraction Failed",
-        isTimeout
-          ? "Extraction timed out. Please check your network or try a clearer image."
-          : err.message || "An error occurred while scanning the image.",
+        err.message || "An error occurred while scanning the image.",
         "error"
       );
     } finally {
       setExtractingId(null);
+      setExtractProgress(0);
     }
   };
 
@@ -2113,7 +2069,7 @@ export function NotesView() {
                                 {extractingId === `existing-${att.id}` ? (
                                   <>
                                     <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                                    <span>Extracting...</span>
+                                    <span>{extractProgress > 0 ? `Extracting (${extractProgress}%)...` : "Extracting..."}</span>
                                   </>
                                 ) : (
                                   <>
@@ -2195,7 +2151,7 @@ export function NotesView() {
                                 {extractingId === `new-${idx}` ? (
                                   <>
                                     <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                                    <span>Extracting...</span>
+                                    <span>{extractProgress > 0 ? `Extracting (${extractProgress}%)...` : "Extracting..."}</span>
                                   </>
                                 ) : (
                                   <>
