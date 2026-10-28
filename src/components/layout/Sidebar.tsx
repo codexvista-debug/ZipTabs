@@ -33,6 +33,8 @@ export function Sidebar({
 }: SidebarProps) {
   const { user, logout } = useAuth();
 
+  const isChief = user?.username?.toLowerCase() === "chief";
+
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "invoices", label: "Invoices", icon: FileSpreadsheet },
@@ -40,7 +42,7 @@ export function Sidebar({
     { id: "calendar", label: "US Calendar", icon: CalendarDays },
     { id: "drive", label: "Drive", icon: FolderOpen },
     { id: "resources", label: "Resources", icon: Calculator },
-    { id: "logins", label: "Logins", icon: KeyRound },
+    ...(isChief ? [{ id: "logins", label: "Logins", icon: KeyRound }] : []),
     { id: "usage", label: "Usage", icon: HardDrive },
   ];
 
