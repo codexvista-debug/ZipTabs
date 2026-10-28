@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [settingsRes, usersRes, ipLocksRes] = await Promise.all([
+    const [settingsRes, usersRes, ipLocksRes, visitorsRes] = await Promise.all([
       supabase
         .from("system_security_settings")
         .select("*")
@@ -40,6 +40,11 @@ export async function GET(req: NextRequest) {
         .from("auth_ip_locks")
         .select("*")
         .order("last_attempt_at", { ascending: false }),
+      supabase
+        .from("site_visitors")
+        .select("*")
+        .order("last_visited_at", { ascending: false })
+        .limit(100),
     ]);
 
     const settings = settingsRes.data || {
@@ -56,6 +61,7 @@ export async function GET(req: NextRequest) {
       settings,
       users: usersRes.data || [],
       ipLocks: ipLocksRes.data || [],
+      visitors: visitorsRes.data || [],
     });
   } catch (err: any) {
     console.error("Master Control GET error:", err);

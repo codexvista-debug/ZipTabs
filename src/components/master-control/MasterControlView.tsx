@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -15,17 +16,15 @@ import {
   Globe,
   Ban,
   CheckCircle2,
-  RefreshCw,
   Copy,
   Check,
   Trash2,
-  Plus,
   Search,
-  Eye,
-  KeyRound,
   Shield,
   Clock,
-  Laptop,
+  Eye,
+  Activity,
+  Compass,
 } from "lucide-react";
 
 interface AppUserRecord {
@@ -49,6 +48,15 @@ interface IpLockRecord {
   attempt_history?: IpAttemptHistoryItem[];
 }
 
+interface SiteVisitorRecord {
+  ip: string;
+  visit_count: number;
+  first_visited_at: string;
+  last_visited_at: string;
+  user_agent?: string;
+  last_page?: string;
+}
+
 interface SystemSecuritySettings {
   id: string;
   registrations_allowed: boolean;
@@ -64,7 +72,6 @@ export function MasterControlView() {
   const isChief = user?.username?.toLowerCase() === "chief";
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [clientIp, setClientIp] = useState<string>("127.0.0.1");
   const [settings, setSettings] = useState<SystemSecuritySettings>({
     id: "global",
@@ -75,9 +82,11 @@ export function MasterControlView() {
   });
   const [users, setUsers] = useState<AppUserRecord[]>([]);
   const [ipLocks, setIpLocks] = useState<IpLockRecord[]>([]);
+  const [visitors, setVisitors] = useState<SiteVisitorRecord[]>([]);
 
   // Search & Filter
   const [ipSearch, setIpSearch] = useState("");
+  const [visitorSearch, setVisitorSearch] = useState("");
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   // Manual actions
@@ -103,7 +112,6 @@ export function MasterControlView() {
 
   // Fetch Master Control Data
   const loadMasterData = useCallback(async (isSilent = false) => {
-    if (!isSilent) setIsRefreshing(true);
     try {
       const res = await fetch("/api/master-control");
       if (res.ok) {
@@ -113,22 +121,60 @@ export function MasterControlView() {
           setSettings(data.settings);
           setUsers(data.users || []);
           setIpLocks(data.ipLocks || []);
+          setVisitors(data.visitors || []);
         }
       }
     } catch (err) {
       console.error("Master Control load failed:", err);
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   }, []);
 
+  // Real-time listener & Auto-refresh (No manual refresh button needed)
   useEffect(() => {
-    if (isChief) {
-      loadMasterData();
-    } else {
+    if (!isChief) {
       setIsLoading(false);
+      return;
     }
+
+    // Initial fetch
+    loadMasterData();
+
+    // 1. Supabase Realtime Channel
+    let channel: any = null;
+    if (supabase) {
+      channel = supabase
+        .channel("master_control_live_updates")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "site_visitors" },
+          () => loadMasterData(true)
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "auth_ip_locks" },
+          () => loadMasterData(true)
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "system_security_settings" },
+          () => loadMasterData(true)
+        )
+        .subscribe();
+    }
+
+    // 2. High-frequency 3.5s background polling fallback for instant UI updates
+    const pollInterval = setInterval(() => {
+      loadMasterData(true);
+    }, 3500);
+
+    return () => {
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+      clearInterval(pollInterval);
+    };
   }, [isChief, loadMasterData]);
 
   // Execute Master Actions
@@ -231,16 +277,41 @@ export function MasterControlView() {
     }
   };
 
-  // Filtered IP records
-  const filteredIpLocks = ipLocks.filter((rec) => {
-    const q = ipSearch.toLowerCase().trim();
-    if (!q) return true;
-    const matchesIp = rec.ip.toLowerCase().includes(q);
-    const matchesUsers = rec.attempt_history?.some((h) =>
-      h.username.toLowerCase().includes(q)
-    );
-    return matchesIp || matchesUsers;
-  });
+  // Filtered IP records (Auth attempts)
+  const filteredIpLocks = useMemo(() => {
+    return ipLocks.filter((rec) => {
+      const q = ipSearch.toLowerCase().trim();
+      if (!q) return true;
+      const matchesIp = rec.ip.toLowerCase().includes(q);
+      const matchesUsers = rec.attempt_history?.some((h) =>
+        h.username.toLowerCase().includes(q)
+      );
+      return matchesIp || matchesUsers;
+    });
+  }, [ipLocks, ipSearch]);
+
+  // Filtered Site Visitors (General web browsing traffic)
+  const filteredVisitors = useMemo(() => {
+    return visitors.filter((v) => {
+      const q = visitorSearch.toLowerCase().trim();
+      if (!q) return true;
+      const matchesIp = v.ip.toLowerCase().includes(q);
+      const matchesAgent = v.user_agent?.toLowerCase().includes(q);
+      return matchesIp || matchesAgent;
+    });
+  }, [visitors, visitorSearch]);
+
+  // Parse simple device name from User-Agent
+  const formatUserAgent = (ua?: string) => {
+    if (!ua) return "Unknown Device";
+    if (ua.includes("iPhone")) return "Apple iPhone";
+    if (ua.includes("iPad")) return "Apple iPad";
+    if (ua.includes("Android")) return "Android Mobile";
+    if (ua.includes("Windows")) return "Windows PC";
+    if (ua.includes("Macintosh")) return "Apple Mac";
+    if (ua.includes("Linux")) return "Linux Device";
+    return ua.slice(0, 30);
+  };
 
   // Calculate Metrics
   const blacklistedCount =
@@ -268,7 +339,7 @@ export function MasterControlView() {
             Master Control Restricted
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">
-            Master Control and Security Firewall are strictly accessible by the **Chief Administrator (@chief)**.
+            Master Control and Security Firewall are strictly accessible by the **Chief Administrator**.
           </p>
           <div className="mt-6 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-400 font-mono">
             Access attempt logged • Unauthorized
@@ -298,7 +369,7 @@ export function MasterControlView() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Header (No manual refresh button — Live Real-Time indicator instead) */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 pb-4 sm:pb-6 border-b border-slate-200/60">
         <div>
           <div className="flex items-center gap-2.5">
@@ -320,15 +391,15 @@ export function MasterControlView() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => loadMasterData()}
-            disabled={isRefreshing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-60"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-blue-600" : ""}`} />
-            <span>Refresh</span>
-          </button>
+        {/* Live Real-Time Pulsing Status Indicator */}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span>Live Real-Time Engine Active</span>
+          </div>
         </div>
       </div>
 
@@ -464,8 +535,8 @@ export function MasterControlView() {
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
               {chiefTargetAttempts > 0
-                ? `${chiefTargetAttempts} IP(s) targeted @chief account`
-                : "No malicious strikes on @chief"}
+                ? `${chiefTargetAttempts} IP(s) targeted administrator login`
+                : "No malicious strikes on administrator"}
             </p>
           </div>
           <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400">
@@ -491,7 +562,7 @@ export function MasterControlView() {
             </div>
             <div className="mt-1 flex items-center gap-1">
               <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Chief Verified
+                Verified
               </span>
             </div>
           </div>
@@ -539,7 +610,7 @@ export function MasterControlView() {
               <span>Registered Accounts ({users.length})</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              You intend to maintain only 1 user (<strong>@chief</strong>). Extra accounts can be reviewed and deleted here.
+              1-User workspace enforcement. Any extra unauthorized user account can be reviewed and deleted here.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -674,7 +745,7 @@ export function MasterControlView() {
         </div>
       </div>
 
-      {/* Section 3: IP Access & Security Log Table */}
+      {/* Section 3: IP Traffic & Attack Defense Monitor (Authentication attempts) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
@@ -683,7 +754,7 @@ export function MasterControlView() {
               <span>IP Traffic & Attack Defense Monitor ({ipLocks.length} Recorded IPs)</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Inspect all IP addresses attempting authentication, targeting @chief, or blocked by 3-strike lockouts.
+              Inspect all IP addresses attempting authentication, targeting administrator credentials, or blocked by 3-strike lockouts.
             </p>
           </div>
 
@@ -734,7 +805,7 @@ export function MasterControlView() {
               {filteredIpLocks.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-400">
-                    No matching IP logs found.
+                    No matching authentication attempts logged yet.
                   </td>
                 </tr>
               ) : (
@@ -744,9 +815,6 @@ export function MasterControlView() {
                   const isLocked =
                     isPermanentlyBanned ||
                     (item.locked_until && new Date(item.locked_until).getTime() > Date.now());
-                  const targetedChief = item.attempt_history?.some(
-                    (h) => h.username.toLowerCase() === "chief"
-                  );
 
                   return (
                     <tr key={item.ip} className="hover:bg-slate-50/60 transition-colors">
@@ -852,6 +920,166 @@ export function MasterControlView() {
                               title="Blacklist this IP"
                             >
                               Blacklist
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Section 4: Live Website Visitor Traffic (Browsing IPs Even Without Login) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Compass className="w-4 h-4 text-indigo-600" />
+              <span>Live Website Visitor Traffic ({visitors.length} Visiting IPs)</span>
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tracks all IP addresses that visit or open your website in real time, even if they don’t attempt to log in. You can blacklist any visiting IP directly from here.
+            </p>
+          </div>
+
+          {/* Search Visitor IPs */}
+          <div className="relative min-w-[220px]">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search visitor IP or device..."
+              value={visitorSearch}
+              onChange={(e) => setVisitorSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
+            />
+          </div>
+        </div>
+
+        {/* Visitors Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
+                <th className="py-2.5 px-3">Visitor IP</th>
+                <th className="py-2.5 px-3">Page Visits</th>
+                <th className="py-2.5 px-3">Device & Browser</th>
+                <th className="py-2.5 px-3">First Seen</th>
+                <th className="py-2.5 px-3">Last Active</th>
+                <th className="py-2.5 px-3">Access Status</th>
+                <th className="py-2.5 px-3 text-right">Firewall Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredVisitors.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                    No visitor traffic recorded yet. Visits will appear here automatically in real time.
+                  </td>
+                </tr>
+              ) : (
+                filteredVisitors.map((visitor) => {
+                  const isCurrent = visitor.ip === clientIp;
+                  const isBanned = settings.blacklisted_ips?.includes(visitor.ip);
+                  const isWhitelisted = settings.allowed_ips?.includes(visitor.ip);
+                  const isBlockedByLockdown = settings.ip_lockdown_enabled && !isWhitelisted;
+
+                  return (
+                    <tr key={visitor.ip} className="hover:bg-slate-50/60 transition-colors">
+                      {/* Visitor IP */}
+                      <td className="py-3 px-3 font-mono font-bold text-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          <span>{visitor.ip}</span>
+                          {isCurrent && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-sans font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              Your IP
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Visit Count */}
+                      <td className="py-3 px-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold bg-slate-100 text-slate-700 text-[11px]">
+                          <Activity className="w-3 h-3 text-indigo-500" />
+                          <span>{visitor.visit_count} visit{visitor.visit_count === 1 ? "" : "s"}</span>
+                        </span>
+                      </td>
+
+                      {/* Device / Browser */}
+                      <td className="py-3 px-3 text-slate-600 font-medium max-w-[200px] truncate" title={visitor.user_agent}>
+                        {formatUserAgent(visitor.user_agent)}
+                      </td>
+
+                      {/* First Seen */}
+                      <td className="py-3 px-3 text-slate-500 text-[11px]">
+                        {visitor.first_visited_at
+                          ? new Date(visitor.first_visited_at).toLocaleString()
+                          : "N/A"}
+                      </td>
+
+                      {/* Last Active */}
+                      <td className="py-3 px-3 text-slate-600 font-medium text-[11px]">
+                        {visitor.last_visited_at
+                          ? new Date(visitor.last_visited_at).toLocaleString()
+                          : "Just now"}
+                      </td>
+
+                      {/* Access Status */}
+                      <td className="py-3 px-3">
+                        {isBanned ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <Ban className="w-3 h-3" />
+                            <span>Blacklisted</span>
+                          </span>
+                        ) : isBlockedByLockdown ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Lock className="w-3 h-3" />
+                            <span>Blocked (Lockdown)</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Allowed</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isBanned ? (
+                            <button
+                              onClick={() => handleUnblacklistIp(visitor.ip)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer"
+                              title="Unban visitor IP"
+                            >
+                              Unban
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleBlacklistIp(visitor.ip)}
+                              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-[11px] transition-colors cursor-pointer"
+                              title="Blacklist this visitor IP"
+                            >
+                              Blacklist IP
+                            </button>
+                          )}
+                          {!isWhitelisted && (
+                            <button
+                              onClick={() =>
+                                executeAction(
+                                  { action: "add_allowed_ip", ip: visitor.ip },
+                                  `IP (${visitor.ip}) added to Whitelist.`
+                                )
+                              }
+                              className="px-2 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-[11px] cursor-pointer"
+                              title="Add to Whitelist"
+                            >
+                              Whitelist
                             </button>
                           )}
                         </div>

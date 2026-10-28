@@ -22,7 +22,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 0. Check Master Control Security Settings
+    // 0. Record visitor IP traffic (even without login)
+    const userAgent = req.headers.get("user-agent") || "unknown";
+    try {
+      await supabase.rpc("record_site_visitor", {
+        p_ip: clientIp,
+        p_user_agent: userAgent,
+        p_page: "/",
+      });
+    } catch (e) {
+      // Non-blocking fallback
+    }
+
+    // 1. Check Master Control Security Settings
     const { data: settings } = await supabase
       .from("system_security_settings")
       .select("*")
