@@ -41,9 +41,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [lockoutInfo, setLockoutInfo] = useState<LockoutInfo | null>(null);
 
-  const refreshLockoutStatus = async (): Promise<LockoutInfo | null> => {
+  const refreshLockoutStatus = async (overrideUser?: string): Promise<LockoutInfo | null> => {
     try {
-      const res = await fetch("/api/auth/lockout-status");
+      let currentUsername = overrideUser || user?.username;
+      if (!currentUsername && typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed?.username) currentUsername = parsed.username;
+          }
+        } catch {}
+      }
+
+      const headers: Record<string, string> = {};
+      if (currentUsername) {
+        headers["x-auth-user"] = currentUsername;
+      }
+
+      const res = await fetch("/api/auth/lockout-status", { headers });
       if (res.ok) {
         const data: LockoutInfo = await res.json();
         setLockoutInfo(data);

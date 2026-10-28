@@ -75,6 +75,35 @@ export async function POST(req: NextRequest) {
       if (settings.ip_lockdown_enabled) {
         const isAllowed = Array.isArray(settings.allowed_ips) && settings.allowed_ips.includes(clientIp);
         if (!isAllowed) {
+          // Log targeted username attempt even when blocked by lockdown
+          try {
+            const { data: currentLock } = await supabase
+              .from("auth_ip_locks")
+              .select("*")
+              .eq("ip", clientIp)
+              .maybeSingle();
+
+            const hist = Array.isArray(currentLock?.attempt_history) ? currentLock.attempt_history : [];
+            const updatedHist = [
+              ...hist,
+              {
+                timestamp: new Date().toISOString(),
+                username: cleanUsername,
+                userAgent: req.headers.get("user-agent") || "unknown",
+                lockdownBlocked: true,
+              },
+            ].slice(-20);
+
+            await supabase.from("auth_ip_locks").upsert({
+              ip: clientIp,
+              country_code: clientCountry,
+              failed_attempts: currentLock?.failed_attempts || 0,
+              locked_until: currentLock?.locked_until || null,
+              last_attempt_at: new Date().toISOString(),
+              attempt_history: updatedHist,
+            });
+          } catch {}
+
           return NextResponse.json(
             {
               success: false,
@@ -145,13 +174,25 @@ export async function POST(req: NextRequest) {
 
     // 3. Handle Successful Login
     if (userRecord && passwordMatches) {
-      // Clear failed attempts on this IP
+      // Clear failed attempts on this IP and record authenticated account in history
+      const currentHistory = Array.isArray(lockRecord?.attempt_history)
+        ? lockRecord.attempt_history
+        : [];
+      const historyItem = {
+        timestamp: new Date().toISOString(),
+        username: userRecord.username,
+        userAgent: req.headers.get("user-agent") || "unknown",
+        success: true,
+      };
+      const updatedHistory = [...currentHistory, historyItem].slice(-20);
+
       await supabase.from("auth_ip_locks").upsert({
         ip: clientIp,
         country_code: clientCountry,
         failed_attempts: 0,
         locked_until: null,
         last_attempt_at: new Date().toISOString(),
+        attempt_history: updatedHistory,
       });
 
       return NextResponse.json({

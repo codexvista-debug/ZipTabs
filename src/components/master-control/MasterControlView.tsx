@@ -1124,7 +1124,7 @@ export function MasterControlView() {
                 <th className="py-2.5 px-3">IP & Country</th>
                 <th className="py-2.5 px-3">Status / Enforcement</th>
                 <th className="py-2.5 px-3">Strikes</th>
-                <th className="py-2.5 px-3">Targeted Account(s)</th>
+                <th className="py-2.5 px-3">Targeted / Authenticated Account(s)</th>
                 <th className="py-2.5 px-3">Last Attempt</th>
                 <th className="py-2.5 px-3 text-right">Actions</th>
               </tr>
@@ -1202,25 +1202,43 @@ export function MasterControlView() {
                         </div>
                       </td>
 
-                      {/* Targeted Usernames */}
+                      {/* Targeted / Authenticated Usernames */}
                       <td className="py-3 px-3">
                         {item.attempt_history && item.attempt_history.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {Array.from(
-                              new Set(item.attempt_history.map((h) => h.username))
-                            ).map((name) => (
-                              <span
-                                key={name}
-                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                                  name.toLowerCase() === "chief"
-                                    ? "bg-rose-100 text-rose-800 border border-rose-300"
-                                    : "bg-slate-100 text-slate-600"
-                                }`}
-                              >
-                                @{name}
-                              </span>
-                            ))}
+                              new Set(item.attempt_history.map((h) => h.username).filter(Boolean))
+                            ).map((name) => {
+                              const isChiefName = name.toLowerCase() === "chief";
+                              const isAttack = item.failed_attempts > 0 || isPermanentlyBanned;
+
+                              return (
+                                <span
+                                  key={name}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                    isChiefName
+                                      ? isAttack
+                                        ? "bg-rose-100 text-rose-800 border-rose-300"
+                                        : "bg-blue-50 text-blue-700 border-blue-200"
+                                      : "bg-slate-100 text-slate-700 border-slate-200"
+                                  }`}
+                                  title={
+                                    isChiefName
+                                      ? isAttack
+                                        ? "Account targeted in unauthorized attempt"
+                                        : "Authenticated Chief session"
+                                      : `Targeted user: @${name}`
+                                  }
+                                >
+                                  @{name}
+                                </span>
+                              );
+                            })}
                           </div>
+                        ) : item.ip === clientIp ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            @chief
+                          </span>
                         ) : (
                           <span className="text-slate-400 italic">None logged</span>
                         )}

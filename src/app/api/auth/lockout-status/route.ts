@@ -44,6 +44,44 @@ export async function GET(req: NextRequest) {
       // Non-blocking fallback
     }
 
+    // 0.1 Associate authenticated user session with IP locks if present
+    const authUser = req.headers.get("x-auth-user")?.trim().toLowerCase();
+    if (authUser) {
+      try {
+        const { data: currentLock } = await supabase
+          .from("auth_ip_locks")
+          .select("attempt_history, country_code")
+          .eq("ip", clientIp)
+          .maybeSingle();
+
+        const history = Array.isArray(currentLock?.attempt_history)
+          ? currentLock.attempt_history
+          : [];
+        const hasUser = history.some((h: any) => h.username?.toLowerCase() === authUser);
+
+        if (!hasUser) {
+          const updatedHistory = [
+            ...history,
+            {
+              timestamp: new Date().toISOString(),
+              username: authUser,
+              userAgent: userAgent,
+              success: true,
+            },
+          ].slice(-20);
+
+          await supabase.from("auth_ip_locks").upsert({
+            ip: clientIp,
+            country_code: clientCountry || currentLock?.country_code,
+            attempt_history: updatedHistory,
+            last_attempt_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        // Non-blocking fallback
+      }
+    }
+
     // 1. Check Master Control Security Settings
     const { data: settings } = await supabase
       .from("system_security_settings")
