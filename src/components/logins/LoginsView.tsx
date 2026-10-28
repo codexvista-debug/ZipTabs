@@ -42,6 +42,7 @@ import {
   FileText,
   Tag,
   User,
+  History,
 } from "lucide-react";
 
 export type LoginCategory = string;
@@ -130,6 +131,21 @@ export function getCategoryBadgeStyle(cat?: string): {
   };
 }
 
+export interface VaultLoginLogChange {
+  field: "username" | "password" | "url" | "notes" | "title" | "category" | "icon";
+  label: string;
+  oldValue?: string;
+  newValue?: string;
+  isSecret?: boolean;
+}
+
+export interface VaultLoginLog {
+  id: string;
+  timestamp: string; // ISO string
+  summary: string;
+  changes: VaultLoginLogChange[];
+}
+
 export interface DecryptedLoginCredential {
   id: string;
   title: string;
@@ -140,6 +156,7 @@ export interface DecryptedLoginCredential {
   notes?: string;
   icon?: string;
   updatedAt: string;
+  logs?: VaultLoginLog[];
 }
 
 export function getCleanDomain(url?: string): string {
@@ -171,6 +188,20 @@ const AUTO_LOCK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const CLIPBOARD_WIPE_TIMEOUT_MS = 30 * 1000; // 30 seconds
 const PEEK_AUTO_HIDE_MS = 10 * 1000; // 10 seconds
 
+export function formatLogTimestamp(isoStr?: string): { dateStr: string; timeStr: string } {
+  if (!isoStr) return { dateStr: "10/28/2026", timeStr: "Just now" };
+  try {
+    const d = new Date(isoStr);
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const y = d.getFullYear();
+    const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return { dateStr: `${m}/${day}/${y}`, timeStr };
+  } catch {
+    return { dateStr: "10/28/2026", timeStr: "" };
+  }
+}
+
 export function LoginsView() {
   const { user } = useAuth();
   const isChief = user?.username?.toLowerCase() === "chief";
@@ -189,6 +220,8 @@ export function LoginsView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [viewingLogsItem, setViewingLogsItem] = useState<DecryptedLoginCredential | null>(null);
+  const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
 
   // Auto-lock timer ref
   const autoLockTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -339,6 +372,7 @@ export function LoginsView() {
           const decPass = await decryptVaultData(row.encrypted_password, row.iv, key);
           let decNotes: string | undefined = undefined;
           let decIcon: string | undefined = undefined;
+          let decLogs: VaultLoginLog[] | undefined = undefined;
 
           if (row.encrypted_notes) {
             try {
@@ -348,6 +382,7 @@ export function LoginsView() {
                 if (typeof parsed === "object" && parsed !== null) {
                   decNotes = parsed.notes || parsed.note || undefined;
                   decIcon = parsed.icon || undefined;
+                  decLogs = Array.isArray(parsed.logs) ? parsed.logs : undefined;
                 } else {
                   decNotes = decryptedRaw;
                 }
@@ -386,6 +421,7 @@ export function LoginsView() {
             notes: decNotes,
             icon: decIcon,
             updatedAt: row.updated_at ? row.updated_at.split("T")[0] : "2026-10-28",
+            logs: decLogs,
           });
         } catch (decryptErr) {
           console.warn(`Failed to decrypt row ${row.id}`, decryptErr);
@@ -590,11 +626,99 @@ export function LoginsView() {
       const finalIcon =
         formData.icon || detectVaultAvatar(formData.title, formData.category, formData.url);
 
+      // Audit Logging: Compare existing item against new formData to log all modifications
+      const existing = editingId ? logins.find((l) => l.id === editingId) : null;
+      const changes: VaultLoginLogChange[] = [];
+
+      if (existing) {
+        if (formData.username.trim() !== existing.username) {
+          changes.push({
+            field: "username",
+            label: "Username / Email",
+            oldValue: existing.username,
+            newValue: formData.username.trim(),
+          });
+        }
+        if (formData.password !== existing.password) {
+          changes.push({
+            field: "password",
+            label: "Master Password",
+            oldValue: "••••••••",
+            newValue: "••••••••",
+            isSecret: true,
+          });
+        }
+        const oldUrl = existing.url || "";
+        const newUrl = formData.url?.trim() || "";
+        if (newUrl !== oldUrl) {
+          changes.push({
+            field: "url",
+            label: "Portal URL",
+            oldValue: oldUrl || "None",
+            newValue: newUrl || "None",
+          });
+        }
+        const oldNotes = existing.notes || "";
+        const newNotes = formData.notes?.trim() || "";
+        if (newNotes !== oldNotes) {
+          changes.push({
+            field: "notes",
+            label: "Notes & Security Hint",
+            oldValue: oldNotes || "None",
+            newValue: newNotes || "None",
+          });
+        }
+        if (formData.title.trim() !== existing.title) {
+          changes.push({
+            field: "title",
+            label: "Account Name",
+            oldValue: existing.title,
+            newValue: formData.title.trim(),
+          });
+        }
+        if (formData.category !== existing.category) {
+          changes.push({
+            field: "category",
+            label: "Category",
+            oldValue: existing.category,
+            newValue: formData.category,
+          });
+        }
+      }
+
+      let updatedLogs: VaultLoginLog[] = existing?.logs ? [...existing.logs] : [];
+      if (editingId) {
+        if (changes.length > 0) {
+          const summaryText = changes.map((c) => c.label).join(", ") + " modified";
+          const newEntry: VaultLoginLog = {
+            id: `log-${Date.now()}`,
+            timestamp: nowIso,
+            summary: summaryText,
+            changes,
+          };
+          updatedLogs = [newEntry, ...updatedLogs];
+        }
+      } else {
+        const initialChanges: VaultLoginLogChange[] = [
+          { field: "username", label: "Username / Email", newValue: formData.username.trim() },
+          ...(formData.url?.trim() ? [{ field: "url" as const, label: "Portal URL", newValue: formData.url.trim() }] : []),
+          ...(formData.notes?.trim() ? [{ field: "notes" as const, label: "Notes & Hint", newValue: formData.notes.trim() }] : []),
+        ];
+        const newEntry: VaultLoginLog = {
+          id: `log-${Date.now()}`,
+          timestamp: nowIso,
+          summary: "Initial credential record created and encrypted",
+          changes: initialChanges,
+        };
+        updatedLogs = [newEntry];
+      }
+
       let encNotes: string | null = null;
-      if (formData.notes.trim() || finalIcon) {
+      if (formData.notes.trim() || finalIcon || updatedLogs.length > 0) {
         const payloadObj = {
           notes: formData.notes.trim(),
           icon: finalIcon,
+          logs: updatedLogs,
         };
         encNotes = await encryptVaultPayload(JSON.stringify(payloadObj), vaultKey);
       }
@@ -629,6 +753,7 @@ export function LoginsView() {
         notes: formData.notes?.trim() || undefined,
         icon: finalIcon,
         updatedAt: nowIso.split("T")[0],
+        logs: updatedLogs,
       };
 
       if (editingId) {
@@ -1017,20 +1142,34 @@ export function LoginsView() {
             const catStyle = getCategoryBadgeStyle(item.category);
             const badgeNum = familyVariantAssignments.get(item.id);
             const isMultiple = badgeNum !== undefined;
+            const isFocused = focusedCardId === item.id;
 
             return (
               <div
                 key={item.id}
-                className="relative bg-gradient-to-b from-white via-slate-50/25 to-slate-50/70 rounded-2xl border border-slate-200/90 hover:border-blue-400/80 p-5 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_28px_-6px_rgba(37,99,235,0.09)] transition-all duration-200 flex flex-col justify-between group overflow-hidden"
+                tabIndex={0}
+                onClick={() => setFocusedCardId(item.id)}
+                onFocus={() => setFocusedCardId(item.id)}
+                className={`relative rounded-2xl p-5 transition-all duration-200 flex flex-col justify-between group overflow-hidden cursor-pointer outline-none select-none ${
+                  isFocused
+                    ? "bg-white border-2 border-blue-600 shadow-xl shadow-blue-500/15 ring-4 ring-blue-500/10 -translate-y-1"
+                    : "bg-gradient-to-b from-white via-slate-50/25 to-slate-50/70 border border-slate-200/90 hover:border-blue-400/80 hover:shadow-[0_12px_28px_-6px_rgba(37,99,235,0.09)] hover:-translate-y-0.5"
+                }`}
               >
-                {/* Top subtle decorative accent line */}
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500/60 via-indigo-500/50 to-sky-400/40 opacity-70 group-hover:opacity-100 transition-opacity" />
+                {/* Top subtle decorative accent line (Glows on Focus) */}
+                <div
+                  className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400 transition-all ${
+                    isFocused
+                      ? "opacity-100 shadow-[0_0_10px_rgba(59,130,246,0.6)]"
+                      : "opacity-60 group-hover:opacity-100"
+                  }`}
+                />
 
                 <div>
                   {/* Top Bar: Brand Avatar + Title + Category Pill + Actions */}
                   <div className="flex items-start justify-between gap-3 mb-3.5">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="shrink-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className={`shrink-0 transition-transform duration-200 ${isFocused ? "scale-105" : ""}`}>
                         <VaultBrandAvatar
                           iconId={item.icon}
                           title={item.title}
@@ -1041,24 +1180,41 @@ export function LoginsView() {
                           badgeNumber={badgeNum}
                         />
                       </div>
-                      <div className="min-w-0">
-                        <h3
-                          className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate"
-                          title={item.title}
-                        >
-                          {item.title}
-                        </h3>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3
+                            className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate"
+                            title={item.title}
+                          >
+                            {item.title}
+                          </h3>
+                          {isFocused && (
+                            <span className="shrink-0 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider shadow-xs animate-in fade-in duration-150">
+                              Focused
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Line 1: Category Pill */}
+                        <div className="mt-1.5 flex items-center">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border truncate ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
                           >
                             <span className={`w-1.5 h-1.5 rounded-full ${catStyle.dot}`} />
                             <span>{item.category}</span>
                           </span>
-                          {cleanDomain && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-mono truncate bg-slate-100/70 px-1.5 py-0.5 rounded-md border border-slate-200/50">
+                        </div>
+
+                        {/* Line 2: Dedicated URL Domain Line for All Cards (Ensures Uniform Card Height) */}
+                        <div className="mt-1 flex items-center min-h-[22px]">
+                          {cleanDomain ? (
+                            <span className="inline-flex items-center gap-1.5 text-[10px] text-slate-500 font-mono truncate bg-slate-100/80 px-2 py-0.5 rounded-md border border-slate-200/70">
                               <Globe className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                              <span>{cleanDomain}</span>
+                              <span className="truncate max-w-[210px]">{cleanDomain}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 italic">
+                              <span>No portal link</span>
                             </span>
                           )}
                         </div>
@@ -1068,14 +1224,20 @@ export function LoginsView() {
                     {/* Edit & Delete Action Buttons */}
                     <div className="flex items-center gap-1 shrink-0 bg-slate-100/70 p-0.5 rounded-xl border border-slate-200/60">
                       <button
-                        onClick={() => handleOpenEditModal(item)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(item);
+                        }}
                         className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white rounded-lg transition-colors cursor-pointer"
                         title="Edit credential"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => setDeleteConfirmItem({ id: item.id, title: item.title })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmItem({ id: item.id, title: item.title });
+                        }}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                         title="Delete credential"
                       >
@@ -1085,14 +1247,21 @@ export function LoginsView() {
                   </div>
 
                   {/* Username / Email Row */}
-                  <div className="mt-3 bg-white/90 rounded-xl p-2.5 border border-slate-200/80 shadow-2xs space-y-1.5">
+                  <div
+                    className={`mt-3 rounded-xl p-2.5 border shadow-2xs space-y-1.5 transition-colors ${
+                      isFocused ? "bg-blue-50/30 border-blue-200/80" : "bg-white/90 border-slate-200/80"
+                    }`}
+                  >
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
                         <User className="w-3 h-3 text-slate-400" />
                         <span>Username / Email</span>
                       </span>
                       <button
-                        onClick={() => copyToClipboard(item.username, `user-${item.id}`, false)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(item.username, `user-${item.id}`, false);
+                        }}
                         className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
                       >
                         {copiedKey === `user-${item.id}` ? (
@@ -1114,7 +1283,11 @@ export function LoginsView() {
                   </div>
 
                   {/* Password Row */}
-                  <div className="mt-2 bg-white/90 rounded-xl p-2.5 border border-slate-200/80 shadow-2xs space-y-1.5">
+                  <div
+                    className={`mt-2 rounded-xl p-2.5 border shadow-2xs space-y-1.5 transition-colors ${
+                      isFocused ? "bg-blue-50/30 border-blue-200/80" : "bg-white/90 border-slate-200/80"
+                    }`}
+                  >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5">
                         <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
@@ -1129,7 +1302,10 @@ export function LoginsView() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => togglePasswordVisibility(item.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePasswordVisibility(item.id);
+                          }}
                           className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer p-0.5"
                           title={isVisible ? "Hide password" : "Peek password (10s)"}
                         >
@@ -1140,7 +1316,10 @@ export function LoginsView() {
                           )}
                         </button>
                         <button
-                          onClick={() => copyToClipboard(item.password, `pass-${item.id}`, true)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(item.password, `pass-${item.id}`, true);
+                          }}
                           className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
                           title="Copy to clipboard (auto-wipes in 30s)"
                         >
@@ -1177,38 +1356,62 @@ export function LoginsView() {
                   )}
                 </div>
 
-                {/* Bottom Bar: Updated Date in MM/DD/YYYY on Left, Blue "Login" Button on Right (No Arrow) */}
+                {/* Bottom Bar: Updated Date on Left, [Logs] button on left of Blue [Login] Button */}
                 <div className="mt-4 pt-3.5 border-t border-slate-100/90 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
-                      <Clock className="w-3 h-3 text-slate-400" />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium truncate">
+                      <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                       <span>Updated {formatDateMMDDYYYY(item.updatedAt)}</span>
                     </div>
-                    <span className="hidden sm:inline-block text-[9px] font-extrabold text-slate-400 bg-slate-100/90 border border-slate-200/60 px-1.5 py-0.5 rounded-md">
+                    <span className="hidden sm:inline-block text-[9px] font-extrabold text-slate-400 bg-slate-100/90 border border-slate-200/60 px-1.5 py-0.5 rounded-md shrink-0">
                       AES-256
                     </span>
                   </div>
 
-                  {/* Blue "Login" Button (No arrow) */}
-                  {item.url ? (
-                    <a
-                      href={item.url.startsWith("http") ? item.url : `https://${item.url}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all cursor-pointer shrink-0"
-                      title={`Login to ${item.url}`}
-                    >
-                      Login
-                    </a>
-                  ) : (
+                  {/* Right Actions: Logs Button + Blue Login Button */}
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
-                      onClick={() => handleOpenEditModal(item)}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewingLogsItem(item);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-95 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                      title="View modification audit logs"
                     >
-                      <span>+ Add Portal URL</span>
+                      <History className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Logs</span>
+                      {item.logs && item.logs.length > 0 && (
+                        <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200/60 px-1.5 py-0.2 rounded-full font-extrabold">
+                          {item.logs.length}
+                        </span>
+                      )}
                     </button>
-                  )}
+
+                    {item.url ? (
+                      <a
+                        href={item.url.startsWith("http") ? item.url : `https://${item.url}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all cursor-pointer shrink-0"
+                        title={`Login to ${item.url}`}
+                      >
+                        Login
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(item);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors"
+                      >
+                        <span>+ Add URL</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -1508,6 +1711,151 @@ export function LoginsView() {
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-md shadow-rose-500/20 cursor-pointer active:scale-95"
               >
                 Delete Credential
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logs & Audit History Modal */}
+      {viewingLogsItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setViewingLogsItem(null)}
+            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+          />
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[88vh] flex flex-col z-10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <span className="truncate max-w-[220px]">{viewingLogsItem.title}</span>
+                    <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0">
+                      Audit Logs
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Encrypted history of username, password, URL, and notes modifications.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingLogsItem(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body: Timeline */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {(!viewingLogsItem.logs || viewingLogsItem.logs.length === 0) ? (
+                <div className="text-center py-8 px-4">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mx-auto mb-3">
+                    <History className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">No modification logs yet</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                    Every time you update the username, password, portal URL, or notes for this record, a detailed encrypted log entry will appear here.
+                  </p>
+                  <div className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Created & synced on {formatDateMMDDYYYY(viewingLogsItem.updatedAt)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
+                  {viewingLogsItem.logs.map((log, idx) => {
+                    const { dateStr, timeStr } = formatLogTimestamp(log.timestamp);
+                    const isLatest = idx === 0;
+
+                    return (
+                      <div key={log.id} className="relative group">
+                        {/* Dot on Timeline */}
+                        <div
+                          className={`absolute -left-6 top-1.5 w-3 h-3 rounded-full border-2 ${
+                            isLatest
+                              ? "bg-blue-600 border-white ring-4 ring-blue-500/20"
+                              : "bg-slate-400 border-white"
+                          }`}
+                        />
+
+                        {/* Log Item Card */}
+                        <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/80 space-y-2.5">
+                          {/* Header: Date + Action Summary */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-slate-900 tracking-tight">
+                              {log.summary}
+                            </span>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
+                              <Clock className="w-3 h-3" />
+                              <span>{dateStr}</span>
+                              {timeStr && <span>• {timeStr}</span>}
+                            </div>
+                          </div>
+
+                          {/* Details of changes */}
+                          {log.changes && log.changes.length > 0 && (
+                            <div className="space-y-1.5 pt-1">
+                              {log.changes.map((ch, cIdx) => (
+                                <div
+                                  key={cIdx}
+                                  className="text-[11px] bg-white rounded-xl p-2.5 border border-slate-200/70 text-slate-700 space-y-1"
+                                >
+                                  <div className="font-bold text-slate-800 text-[10px] uppercase tracking-wider">
+                                    {ch.label}
+                                  </div>
+                                  {ch.isSecret ? (
+                                    <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1.5">
+                                      <ShieldCheck className="w-3.5 h-3.5" />
+                                      <span>Master password was updated and re-encrypted.</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-xs flex-wrap">
+                                      {ch.oldValue && (
+                                        <span className="line-through text-slate-400 font-mono text-[11px] truncate max-w-[150px]">
+                                          {ch.oldValue}
+                                        </span>
+                                      )}
+                                      {ch.oldValue && <span className="text-slate-400 text-[10px]">→</span>}
+                                      <span className="font-semibold text-blue-700 font-mono text-[11px] truncate max-w-[200px]">
+                                        {ch.newValue}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>AES-256 Client-Side Encrypted Audit Trail</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewingLogsItem(null)}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Done
               </button>
             </div>
           </div>
