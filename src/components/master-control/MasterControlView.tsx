@@ -27,6 +27,10 @@ import {
   Zap,
   Sparkles,
   LogOut,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
 } from "lucide-react";
 
 interface AppUserRecord {
@@ -509,6 +513,54 @@ export function MasterControlView() {
     }
   };
 
+  // 8. Password-Protected Clear Logs System
+  const [clearModalTarget, setClearModalTarget] = useState<"all" | "defense" | "visitors" | null>(null);
+  const [clearPassword, setClearPassword] = useState("");
+  const [clearError, setClearError] = useState<string | null>(null);
+  const [isClearingLogs, setIsClearingLogs] = useState(false);
+  const [showClearPassword, setShowClearPassword] = useState(false);
+
+  const handleOpenClearModal = (target: "all" | "defense" | "visitors") => {
+    setClearModalTarget(target);
+    setClearPassword("");
+    setClearError(null);
+    setShowClearPassword(false);
+  };
+
+  const handleConfirmClearLogs = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!clearPassword.trim() || isClearingLogs || !clearModalTarget) return;
+
+    setIsClearingLogs(true);
+    setClearError(null);
+
+    try {
+      const res = await fetch("/api/master-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "clear_logs",
+          password: clearPassword.trim(),
+          target: clearModalTarget,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        setClearError(data.error || "Failed to clear logs");
+      } else {
+        showNotification(data.message || "Logs cleared successfully.", "success");
+        setClearModalTarget(null);
+        setClearPassword("");
+        loadMasterData(true);
+      }
+    } catch (err: any) {
+      setClearError(err.message || "Network error. Please retry.");
+    } finally {
+      setIsClearingLogs(false);
+    }
+  };
+
   // Render IP with Country Flag Badge (Cross-platform graphics for PC & Mobile)
   const renderIpWithFlag = (ip: string, storedCountry?: string | null) => {
     const code = storedCountry || countryMap[ip] || null;
@@ -661,6 +713,17 @@ export function MasterControlView() {
   const filteredIpLocks = useMemo(() => {
     return ipLocks
       .filter((rec) => {
+        // Pure browsing visitors belong strictly under Live Website Visitor Traffic.
+        // IP Traffic & Attack Defense Monitor only shows records with authentication attempts or security enforcement:
+        const isBanned = settings.blacklisted_ips?.includes(rec.ip);
+        const isLocked = Boolean(rec.locked_until && new Date(rec.locked_until).getTime() > Date.now());
+        const hasStrikes = (rec.failed_attempts || 0) > 0;
+        const hasHistory = Array.isArray(rec.attempt_history) && rec.attempt_history.length > 0;
+
+        if (!isBanned && !isLocked && !hasStrikes && !hasHistory) {
+          return false;
+        }
+
         const q = ipSearch.toLowerCase().trim();
         if (!q) return true;
         const matchesIp = rec.ip.toLowerCase().includes(q);
@@ -676,7 +739,7 @@ export function MasterControlView() {
         const timeB = b.last_attempt_at ? new Date(b.last_attempt_at).getTime() : 0;
         return timeB - timeA;
       });
-  }, [ipLocks, ipSearch, countryMap]);
+  }, [ipLocks, ipSearch, countryMap, settings.blacklisted_ips]);
 
   // Filtered Site Visitors (General web browsing traffic) - Sorted by latest relative activity at the top
   const filteredVisitors = useMemo(() => {
@@ -796,8 +859,16 @@ export function MasterControlView() {
           </p>
         </div>
 
-        {/* Live Real-Time Pulsing Status Indicator (No manual refresh needed) */}
-        <div className="flex items-center gap-2">
+        {/* Actions & Live Status */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => handleOpenClearModal("all")}
+            className="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+            title="Clear all rows from both Defense and Visitor monitors (Requires Chief password)"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear All Logs</span>
+          </button>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -1165,15 +1236,15 @@ export function MasterControlView() {
           <div>
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Radio className="w-4 h-4 text-rose-600" />
-              <span>IP Traffic & Attack Defense Monitor ({ipLocks.length} Recorded IPs)</span>
+              <span>IP Traffic & Attack Defense Monitor ({filteredIpLocks.length} Recorded IPs)</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Inspect all IP addresses attempting authentication, targeting administrator credentials, or blocked by 3-strike lockouts. Country flags displayed for each network.
             </p>
           </div>
 
-          {/* Quick Manual Blacklist Bar */}
-          <div className="flex items-center gap-2">
+          {/* Quick Manual Blacklist Bar & Clear Defense Logs */}
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               type="text"
               placeholder="Manual Blacklist IP..."
@@ -1189,6 +1260,14 @@ export function MasterControlView() {
               className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer shrink-0 shadow-xs active:scale-95 transition-all"
             >
               Blacklist IP
+            </button>
+            <button
+              onClick={() => handleOpenClearModal("defense")}
+              className="px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold cursor-pointer shrink-0 active:scale-95 transition-all flex items-center gap-1.5"
+              title="Clear all rows from this IP Attack Defense Monitor (Requires password)"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Clear Defense Logs</span>
             </button>
           </div>
         </div>
@@ -1382,16 +1461,26 @@ export function MasterControlView() {
             </p>
           </div>
 
-          {/* Search Visitor IPs */}
-          <div className="relative min-w-[220px]">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search visitor IP, country, device..."
-              value={visitorSearch}
-              onChange={(e) => setVisitorSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
-            />
+          {/* Search Visitor IPs & Clear Visitor Logs */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative min-w-[200px]">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search visitor IP, country..."
+                value={visitorSearch}
+                onChange={(e) => setVisitorSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
+              />
+            </div>
+            <button
+              onClick={() => handleOpenClearModal("visitors")}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 text-slate-700 text-xs font-semibold cursor-pointer shrink-0 active:scale-95 transition-all flex items-center gap-1.5"
+              title="Clear all recorded website visitor traffic logs (Requires password)"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Clear Visitor Logs</span>
+            </button>
           </div>
         </div>
 
@@ -1602,6 +1691,111 @@ export function MasterControlView() {
           </table>
         </div>
       </div>
+
+      {/* Password-Protected Clear Logs Modal */}
+      {clearModalTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setClearModalTarget(null)}
+        >
+          <div
+            className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 sm:p-7 relative overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {clearModalTarget === "all"
+                    ? "Clear All Security & Visitor Logs"
+                    : clearModalTarget === "defense"
+                    ? "Clear Attack Defense Logs"
+                    : "Clear Website Visitor Logs"}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Requires Chief Administrator authorization
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-4">
+              This action will permanently wipe all rows from{" "}
+              <strong className="text-slate-900 font-semibold">
+                {clearModalTarget === "all"
+                  ? "both the Attack Defense Monitor and the Live Visitor Traffic tables"
+                  : clearModalTarget === "defense"
+                  ? "the IP Traffic & Attack Defense Monitor"
+                  : "the Live Website Visitor Traffic table"}
+              </strong>
+              . Enter your administrator password to confirm.
+            </p>
+
+            <form onSubmit={handleConfirmClearLogs} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Administrator Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showClearPassword ? "text" : "password"}
+                    autoFocus
+                    placeholder="Enter Chief password..."
+                    value={clearPassword}
+                    onChange={(e) => {
+                      setClearPassword(e.target.value);
+                      if (clearError) setClearError(null);
+                    }}
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 text-slate-800 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowClearPassword(!showClearPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    {showClearPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {clearError && (
+                  <p className="text-xs text-rose-600 font-semibold mt-1.5 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{clearError}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setClearModalTarget(null)}
+                  disabled={isClearingLogs}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isClearingLogs || !clearPassword.trim()}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isClearingLogs ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Verifying & Wiping...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Confirm & Clear</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

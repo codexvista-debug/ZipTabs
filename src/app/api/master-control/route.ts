@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { verifyPassword } from "@/lib/crypto";
 
 export function getClientIp(req: NextRequest): string {
   const forwardedFor = req.headers.get("x-forwarded-for");
@@ -256,6 +257,58 @@ export async function POST(req: NextRequest) {
         message: "All other active sessions have been evicted and logged out.",
         activeSessionId: keepSessionId,
         kickedAt: now,
+      });
+    }
+
+    if (action === "clear_logs") {
+      const password = (body.password || "").trim();
+      const target = body.target || "all"; // "defense" | "visitors" | "all"
+
+      if (!password) {
+        return NextResponse.json(
+          { success: false, error: "Chief administrator password is required to clear logs." },
+          { status: 400 }
+        );
+      }
+
+      // 1. Verify Chief password
+      const { data: chiefUser } = await supabase
+        .from("app_users")
+        .select("password")
+        .ilike("username", "chief")
+        .maybeSingle();
+
+      if (!chiefUser) {
+        return NextResponse.json(
+          { success: false, error: "Chief administrator account not found." },
+          { status: 404 }
+        );
+      }
+
+      const isMatch = await verifyPassword(password, chiefUser.password);
+      if (!isMatch) {
+        return NextResponse.json(
+          { success: false, error: "Incorrect password. Clearing logs rejected." },
+          { status: 403 }
+        );
+      }
+
+      // 2. Perform authorized log deletion
+      if (target === "defense" || target === "all") {
+        await supabase.from("auth_ip_locks").delete().neq("ip", "");
+      }
+      if (target === "visitors" || target === "all") {
+        await supabase.from("site_visitors").delete().neq("ip", "");
+      }
+
+      return NextResponse.json({
+        success: true,
+        message:
+          target === "all"
+            ? "All IP attack defense and live visitor records cleared."
+            : target === "defense"
+            ? "IP Traffic & Attack Defense records cleared."
+            : "Live website visitor traffic logs cleared.",
       });
     }
 
