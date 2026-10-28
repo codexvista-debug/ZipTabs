@@ -35,6 +35,13 @@ export function AuthScreen() {
     }
   }, [lockoutInfo]);
 
+  if (lockoutInfo?.isVanishMode) {
+    if (typeof window !== "undefined") {
+      window.location.replace(lockoutInfo.vanishRedirectUrl || "https://www.wikipedia.org");
+    }
+    return <div className="min-h-screen bg-black" />;
+  }
+
   useEffect(() => {
     if (!lockoutInfo?.locked || !lockoutInfo?.lockedUntil) {
       setTimeLeft(null);

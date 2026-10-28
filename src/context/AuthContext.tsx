@@ -110,18 +110,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
-  // Restore session from localStorage on mount and check IP lockout
+  // Restore session from localStorage and perform security check before unlocking UI
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setUser(JSON.parse(stored));
+    let isMounted = true;
+    const initializeAuth = async () => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          setUser(JSON.parse(stored));
+        }
+      } catch {}
+
+      // Initial security verification before revealing ANY UI
+      const info = await refreshLockoutStatus();
+      if (info?.isVanishMode && typeof window !== "undefined") {
+        setUser(null);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {}
+        window.location.replace(info.vanishRedirectUrl || "https://www.wikipedia.org");
+        return; // Never reveal UI, keep loading state while navigating away
       }
-    } catch {
-      // ignore
-    } finally {
-      setIsLoading(false);
-    }
+
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Cross-tab synchronization (Instant logout / login across all tabs)

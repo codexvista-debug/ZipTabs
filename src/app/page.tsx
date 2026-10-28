@@ -98,8 +98,8 @@ export default function Home() {
     );
   }
 
-  // 1. Loading Session State
-  if (isLoading) {
+  // 1. Loading Session State (Guards against any flash of website or login UI before security verification)
+  if (isLoading || lockoutInfo === null) {
     return (
       <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center text-zinc-400 gap-3">
         <Loader2 className="w-6 h-6 animate-spin text-white" />
