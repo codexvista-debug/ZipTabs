@@ -330,21 +330,6 @@ export function ResourcesView() {
       {/* ======================================================== */}
       {currentView === "discount-calculator" && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Back button & Breadcrumb */}
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setCurrentView("hub")}
-              className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors cursor-pointer group"
-            >
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              <span>Back to All Resources</span>
-            </button>
-            <span className="text-xs font-mono text-slate-400">
-              Resources &gt; Discount Calculator
-            </span>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left Column (Inputs: Invoice Amount + Expandable 0.1% Wheel) - 7 cols */}
             <div className="lg:col-span-7 space-y-5">
@@ -586,45 +571,62 @@ export function ResourcesView() {
 
             {/* Right Column (Results: Final Net Amount, Discount Deduction, Breakdown) - 5 cols */}
             <div className="lg:col-span-5 space-y-5">
-              {/* Main Net Amount Card (Prominent & High-Impact) */}
-              <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white rounded-3xl p-6 sm:p-7 shadow-xl shadow-blue-500/15 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+              {/* Main Net Amount Card (Executive Slate & Sapphire Styling) */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-white rounded-3xl p-6 sm:p-7 shadow-xl shadow-slate-900/20 border border-slate-800 relative overflow-hidden group">
+                {/* Subtle Ambient Glows */}
+                <div className="absolute -top-10 -right-10 w-44 h-44 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
                 <div className="relative">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-blue-100/90 flex items-center gap-1.5">
-                      <Receipt className="w-4 h-4 text-blue-200" />
-                      <span>Net Payable (After Discount)</span>
-                    </span>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/25">
-                      Final Due
+                  {/* Top Header Badge */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-400/25 flex items-center justify-center text-blue-400 shadow-2xs">
+                        <Receipt className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-200 block">
+                          Net Payable
+                        </span>
+                        <span className="text-[10px] text-slate-400 block -mt-0.5">
+                          Prompt payment remittance
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 flex items-center gap-1.5 shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Final Due</span>
                     </span>
                   </div>
 
                   {/* Giant Net Amount */}
-                  <div className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight font-mono text-white mt-1 drop-shadow-sm">
-                    {formatCurrency(netPayable)}
+                  <div className="my-3">
+                    <div className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight font-mono text-white drop-shadow-sm">
+                      {formatCurrency(netPayable)}
+                    </div>
+                    <div className="mt-2.5 py-2 px-3 rounded-xl bg-slate-800/70 border border-slate-700/60 flex items-center gap-2 text-[11px] text-slate-300 flex-wrap">
+                      <span className="text-slate-400 font-mono">{formatCurrency(invoiceAmount)}</span>
+                      <span className="text-slate-500">-</span>
+                      <span className="text-amber-400 font-mono font-bold">{formatCurrency(discountAmount)} ({discountPercent.toFixed(1)}%)</span>
+                      <span className="text-slate-500">=</span>
+                      <span className="text-emerald-400 font-mono font-bold">Net Total</span>
+                    </div>
                   </div>
-
-                  <p className="text-xs text-blue-100/80 mt-2 font-medium">
-                    Calculated as <span className="font-bold text-white">{formatCurrency(invoiceAmount)}</span> minus{" "}
-                    <span className="font-bold text-amber-300">{formatCurrency(discountAmount)}</span> ({discountPercent.toFixed(1)}% discount).
-                  </p>
 
                   {/* Copy Net Amount Button */}
                   <button
                     type="button"
                     onClick={() => handleCopy(netPayable.toFixed(2), "net")}
-                    className="mt-5 w-full py-2.5 px-4 rounded-xl bg-white text-blue-700 hover:bg-blue-50 text-xs font-bold transition-all shadow-md shadow-black/10 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                    className="mt-4 w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/30 hover:shadow-blue-600/40 flex items-center justify-center gap-2 cursor-pointer active:scale-98 border border-blue-400/30"
                   >
                     {isCopied === "net" ? (
                       <>
-                        <Check className="w-4 h-4 text-emerald-600" />
-                        <span className="text-emerald-700 font-extrabold">Copied Net Amount!</span>
+                        <Check className="w-4 h-4 text-emerald-300" />
+                        <span className="text-emerald-200 font-extrabold">Copied Net Amount!</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-4 h-4 text-blue-600" />
+                        <Copy className="w-4 h-4 text-blue-200" />
                         <span>Copy Net Amount ({formatCurrency(netPayable)})</span>
                       </>
                     )}
@@ -639,32 +641,76 @@ export function ResourcesView() {
                   <span>Discount & Deduction Breakdown</span>
                 </h3>
 
-                {/* Two Stat Boxes */}
+                {/* Two Stat Boxes with Instant Copy Buttons */}
                 <div className="grid grid-cols-2 gap-3">
                   {/* Discount Deduction Box */}
-                  <div className="bg-amber-50/70 rounded-2xl p-3.5 border border-amber-200/80">
-                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
-                      Discount Deduction ({discountPercent.toFixed(1)}%)
-                    </span>
-                    <span className="text-lg sm:text-xl font-black font-mono text-amber-700 mt-1 block">
-                      -{formatCurrency(discountAmount)}
-                    </span>
-                    <span className="text-[10px] text-amber-600 font-medium mt-0.5 block">
-                      Client Savings
-                    </span>
+                  <div className="bg-amber-50/70 hover:bg-amber-50 rounded-2xl p-3.5 border border-amber-200/80 transition-all flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider truncate">
+                        Discount ({discountPercent.toFixed(1)}%)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(discountAmount.toFixed(2), "discount")}
+                        className="p-1 px-1.5 rounded-lg bg-amber-200/60 hover:bg-amber-200 text-amber-900 transition-all cursor-pointer active:scale-95 flex items-center gap-1 text-[10px] font-bold shrink-0 shadow-2xs"
+                        title="Copy Discount Deduction"
+                      >
+                        {isCopied === "discount" ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-[9px] text-emerald-700">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3 text-amber-800" />
+                            <span className="text-[9px]">Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-lg sm:text-xl font-black font-mono text-amber-700 block">
+                        -{formatCurrency(discountAmount)}
+                      </span>
+                      <span className="text-[10px] text-amber-600 font-medium mt-0.5 block">
+                        Client Savings
+                      </span>
+                    </div>
                   </div>
 
                   {/* Original Invoice Total Box */}
-                  <div className="bg-slate-50/80 rounded-2xl p-3.5 border border-slate-200/80">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      Gross Invoice Amount
-                    </span>
-                    <span className="text-lg sm:text-xl font-black font-mono text-slate-800 mt-1 block">
-                      {formatCurrency(invoiceAmount)}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
-                      Before Discount
-                    </span>
+                  <div className="bg-slate-50/80 hover:bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 transition-all flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                        Gross Invoice
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(invoiceAmount.toFixed(2), "gross")}
+                        className="p-1 px-1.5 rounded-lg bg-slate-200/70 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer active:scale-95 flex items-center gap-1 text-[10px] font-bold shrink-0 shadow-2xs"
+                        title="Copy Gross Invoice Amount"
+                      >
+                        {isCopied === "gross" ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-[9px] text-emerald-700">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3 text-slate-600" />
+                            <span className="text-[9px]">Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-lg sm:text-xl font-black font-mono text-slate-800 block">
+                        {formatCurrency(invoiceAmount)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
+                        Before Discount
+                      </span>
+                    </div>
                   </div>
                 </div>
 
