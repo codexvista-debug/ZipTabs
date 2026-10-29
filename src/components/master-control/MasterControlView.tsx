@@ -983,61 +983,6 @@ export function MasterControlView() {
         </div>
       </div>
 
-      {/* Emergency Lockdown Active Alert (if enabled) */}
-      {settings.ip_lockdown_enabled && (
-        <div className="bg-rose-500 text-white rounded-2xl p-4 sm:p-5 shadow-lg shadow-rose-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-150">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-black tracking-tight">
-                EMERGENCY WEBSITE LOCKDOWN IS ACTIVE
-              </h3>
-              <p className="text-xs text-rose-100 mt-0.5">
-                The entire website is locked to your authorized IP whitelist. All other networks are automatically denied access.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleToggleLockdown}
-            className="px-4 py-2 bg-white text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-50 transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
-          >
-            Lift Website Lockdown
-          </button>
-        </div>
-      )}
-
-      {/* Vanish Mode Active Alert (if enabled) */}
-      {settings.vanish_mode_enabled && (
-        <div className="bg-gradient-to-r from-purple-800 to-indigo-900 text-white rounded-2xl p-4 sm:p-5 shadow-lg shadow-purple-900/30 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-150 border border-purple-500/30">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
-              <Ghost className="w-6 h-6 text-purple-200 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black tracking-tight">
-                  VANISH MODE IS ACTIVE
-                </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 text-white uppercase tracking-wider">
-                  Decoy: Wikipedia
-                </span>
-              </div>
-              <p className="text-xs text-purple-100 mt-0.5">
-                Non-whitelisted visitors are immediately evicted and redirected to Wikipedia (<span className="font-mono text-purple-200 underline">https://www.wikipedia.org</span>). They cannot stay on any part of this site. Your IP (<span className="font-mono font-bold text-white">{clientIp}</span>) is whitelisted.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleToggleVanishMode}
-            className="px-4 py-2 bg-white text-purple-800 rounded-xl font-bold text-xs hover:bg-purple-50 transition-all shrink-0 shadow-xs cursor-pointer active:scale-95"
-          >
-            Disable Vanish Mode
-          </button>
-        </div>
-      )}
-
       {/* Metric Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Users & Registration */}
@@ -1086,22 +1031,29 @@ export function MasterControlView() {
         </div>
 
         {/* Card 2: IP Lockdown Switch */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+        <div className={`rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all ${
+          settings.ip_lockdown_enabled
+            ? "bg-rose-50/60 border-rose-300 ring-2 ring-rose-500/20"
+            : "bg-white border-slate-200/90"
+        }`}>
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-400">Lockdown Mode</span>
               <div
                 className={`w-8 h-8 rounded-xl flex items-center justify-center ${
                   settings.ip_lockdown_enabled
-                    ? "bg-rose-50 text-rose-600"
+                    ? "bg-rose-100 text-rose-600 animate-pulse"
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
                 <Lock className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               {settings.ip_lockdown_enabled ? "Locked" : "Standard"}
+              {settings.ip_lockdown_enabled && (
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping" />
+              )}
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
               {settings.ip_lockdown_enabled
