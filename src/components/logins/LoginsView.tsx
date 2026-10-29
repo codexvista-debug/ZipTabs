@@ -939,10 +939,6 @@ export function LoginsView() {
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
                 Logins & Portals
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                <span>AES-256 Synced</span>
-              </span>
             </div>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl">
@@ -962,8 +958,8 @@ export function LoginsView() {
         </div>
       </div>
 
-      {/* Security Status Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Security Status Banner (Hidden on narrow mobile screens to save screen space) */}
+      <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
             <Globe className="w-4 h-4" />
@@ -1021,6 +1017,7 @@ export function LoginsView() {
           </button>
           {allCategories.map((cat) => {
             const count = logins.filter((l) => l.category === cat).length;
+            if (count === 0 && selectedCategory !== cat) return null;
             return (
               <button
                 key={cat}

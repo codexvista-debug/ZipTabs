@@ -1468,9 +1468,9 @@ export function NotesView() {
             />
           </div>
 
-          {/* Category & Status Filter Pills */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {/* Active Notes Tab (Replaces All) */}
+          {/* Category & Status Filter Bar (Mobile-friendly swipeable scroll strip without redundant 0-count pills) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 shrink-0 -mx-1 px-1 sm:flex-wrap sm:mx-0 sm:px-0">
+            {/* Active Notes Tab */}
             <button
               type="button"
               onClick={() => {
@@ -1478,7 +1478,7 @@ export function NotesView() {
                 setActiveCategory("all");
                 setUrgencyFilter("all");
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
                 statusTab === "active" && activeCategory === "all" && urgencyFilter === "all"
                   ? "bg-slate-900 text-white shadow-xs"
                   : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
@@ -1487,7 +1487,23 @@ export function NotesView() {
               Active ({activeNotesCount})
             </button>
 
-            {/* Category Filter Pills */}
+            {/* Needs Attention Filter */}
+            {urgentCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setUrgencyFilter(urgencyFilter === "attention" ? "all" : "attention")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  urgencyFilter === "attention"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "bg-white border border-slate-200 text-amber-700 hover:bg-amber-50"
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Needs Attention ({urgentCount})</span>
+              </button>
+            )}
+
+            {/* Category Filter Pills (Only render categories that have notes, removing redundant 0-count pills) */}
             {allCategories.map((cat) => {
               const count = notes.filter((n) => {
                 const matchesStatus = statusTab === "active" ? !n.is_completed : n.is_completed;
@@ -1495,12 +1511,15 @@ export function NotesView() {
               }).length;
               const isActive = activeCategory === cat.id;
 
+              // Hide empty categories unless currently active
+              if (count === 0 && !isActive) return null;
+
               return (
                 <button
                   key={cat.id}
                   type="button"
                   onClick={() => setActiveCategory(activeCategory === cat.id ? "all" : cat.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 ${
                     isActive
                       ? "bg-blue-600 text-white shadow-xs border border-blue-600"
                       : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
@@ -1511,7 +1530,7 @@ export function NotesView() {
               );
             })}
 
-            {/* Completed Notes Tab (Dedicated separate pill) */}
+            {/* Completed Notes Tab */}
             <button
               type="button"
               onClick={() => {
@@ -1519,7 +1538,7 @@ export function NotesView() {
                 setActiveCategory("all");
                 setUrgencyFilter("all");
               }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
                 statusTab === "completed" && activeCategory === "all"
                   ? "bg-emerald-600 text-white shadow-xs border border-emerald-600"
                   : "bg-emerald-50/70 border border-emerald-200 text-emerald-800 hover:bg-emerald-100/80"
@@ -1527,22 +1546,6 @@ export function NotesView() {
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               <span>Completed ({completedNotesCount})</span>
-            </button>
-          </div>
-
-          {/* Quick Urgency / Status Filter */}
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setUrgencyFilter(urgencyFilter === "attention" ? "all" : "attention")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                urgencyFilter === "attention"
-                  ? "bg-amber-600 text-white shadow-xs"
-                  : "bg-white border border-slate-200 text-amber-700 hover:bg-amber-50"
-              }`}
-            >
-              <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Needs Attention ({urgentCount})</span>
             </button>
           </div>
         </div>
@@ -2081,9 +2084,6 @@ export function NotesView() {
                                 <span className="text-[10px] text-slate-500 font-semibold">
                                   {formatFileSize(att.size)}
                                 </span>
-                                <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                                  {isImage ? "Image" : "Document"}
-                                </span>
                               </div>
                             </div>
                           </div>
@@ -2162,9 +2162,6 @@ export function NotesView() {
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-[10px] text-blue-600 font-semibold">
                                   {formatFileSize(file.size)}
-                                </span>
-                                <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                                  {isImage ? "Image Preview" : "Pending Document"}
                                 </span>
                               </div>
                             </div>

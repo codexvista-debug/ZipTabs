@@ -549,11 +549,12 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
             {/* Gauge Description & Key Details */}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
-                  Payroll Cycle Progress Meter
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-indigo-600">
+                  Payroll Cycle
                 </span>
-                <span className="text-[11px] font-bold text-slate-500">
+                <span className="text-slate-300">•</span>
+                <span className="text-xs font-bold text-slate-500">
                   {currentMonthName} {currentYear}
                 </span>
               </div>

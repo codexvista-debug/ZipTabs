@@ -14,6 +14,7 @@ import { LoginsView } from "@/components/logins/LoginsView";
 import { MasterControlView } from "@/components/master-control/MasterControlView";
 import { UsageView } from "@/components/usage/UsageView";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
+import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import { Menu, Loader2 } from "lucide-react";
 
 type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "resources" | "logins" | "master-control" | "usage";
@@ -131,18 +132,26 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Mobile / Tablet Top Navigation Bar */}
         <header className="lg:hidden h-14 bg-[#0c1427] border-b border-[#15203b] px-4 flex items-center justify-between shrink-0 text-white">
-          <button
-            type="button"
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-            aria-label="Open navigation menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <span className="text-xs font-bold text-slate-200 capitalize">
+              {activeTab === "dashboard" ? "Dashboard" : activeTab.replace("-", " ")}
+            </span>
+          </div>
+          <div className="scale-90 origin-right">
+            <ZipTabsLogo size="sm" showText={true} />
+          </div>
         </header>
 
         {/* Content Canvas */}
-        <main ref={mainContentRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8">
+        <main ref={mainContentRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3.5 sm:px-6 md:px-8 lg:px-10 py-4 sm:py-8">
           <div key={activeTab} className="animate-page-enter min-h-full">
             {activeTab === "invoices" ? (
               <InvoicesView />
