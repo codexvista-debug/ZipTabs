@@ -13,12 +13,13 @@ import { ResourcesView } from "@/components/resources/ResourcesView";
 import { LoginsView } from "@/components/logins/LoginsView";
 import { MasterControlView } from "@/components/master-control/MasterControlView";
 import { UsageView } from "@/components/usage/UsageView";
+import { DesignLabView } from "@/components/lab/DesignLabView";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import { Menu, Loader2 } from "lucide-react";
 
-type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "resources" | "logins" | "master-control" | "usage";
-const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "drive", "resources", "logins", "master-control", "usage"];
+type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "resources" | "logins" | "master-control" | "lab" | "usage";
+const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "drive", "resources", "logins", "master-control", "lab", "usage"];
 
 export default function Home() {
   const { user, isAuthenticated, isLoading, lockoutInfo } = useAuth();
@@ -167,6 +168,8 @@ export default function Home() {
               <LoginsView />
             ) : activeTab === "master-control" ? (
               <MasterControlView />
+            ) : activeTab === "lab" ? (
+              <DesignLabView />
             ) : activeTab === "usage" ? (
               <UsageView />
             ) : (

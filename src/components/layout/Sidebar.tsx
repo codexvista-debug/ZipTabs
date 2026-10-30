@@ -14,6 +14,7 @@ import {
   KeyRound,
   Calculator,
   Radio,
+  FlaskConical,
   X,
 } from "lucide-react";
 
@@ -49,6 +50,7 @@ export function Sidebar({
           { id: "master-control", label: "Master Control", icon: Radio },
         ]
       : []),
+    { id: "lab", label: "Design Lab", icon: FlaskConical },
     { id: "usage", label: "Usage", icon: HardDrive },
   ];
 
