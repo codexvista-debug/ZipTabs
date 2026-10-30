@@ -30,19 +30,23 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const mainContentRef = useRef<HTMLElement>(null);
 
-  // Mobile Header Mode & Bottom Bar state
-  const [isMobileTopHeaderHidden, setIsMobileTopHeaderHidden] = useState(false);
-  const [mobileBottomBarStyle, setMobileBottomBarStyle] = useState<MobileBottomBarStyle>("bottom-style-01");
+  // Mobile Header Mode & Bottom Bar state (defaults to Cockpit Bottom Bar on mobile)
+  const [isMobileTopHeaderHidden, setIsMobileTopHeaderHidden] = useState(true);
+  const [mobileBottomBarStyle, setMobileBottomBarStyle] = useState<MobileBottomBarStyle>("bottom-style-02");
 
   useEffect(() => {
     try {
       const savedMode = localStorage.getItem("ziptabs_mobile_top_header_hidden");
-      if (savedMode === "true") {
+      if (savedMode === "false") {
+        setIsMobileTopHeaderHidden(false);
+      } else {
         setIsMobileTopHeaderHidden(true);
       }
       const savedStyle = localStorage.getItem("ziptabs_mobile_bottom_bar_style") as MobileBottomBarStyle;
-      if (savedStyle && ["bottom-style-01", "bottom-style-02", "bottom-style-03", "bottom-style-04"].includes(savedStyle)) {
+      if (savedStyle && ["bottom-style-01", "bottom-style-02"].includes(savedStyle)) {
         setMobileBottomBarStyle(savedStyle);
+      } else {
+        setMobileBottomBarStyle("bottom-style-02");
       }
     } catch {}
 

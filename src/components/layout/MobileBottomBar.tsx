@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Menu,
   FileSpreadsheet,
@@ -21,14 +21,56 @@ interface MobileBottomBarProps {
 }
 
 export function MobileBottomBar({
-  styleId = "bottom-style-01",
+  styleId = "bottom-style-02",
   activeTab,
   onSelectTab,
   onOpenMenu,
   isSimulated = false,
 }: MobileBottomBarProps) {
+  // Check for any urgent notes (via localStorage and dashboard cache)
+  const [hasUrgentNotes, setHasUrgentNotes] = useState(false);
+
+  useEffect(() => {
+    const checkUrgentNotes = () => {
+      try {
+        const rawNotes = localStorage.getItem("ziptabs_app_notes");
+        if (rawNotes) {
+          const notes = JSON.parse(rawNotes);
+          if (Array.isArray(notes)) {
+            const hasUrgent = notes.some(
+              (n: any) =>
+                !n.is_completed && (n.priority === "urgent" || n.priority === "high")
+            );
+            if (hasUrgent) {
+              setHasUrgentNotes(true);
+              return;
+            }
+          }
+        }
+        const dashRaw = sessionStorage.getItem("ziptabs_cached_dashboard_v1");
+        if (dashRaw) {
+          const dash = JSON.parse(dashRaw);
+          if (dash.urgentNotesCount > 0) {
+            setHasUrgentNotes(true);
+            return;
+          }
+        }
+      } catch {}
+      setHasUrgentNotes(false);
+    };
+
+    checkUrgentNotes();
+    window.addEventListener("storage", checkUrgentNotes);
+    window.addEventListener("ziptabs-notes-updated", checkUrgentNotes);
+    const interval = setInterval(checkUrgentNotes, 4000);
+    return () => {
+      window.removeEventListener("storage", checkUrgentNotes);
+      window.removeEventListener("ziptabs-notes-updated", checkUrgentNotes);
+      clearInterval(interval);
+    };
+  }, []);
+
   // Variation 01: Dynamic Island Floating Dock (Linear / Apple Modern Detached Pill)
-  // Contains: Dashboard, Invoices, Notes, Vault, and More (☰) -> Opens right drawer for remaining tabs
   if (styleId === "bottom-style-01") {
     return (
       <div className={`${isSimulated ? "relative w-full p-2" : "fixed bottom-3 left-3 right-3 z-40 lg:hidden"}`}>
@@ -49,7 +91,7 @@ export function MobileBottomBar({
           <button
             type="button"
             onClick={() => onSelectTab("invoices")}
-            className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+            className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
               activeTab === "invoices"
                 ? "text-blue-400 bg-white/10 shadow-inner"
                 : "hover:text-white"
@@ -57,13 +99,12 @@ export function MobileBottomBar({
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>Invoices</span>
-            <span className="absolute top-1 right-2 w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
           </button>
 
           <button
             type="button"
             onClick={() => onSelectTab("notes")}
-            className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+            className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
               activeTab === "notes"
                 ? "text-blue-400 bg-white/10 shadow-inner"
                 : "hover:text-white"
@@ -71,6 +112,9 @@ export function MobileBottomBar({
           >
             <NotebookPen className="w-4 h-4" />
             <span>Notes</span>
+            {hasUrgentNotes && (
+              <span className="absolute top-1 right-2 w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+            )}
           </button>
 
           <button
@@ -100,8 +144,8 @@ export function MobileBottomBar({
     );
   }
 
-  // Variation 02: Executive Multi-Tab Dock (Cockpit Full-Width Pinned Chassis)
-  // Replaced upload button with direct Calendar tab: Dashboard, Invoices, Notes, Calendar, More (☰)
+  // Variation 02: Executive Multi-Tab Dock (Cockpit Full-Width Pinned Chassis - Default)
+  // Contains: Dash, Invoices (clean), Notes (urgent notif mark), Calendar, More (☰)
   return (
     <div
       className={`${
@@ -124,7 +168,7 @@ export function MobileBottomBar({
       <button
         type="button"
         onClick={() => onSelectTab("invoices")}
-        className={`relative flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+        className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
           activeTab === "invoices"
             ? "text-white bg-blue-600/90 shadow-xs"
             : "hover:text-white text-slate-300"
@@ -132,15 +176,12 @@ export function MobileBottomBar({
       >
         <FileSpreadsheet className="w-4 h-4" />
         <span>Invoices</span>
-        <span className="absolute -top-0.5 right-1 px-1 py-0.2 rounded-full bg-rose-500 text-[8px] font-black text-white leading-none">
-          !
-        </span>
       </button>
 
       <button
         type="button"
         onClick={() => onSelectTab("notes")}
-        className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+        className={`relative flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
           activeTab === "notes"
             ? "text-white bg-blue-600/90 shadow-xs"
             : "hover:text-white text-slate-300"
@@ -148,6 +189,11 @@ export function MobileBottomBar({
       >
         <NotebookPen className="w-4 h-4" />
         <span>Notes</span>
+        {hasUrgentNotes && (
+          <span className="absolute -top-0.5 right-1 px-1 py-0.2 rounded-full bg-rose-500 text-[8px] font-black text-white leading-none animate-pulse">
+            !
+          </span>
+        )}
       </button>
 
       <button

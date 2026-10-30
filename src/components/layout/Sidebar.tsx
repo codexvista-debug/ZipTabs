@@ -68,46 +68,47 @@ export function Sidebar({
         />
       )}
 
-      {/* Sidebar Drawer (Left on Desktop; Slide-in from Right or Left on Mobile) */}
+      {/* Sidebar Drawer / Popup Menu */}
       <aside
-        className={`fixed inset-y-0 z-50 flex flex-col h-[100dvh] max-h-[100dvh] select-none shrink-0 text-slate-300 transition-transform duration-300 ease-in-out ${
+        className={`select-none shrink-0 text-slate-300 transition-all duration-200 ease-out z-50 flex flex-col ${
           drawerSide === "right"
-            ? `right-0 w-72 max-w-[82vw] bg-[#0c1427]/98 backdrop-blur-xl border-l border-[#15203b] shadow-2xl lg:static lg:left-0 lg:right-auto lg:w-[260px] lg:border-r lg:border-l-0 lg:shadow-none ${
-                isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
-              }`
-            : `left-0 w-[260px] bg-[#0c1427] border-r border-[#15203b] lg:static ${
+            ? `fixed bottom-16 right-3 w-64 max-w-[calc(100vw-24px)] rounded-2xl bg-[#0c1427]/98 backdrop-blur-2xl border border-[#1e293b] shadow-2xl shadow-black/80 overflow-hidden ${
+                isOpen
+                  ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+                  : "opacity-0 scale-95 translate-y-2 pointer-events-none"
+              } lg:static lg:bottom-auto lg:right-auto lg:inset-y-0 lg:w-[260px] lg:h-[100dvh] lg:max-h-[100dvh] lg:rounded-none lg:border-r lg:border-[#15203b] lg:border-t-0 lg:border-l-0 lg:border-b-0 lg:shadow-none lg:opacity-100 lg:scale-100 lg:translate-y-0 lg:pointer-events-auto`
+            : `fixed inset-y-0 left-0 w-[260px] bg-[#0c1427] border-r border-[#15203b] h-[100dvh] max-h-[100dvh] ${
                 isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-              }`
+              } lg:static`
         }`}
       >
-        {/* Brand Header */}
-        <div className="h-14 sm:h-16 px-4 sm:px-5 flex items-center justify-between border-b border-[#15203b] shrink-0">
+        {/* Brand Header (No "MORE TABS" badge per user request) */}
+        <div className={`flex items-center justify-between border-b border-[#15203b] shrink-0 ${
+          drawerSide === "right" ? "h-12 px-3.5 sm:h-14 lg:h-16 lg:px-5" : "h-14 sm:h-16 px-4 sm:px-5"
+        }`}>
           <div className="flex items-center gap-2 min-w-0">
-            <ZipTabsLogo size="md" showText={true} />
-            {drawerSide === "right" && (
-              <span className="lg:hidden text-[10px] font-bold text-blue-400 bg-blue-950/80 border border-blue-800/60 px-1.5 py-0.5 rounded tracking-wider uppercase">
-                More Tabs
-              </span>
-            )}
+            <ZipTabsLogo size="sm" showText={true} />
           </div>
           {/* Mobile Close Button */}
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden cursor-pointer"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden cursor-pointer"
             title="Close menu"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Menu Items (Scrollable Middle Section) */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 sm:py-4 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-          <div className="px-3 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+        {/* Menu Items (Occupies only the exact height needed on mobile popup) */}
+        <div className={`overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-slate-800 ${
+          drawerSide === "right" ? "p-2 max-h-[60vh] lg:flex-1 lg:max-h-none lg:p-3" : "flex-1 min-h-0 px-3 py-3 sm:py-4"
+        }`}>
+          <div className="px-2.5 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             {drawerSide === "right" ? "OTHER DESTINATIONS" : "WORKSPACE MENU"}
           </div>
 
-          <nav className="space-y-1">
+          <nav className="space-y-0.5">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeItem === item.id;
@@ -133,7 +134,7 @@ export function Sidebar({
                       window.open(`/#${item.id}`, "_blank");
                     }
                   }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-all text-left cursor-pointer select-none no-underline ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all text-left cursor-pointer select-none no-underline ${
                     isExcludedOnMobile ? "hidden lg:flex" : "flex"
                   } ${
                     isActive
@@ -153,11 +154,13 @@ export function Sidebar({
           </nav>
         </div>
 
-        {/* Bottom User Profile & Sign Out Icon (Pinned at bottom, compact) */}
-        <div className="p-3 sm:p-4 border-t border-[#15203b] bg-[#090e1a] shrink-0">
+        {/* Bottom User Profile & Sign Out Icon (Snug compact row) */}
+        <div className={`border-t border-[#15203b] bg-[#090e1a] shrink-0 ${
+          drawerSide === "right" ? "p-2.5 px-3 lg:p-3 sm:lg:p-4" : "p-3 sm:p-4"
+        }`}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-200 shrink-0 uppercase">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-[10px] sm:text-xs font-bold text-zinc-200 shrink-0 uppercase">
                 {user?.username ? user.username.charAt(0) : "C"}
               </div>
               <div className="min-w-0">
@@ -174,7 +177,7 @@ export function Sidebar({
               title="Sign Out"
               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
             >
-              <LogOut className="w-4 h-4 text-slate-400 hover:text-rose-400 transition-colors" />
+              <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 hover:text-rose-400 transition-colors" />
             </button>
           </div>
         </div>
