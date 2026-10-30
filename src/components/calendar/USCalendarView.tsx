@@ -556,7 +556,7 @@ export function USCalendarView() {
         </div>
       </div>
 
-      {/* KPI Cards: 2x2 Grid on Mobile, 4 Cols on Desktop */}
+      {/* KPI Cards: 2x2 Grid on Mobile (Row 1: Total & Holidays, Row 2: P1 & P2 side-by-side), 4 Cols on Desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Total Working Hours */}
         <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
@@ -571,6 +571,27 @@ export function USCalendarView() {
           <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 flex items-center justify-between">
             <span className="truncate">{totalWorkingDays} workdays</span>
             <span className="font-semibold text-blue-600 hidden sm:inline">Full Month</span>
+          </div>
+        </div>
+
+        {/* US Holidays in Month (Placed in Row 1 Col 2 on mobile so P1 & P2 align side-by-side) */}
+        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">
+            <span className="truncate">US Holidays</span>
+            <Flag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600 shrink-0" />
+          </div>
+          <div className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1.5 flex items-baseline gap-1">
+            <span>{totalHolidaysInMonth}</span>
+            <span className="text-xs sm:text-sm font-bold text-slate-400">day{totalHolidaysInMonth !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">
+            {monthHolidays.length > 0 ? (
+              <span className="font-bold text-rose-700 truncate block">
+                {monthHolidays.map((h) => h.name).join(", ")}
+              </span>
+            ) : (
+              <span className="text-slate-400">0 holidays</span>
+            )}
           </div>
         </div>
 
@@ -614,27 +635,6 @@ export function USCalendarView() {
               <span className="font-bold text-rose-600 shrink-0">{p2HolidaysCount} off</span>
             ) : (
               <span className="text-slate-400 hidden sm:inline">0 off</span>
-            )}
-          </div>
-        </div>
-
-        {/* US Holidays in Month */}
-        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className="truncate">US Holidays</span>
-            <Flag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600 shrink-0" />
-          </div>
-          <div className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1.5 flex items-baseline gap-1">
-            <span>{totalHolidaysInMonth}</span>
-            <span className="text-xs sm:text-sm font-bold text-slate-400">day{totalHolidaysInMonth !== 1 ? "s" : ""}</span>
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">
-            {monthHolidays.length > 0 ? (
-              <span className="font-bold text-rose-700 truncate block">
-                {monthHolidays.map((h) => h.name).join(", ")}
-              </span>
-            ) : (
-              <span className="text-slate-400">0 holidays</span>
             )}
           </div>
         </div>
