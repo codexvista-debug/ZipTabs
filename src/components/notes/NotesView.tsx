@@ -2077,51 +2077,67 @@ export function NotesView() {
 
       {/* ==================================================== */}
       {/* CREATE / EDIT NOTE MODAL                             */}
+      {/* Modal: Create or Edit Note (Sculpted Dynamic Notch Styling) */}
       {/* ==================================================== */}
       {isModalOpen &&
         renderPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            onClick={() => !isSaving && setIsModalOpen(false)}
-            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
-          />
+            <div
+              onClick={() => !isSaving && setIsModalOpen(false)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            />
 
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDraggingOver(true);
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDraggingOver(false);
-              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                const droppedFiles = Array.from(e.dataTransfer.files);
-                setNewFilesToUpload((prev) => [...prev, ...droppedFiles]);
-                showToast("Files Attached", `${droppedFiles.length} file(s) dropped.`, "success");
-              }
-            }}
-            className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200"
-          >
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
-              <div className="flex items-center gap-2">
-                <NotebookPen className="w-5 h-5 text-blue-600" />
-                <h3 className="text-base font-bold text-slate-900">
-                  {editingNote ? "Edit Note / Reminder" : "New Note / Reminder"}
-                </h3>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingOver(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingOver(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  const droppedFiles = Array.from(e.dataTransfer.files);
+                  setNewFilesToUpload((prev) => [...prev, ...droppedFiles]);
+                  showToast("Files Attached", `${droppedFiles.length} file(s) dropped.`, "success");
+                }
+              }}
+              className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200"
+            >
+              {/* Creative Top: Sculpted Dynamic Island Notch */}
+              <div className="flex justify-center -mt-px">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  <span>NOTE RECORD // WORKSPACE</span>
+                </div>
               </div>
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+
+              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+
+              {/* Modal Header */}
+              <div className="px-6 py-4 pt-3 border-b border-zinc-100 flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="text-lg font-black text-zinc-900 tracking-tight">
+                    {editingNote ? "Edit Note / Reminder" : "New Note / Reminder"}
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Store documents, screenshots, and track deadlines.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => setIsModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer disabled:opacity-40 shrink-0"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
             {/* Modal Form Scrollable Body */}
             <form onSubmit={handleSaveNote} className="p-6 space-y-4 overflow-y-auto flex-1">
@@ -2514,7 +2530,7 @@ export function NotesView() {
               </div>
 
               {/* Modal Actions */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-3 border-t border-zinc-100 flex items-center justify-between">
                 <div className="text-xs text-blue-600 font-semibold">
                   {uploadProgressText}
                 </div>
@@ -2523,14 +2539,14 @@ export function NotesView() {
                     type="button"
                     disabled={isSaving}
                     onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors disabled:opacity-50"
+                    className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 font-bold text-xs transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSaving || !formContent.trim()}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all disabled:opacity-50 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs shadow-md shadow-zinc-900/20 active:scale-98 transition-all disabled:opacity-40 cursor-pointer"
                   >
                     {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     <span>{editingNote ? "Save Changes" : "Create Note"}</span>
@@ -2542,73 +2558,85 @@ export function NotesView() {
         </div>
       )}
 
-      {/* Read-Only View Note Modal */}
+      {/* Read-Only View Note Modal (Sculpted Dynamic Notch Styling) */}
       {viewingNote &&
         renderPortal(
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 transition-all duration-200">
-          <div
-            onClick={() => setViewingNote(null)}
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity"
-          />
+            <div
+              onClick={() => setViewingNote(null)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            />
 
-          <div className="relative bg-white rounded-t-[28px] sm:rounded-2xl shadow-2xl border border-slate-200/90 max-w-2xl w-full p-5 sm:p-7 z-10 max-h-[92vh] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col justify-between">
-            {/* Mobile Drag Handle Indicator */}
-            <div className="sm:hidden -mt-1 pb-3 flex justify-center">
-              <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
-            </div>
-
-            <div>
-              {/* Top Bar: Category Pill, Status/Target Date, Priority & Close Button */}
-              <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Category Pill */}
-                  {(() => {
-                    const normCat = normalizeCategory(viewingNote.category);
-                    const catCfg =
-                      allCategories.find(
-                        (c) => c.id === normCat || c.label.toLowerCase() === normCat.toLowerCase()
-                      ) || allCategories[0];
-                    const CIcon = catCfg.icon || Tag;
-                    return (
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${catCfg.color} shadow-2xs`}>
-                        <CIcon className="w-3.5 h-3.5" />
-                        <span>{normCat}</span>
-                      </span>
-                    );
-                  })()}
-
-                  {/* Priority / Completed Pill */}
-                  {viewingNote.is_completed ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs shrink-0">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Completed</span>
-                    </span>
-                  ) : viewingNote.priority === "urgent" ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0">
-                      <Flame className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-                      <span>Urgent 🔥</span>
-                    </span>
-                  ) : viewingNote.priority === "high" ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs shrink-0">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-                      <span>High Priority</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs shrink-0">
-                      <span>Normal Priority</span>
-                    </span>
-                  )}
+            <div className="relative bg-white rounded-t-[28px] sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-2xl w-full p-5 sm:p-7 pt-0 z-10 max-h-[92vh] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col justify-between overflow-hidden">
+              {/* Creative Top: Sculpted Dynamic Island Notch */}
+              <div className="flex justify-center -mt-px mb-4">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  <span>NOTE DETAILS</span>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setViewingNote(null)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
-                  aria-label="Close"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
+
+              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+
+              {/* Mobile Drag Handle Indicator */}
+              <div className="sm:hidden -mt-1 pb-3 flex justify-center">
+                <div className="w-12 h-1.5 bg-zinc-300 rounded-full" />
+              </div>
+
+              <div>
+                {/* Top Bar: Category Pill, Status/Target Date, Priority & Close Button */}
+                <div className="flex items-center justify-between gap-3 pb-4 border-b border-zinc-100">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Category Pill */}
+                    {(() => {
+                      const normCat = normalizeCategory(viewingNote.category);
+                      const catCfg =
+                        allCategories.find(
+                          (c) => c.id === normCat || c.label.toLowerCase() === normCat.toLowerCase()
+                        ) || allCategories[0];
+                      const CIcon = catCfg.icon || Tag;
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${catCfg.color} shadow-2xs`}>
+                          <CIcon className="w-3.5 h-3.5" />
+                          <span>{normCat}</span>
+                        </span>
+                      );
+                    })()}
+
+                    {/* Priority / Completed Pill */}
+                    {viewingNote.is_completed ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Completed</span>
+                      </span>
+                    ) : viewingNote.priority === "urgent" ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0">
+                        <Flame className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+                        <span>Urgent 🔥</span>
+                      </span>
+                    ) : viewingNote.priority === "high" ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs shrink-0">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                        <span>High Priority</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs shrink-0">
+                        <span>Normal Priority</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewingNote(null)}
+                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
               {/* Note Subject / Title & Metadata */}
               <div className="mt-4">
@@ -2785,48 +2813,95 @@ export function NotesView() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (Sculpted Dynamic Notch Styling) */}
       {confirmDeleteNote &&
         renderPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            onClick={() => setConfirmDeleteNote(null)}
-            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
-          />
+            <div
+              onClick={() => setConfirmDeleteNote(null)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            />
 
-          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200/80 flex items-center justify-center text-rose-600 mb-4 shadow-xs">
-              <Trash2 className="w-6 h-6" />
-            </div>
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+              {/* Creative Top: Sculpted Dynamic Island Notch */}
+              <div className="flex justify-center -mt-px">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span>IRREVERSIBLE PURGE</span>
+                </div>
+              </div>
 
-            <h3 className="text-base font-bold text-slate-900 tracking-tight">
-              Delete this note?
-            </h3>
+              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
-            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-              Are you sure you want to permanently delete{" "}
-              <strong className="text-slate-800">"{confirmDeleteNote.title}"</strong>? Any attached documents or images will also be removed from Supabase storage.
-            </p>
+              <div className="p-6 sm:p-7 pt-5">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="text-lg font-black text-zinc-900 tracking-tight">
+                      Delete Note?
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Action confirmed from authorized Chief workspace.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteNote(null)}
+                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-            <div className="mt-6 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteNote(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => executeDeleteNote(confirmDeleteNote)}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition-all cursor-pointer"
-              >
-                Delete Note
-              </button>
+                {/* Spotlight Note Card */}
+                <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-4 flex items-center gap-3.5 mb-4 shadow-2xs">
+                  <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center text-zinc-800 shrink-0 shadow-2xs">
+                    <NotebookPen className="w-5 h-5 text-zinc-800" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-zinc-900 truncate" title={confirmDeleteNote.title}>
+                      {confirmDeleteNote.title}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
+                        {normalizeCategory(confirmDeleteNote.category)}
+                      </span>
+                      {confirmDeleteNote.attachments && confirmDeleteNote.attachments.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-600 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
+                          {confirmDeleteNote.attachments.length} file{confirmDeleteNote.attachments.length === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-600 leading-relaxed mb-6 shadow-2xs">
+                  Permanently deletes this note. Any attached documents or images will also be purged from Supabase cloud storage.
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteNote(null)}
+                    className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Keep Note
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => executeDeleteNote(confirmDeleteNote)}
+                    className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-md shadow-zinc-900/20 active:scale-98 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-zinc-300" />
+                    <span>Delete Note</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Full-Space Attachment Viewer (Image, Excel, Word, PDF, CSV, etc.) */}
       {previewAttachment &&

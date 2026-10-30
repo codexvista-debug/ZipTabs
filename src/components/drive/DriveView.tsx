@@ -1228,87 +1228,106 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         )}
       </div>
 
-      {/* New Folder Modal */}
+      {/* New Folder Modal (Sculpted Dynamic Notch Styling) */}
       {isFolderModalOpen &&
         renderPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            onClick={() => setIsFolderModalOpen(false)}
-            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
-          />
+            <div
+              onClick={() => setIsFolderModalOpen(false)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            />
 
-          <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <FolderPlus className="w-5 h-5 text-blue-600" />
-                <span>Create New Folder</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsFolderModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateFolder} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Folder Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="e.g. Vendor Contracts, Receipts 2026..."
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Folder Color
-                </label>
-                <div className="flex items-center gap-2">
-                  {FOLDER_COLORS.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setNewFolderColor(c.id)}
-                      className={`w-7 h-7 rounded-xl ${c.bg} ${c.border} border-2 flex items-center justify-center transition-transform ${
-                        newFolderColor === c.id ? "scale-110 shadow-xs" : "opacity-70 hover:opacity-100"
-                      }`}
-                      title={c.label}
-                    >
-                      <span className={`w-2.5 h-2.5 rounded-full ${c.text.replace("text-", "bg-")}`} />
-                    </button>
-                  ))}
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+              {/* Creative Top: Sculpted Dynamic Island Notch */}
+              <div className="flex justify-center -mt-px">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  <span>FOLDER DIRECTORY</span>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsFolderModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newFolderName.trim()}
-                  className="px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  Create Folder
-                </button>
+              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+
+              <div className="p-6 sm:p-7 pt-5">
+                <div className="flex items-start justify-between gap-3 mb-5">
+                  <div>
+                    <h3 className="text-lg font-black text-zinc-900 tracking-tight">
+                      Create New Folder
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Organize files and attachments in your cloud drive.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsFolderModalOpen(false)}
+                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateFolder} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-700 uppercase tracking-wider mb-1.5">
+                      Folder Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      placeholder="e.g. Vendor Contracts, Receipts 2026..."
+                      className="w-full px-3.5 py-2.5 bg-zinc-50/80 border border-zinc-200 rounded-xl text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:bg-white focus:border-zinc-900 font-medium transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-700 uppercase tracking-wider mb-1.5">
+                      Folder Color Accent
+                    </label>
+                    <div className="flex items-center gap-2 p-2 bg-zinc-50 border border-zinc-200/80 rounded-xl">
+                      {FOLDER_COLORS.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setNewFolderColor(c.id)}
+                          className={`w-7 h-7 rounded-xl ${c.bg} ${c.border} border-2 flex items-center justify-center transition-transform cursor-pointer ${
+                            newFolderColor === c.id ? "scale-110 shadow-xs ring-2 ring-zinc-900/20" : "opacity-70 hover:opacity-100"
+                          }`}
+                          title={c.label}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full ${c.text.replace("text-", "bg-")}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-zinc-100 flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsFolderModalOpen(false)}
+                      className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!newFolderName.trim()}
+                      className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-md shadow-zinc-900/20 active:scale-98 transition-all disabled:opacity-40 cursor-pointer"
+                    >
+                      Create Folder
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Delete Folder Confirmation Modal (Black, White & Gray Scheme - Precision Vault Styling) */}
       {confirmDeleteFolder && (() => {

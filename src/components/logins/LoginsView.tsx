@@ -270,7 +270,7 @@ export function LoginsView() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: string; title: string } | null>(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: string; title: string; category?: string; username?: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -1233,7 +1233,12 @@ export function LoginsView() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDeleteConfirmItem({ id: item.id, title: item.title });
+                          setDeleteConfirmItem({
+                            id: item.id,
+                            title: item.title,
+                            category: item.category,
+                            username: item.username,
+                          });
                         }}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                         title="Delete credential"
@@ -1416,31 +1421,44 @@ export function LoginsView() {
         </div>
       )}
 
-      {/* Add / Edit Modal - Spacious Layout with Mascot Avatar Picker & Dynamic Categories */}
+      {/* Add / Edit Modal - Spacious Layout with Mascot Avatar Picker & Dynamic Categories (Sculpted Dynamic Notch Styling) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div
+            onClick={() => setIsModalOpen(false)}
+            className="fixed inset-0 bg-transparent"
+          />
+
+          <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+            {/* Creative Top: Sculpted Dynamic Island Notch */}
+            <div className="flex justify-center -mt-px">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span>VAULT RECORD // AES-256</span>
+              </div>
+            </div>
+
+            {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+
             {/* Modal Header */}
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
-                  <KeyRound className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                    {editingId ? "Edit Login Credential" : "Add New Login Record"}
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Encrypted client-side with AES-256-GCM before saving to your cloud vault.
-                  </p>
-                </div>
+            <div className="px-6 py-5 pt-4 border-b border-zinc-100 flex items-start justify-between shrink-0">
+              <div>
+                <h3 className="text-lg font-black text-zinc-900 tracking-tight">
+                  {editingId ? "Edit Login Credential" : "Add New Login Record"}
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Encrypted client-side with AES-256-GCM before saving to your cloud vault.
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                aria-label="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1637,14 +1655,14 @@ export function LoginsView() {
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer text-xs transition-colors"
+                    className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 font-bold cursor-pointer text-xs transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer shadow-md shadow-blue-500/20 disabled:opacity-60 flex items-center gap-2 text-xs transition-all active:scale-95"
+                    className="px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold cursor-pointer shadow-md shadow-zinc-900/20 disabled:opacity-40 flex items-center gap-2 text-xs transition-all active:scale-98"
                   >
                     {isSaving ? (
                       <>
@@ -1665,91 +1683,146 @@ export function LoginsView() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (Sculpted Dynamic Notch Styling) */}
       {deleteConfirmItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             onClick={() => setDeleteConfirmItem(null)}
-            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
           />
 
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm sm:max-w-md w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200"
+            className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200"
           >
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200/80 flex items-center justify-center text-rose-600 mb-4 shadow-xs">
-              <Trash2 className="w-6 h-6" />
+            {/* Creative Top: Sculpted Dynamic Island Notch */}
+            <div className="flex justify-center -mt-px">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                <span>IRREVERSIBLE PURGE</span>
+              </div>
             </div>
 
-            <h3 className="text-base font-bold text-slate-900 tracking-tight">
-              Delete login credential?
-            </h3>
+            {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
-            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-              Are you sure you want to permanently delete{" "}
-              <strong className="text-slate-800">"{deleteConfirmItem.title}"</strong> from your encrypted cloud vault? This action cannot be undone.
-            </p>
+            <div className="p-6 sm:p-7 pt-5">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-lg font-black text-zinc-900 tracking-tight">
+                    Delete Login Credential?
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Action confirmed from authorized Chief workspace.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmItem(null)}
+                  className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-            <div className="mt-6 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmItem(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const item = deleteConfirmItem;
-                  setDeleteConfirmItem(null);
-                  await handleDelete(item.id);
-                }}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-md shadow-rose-500/20 cursor-pointer active:scale-95"
-              >
-                Delete Credential
-              </button>
+              {/* Spotlight Credential Card */}
+              <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-4 flex items-center gap-3.5 mb-4 shadow-2xs">
+                <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center text-zinc-800 shrink-0 shadow-2xs">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-zinc-900 truncate" title={deleteConfirmItem.title}>
+                    {deleteConfirmItem.title}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
+                      {deleteConfirmItem.category || "General"}
+                    </span>
+                    {deleteConfirmItem.username && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-zinc-600 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs truncate max-w-[150px]">
+                        {deleteConfirmItem.username}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-600 leading-relaxed mb-6 shadow-2xs">
+                Permanently purges this credential record from your encrypted Supabase vault. This action cannot be undone.
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmItem(null)}
+                  className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const item = deleteConfirmItem;
+                    setDeleteConfirmItem(null);
+                    await handleDelete(item.id);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-md shadow-zinc-900/20 active:scale-98 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-zinc-300" />
+                  <span>Delete Credential</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Logs & Audit History Modal */}
+      {/* Logs & Audit History Modal (Sculpted Dynamic Notch Styling) */}
       {viewingLogsItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             onClick={() => setViewingLogsItem(null)}
-            className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
           />
 
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[88vh] flex flex-col z-10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 w-full max-w-lg max-h-[88vh] flex flex-col z-10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
           >
+            {/* Creative Top: Sculpted Dynamic Island Notch */}
+            <div className="flex justify-center -mt-px">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span>AUDIT TRAIL // ENCRYPTED</span>
+              </div>
+            </div>
+
+            {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+
             {/* Modal Header */}
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/70">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
-                  <History className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                    <span className="truncate max-w-[220px]">{viewingLogsItem.title}</span>
-                    <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0">
-                      Audit Logs
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Encrypted history of username, password, URL, and notes modifications.
-                  </p>
-                </div>
+            <div className="px-6 py-5 pt-4 border-b border-zinc-100 flex items-start justify-between shrink-0">
+              <div>
+                <h3 className="text-lg font-black text-zinc-900 tracking-tight flex items-center gap-2">
+                  <span className="truncate max-w-[220px]">{viewingLogsItem.title}</span>
+                  <span className="text-[10px] font-extrabold text-zinc-800 bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-full shrink-0">
+                    Audit Logs
+                  </span>
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Encrypted history of username, password, URL, and notes modifications.
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setViewingLogsItem(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                aria-label="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1842,15 +1915,15 @@ export function LoginsView() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+            <div className="px-6 py-4 border-t border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+              <span className="text-[11px] text-zinc-500 flex items-center gap-1.5 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>AES-256 Client-Side Encrypted Audit Trail</span>
               </span>
               <button
                 type="button"
                 onClick={() => setViewingLogsItem(null)}
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-98"
               >
                 Done
               </button>

@@ -627,44 +627,108 @@ export function UsageView() {
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (Sculpted Dynamic Notch Styling) */}
       {confirmDeleteFile &&
         renderPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
               onClick={() => setConfirmDeleteFile(null)}
-              className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity"
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
-            <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 z-10 animate-in fade-in zoom-in-95 duration-200">
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mb-4 shadow-xs">
-                <Trash2 className="w-6 h-6" />
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+              {/* Creative Top: Sculpted Dynamic Island Notch */}
+              <div className="flex justify-center -mt-px">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span>IRREVERSIBLE PURGE</span>
+                </div>
               </div>
 
-              <h3 className="text-base font-bold text-slate-900 tracking-tight">
-                Delete stored file?
-              </h3>
+              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
-              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Delete <strong className="text-slate-800">"{confirmDeleteFile.name.split("/").pop()}"</strong> to immediately reclaim{" "}
-                <strong className="text-emerald-600">{formatBytes(confirmDeleteFile.size)}</strong> of storage?
-              </p>
+              <div className="p-6 sm:p-7 pt-5">
+                {/* Header Row */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="text-lg font-black text-zinc-900 tracking-tight">
+                      Delete Stored File?
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Action confirmed from authorized Chief workspace.
+                    </p>
+                  </div>
 
-              <div className="mt-6 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteFile(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => executeDeleteFile(confirmDeleteFile)}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition-all cursor-pointer"
-                >
-                  Delete File
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteFile(null)}
+                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* File Spotlight Preview Card */}
+                <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-4 flex items-center gap-3.5 mb-4 shadow-2xs">
+                  <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center text-zinc-800 shrink-0 shadow-2xs">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-zinc-900 truncate" title={confirmDeleteFile.name}>
+                      {confirmDeleteFile.name.split("/").pop()}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
+                        {formatBytes(confirmDeleteFile.size)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-600 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
+                        Cloud Storage
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Storage Reclaimed Callout Banner */}
+                <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-2xs">
+                        <HardDrive className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-[11px] font-bold text-zinc-900 uppercase tracking-wider">
+                        Storage Reclaimed
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-black tracking-tight tabular-nums shadow-2xs">
+                      +{formatBytes(confirmDeleteFile.size)}
+                    </span>
+                  </div>
+                  <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
+                    Immediately reclaims cloud storage on Supabase. This file will be permanently purged and cannot be recovered.
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteFile(null)}
+                    className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Keep File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => executeDeleteFile(confirmDeleteFile)}
+                    className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-md shadow-zinc-900/20 active:scale-98 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-zinc-300" />
+                    <span>Delete File</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
