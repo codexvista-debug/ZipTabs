@@ -889,8 +889,48 @@ export function InvoicesView() {
 
       {/* Dynamic Header Row (Supports Style 01, 02, 03, 04 live from Design Lab; defaults to Style 02) */}
       {(() => {
-        const renderUploadButton = (theme: "blue" | "dark" = "blue") => {
-          const isDark = theme === "dark";
+        const renderUploadButton = (theme: "blue" | "aurora" | "cyber" | "dark" = "blue") => {
+          let desktopBtnStyle = "";
+          let mobileBtnStyle = "";
+          let iconBoxStyle = "";
+          let subtitleStyle = "";
+          let titleStyle = "";
+
+          if (theme === "cyber") {
+            desktopBtnStyle = isDragHover
+              ? "bg-emerald-400 text-slate-950 shadow-lg ring-4 ring-emerald-400/40 scale-[1.02]"
+              : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:scale-98 text-slate-950 font-black shadow-lg shadow-emerald-500/25";
+            mobileBtnStyle = "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-slate-950 font-black shadow-xs";
+            iconBoxStyle = "bg-slate-950/20 border border-slate-950/25 text-slate-950";
+            titleStyle = "text-slate-950 font-black";
+            subtitleStyle = "text-emerald-950/80 font-bold";
+          } else if (theme === "aurora") {
+            desktopBtnStyle = isDragHover
+              ? "bg-indigo-600 text-white shadow-lg ring-4 ring-indigo-500/40 scale-[1.02]"
+              : "bg-gradient-to-r from-indigo-500 via-blue-600 to-indigo-600 hover:from-indigo-400 hover:to-blue-500 active:scale-98 text-white font-bold shadow-lg shadow-indigo-500/30 ring-1 ring-indigo-400/30";
+            mobileBtnStyle = "bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 text-white font-bold shadow-xs";
+            iconBoxStyle = "bg-white/20 border border-white/25 text-white";
+            titleStyle = "text-white font-bold";
+            subtitleStyle = "text-indigo-100 font-medium";
+          } else if (theme === "dark") {
+            desktopBtnStyle = isDragHover
+              ? "bg-black text-white shadow-lg ring-4 ring-slate-700/30 scale-[1.02]"
+              : "bg-slate-900 hover:bg-black active:scale-98 text-white font-bold shadow-md shadow-slate-900/20 border border-slate-700/50";
+            mobileBtnStyle = "bg-slate-900 hover:bg-black text-white font-bold shadow-xs border border-slate-700/50";
+            iconBoxStyle = "bg-white/10 border border-white/20 text-white";
+            titleStyle = "text-white font-bold";
+            subtitleStyle = "text-slate-300 font-medium";
+          } else {
+            // "blue"
+            desktopBtnStyle = isDragHover
+              ? "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
+              : "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 active:scale-98 text-white font-bold shadow-md shadow-blue-500/25 ring-1 ring-blue-400/30";
+            mobileBtnStyle = "bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-xs";
+            iconBoxStyle = "bg-white/20 border border-white/25 text-white";
+            titleStyle = "text-white font-bold";
+            subtitleStyle = "text-blue-100 font-medium";
+          }
+
           return (
             <div className="flex items-center gap-2 shrink-0">
               <input
@@ -928,29 +968,21 @@ export function InvoicesView() {
                     fileInputRef.current.click();
                   }
                 }}
-                className={`hidden sm:inline-flex group relative items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${
-                  isDragHover
-                    ? isDark
-                      ? "bg-black text-white shadow-lg ring-4 ring-slate-700/30 scale-[1.02]"
-                      : "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
-                    : isDark
-                    ? "bg-slate-900 hover:bg-black active:scale-98 text-white shadow-md shadow-slate-900/20 hover:shadow-lg hover:shadow-slate-900/30"
-                    : "bg-[#2563eb] hover:bg-blue-600 active:scale-98 text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35"
-                }`}
+                className={`hidden sm:inline-flex group relative items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${desktopBtnStyle}`}
               >
-                <div className="w-8 h-8 rounded-lg sm:rounded-xl bg-white/20 border border-white/25 flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform">
+                <div className={`w-8 h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform ${iconBoxStyle}`}>
                   {isProcessing ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    <Upload className="w-4 h-4 text-white" />
+                    <Upload className="w-4 h-4" />
                   )}
                 </div>
 
                 <div className="text-left pr-1">
-                  <div className="text-xs sm:text-[13px] font-bold leading-tight tracking-tight text-white flex items-center gap-1.5">
+                  <div className={`text-xs sm:text-[13px] leading-tight tracking-tight flex items-center gap-1.5 ${titleStyle}`}>
                     <span>{isProcessing ? "Processing File..." : "Upload File"}</span>
                   </div>
-                  <div className="text-[10px] text-blue-100 font-medium leading-tight mt-0.5">
+                  <div className={`text-[10px] leading-tight mt-0.5 ${subtitleStyle}`}>
                     Drop or select .csv / .xlsx
                   </div>
                 </div>
@@ -966,14 +998,12 @@ export function InvoicesView() {
                     fileInputRef.current.click();
                   }
                 }}
-                className={`sm:hidden inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50 shrink-0 ${
-                  isDark ? "bg-slate-900 hover:bg-black" : "bg-[#2563eb] hover:bg-blue-600"
-                }`}
+                className={`sm:hidden inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg active:scale-95 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shrink-0 ${mobileBtnStyle}`}
               >
                 {isProcessing ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <Upload className="w-3.5 h-3.5 text-white" />
+                  <Upload className="w-3.5 h-3.5" />
                 )}
                 <span>Upload</span>
               </button>
@@ -981,107 +1011,140 @@ export function InvoicesView() {
           );
         };
 
-        // Style 01: Architectural Minimal
+        // Style 01: Midnight Command Deck
         if (activeHeaderStyle === "style-01") {
           return (
-            <div className="flex flex-row items-center justify-between gap-2.5 sm:gap-3 pb-2 sm:pb-5 border-b border-slate-200/60 mb-2 sm:mb-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-5 sm:h-6 bg-blue-600 rounded-full shrink-0" />
-                  <h1 className="text-sm sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
-                    Overdue Invoices
-                  </h1>
-                  <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                    Active View
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1 pl-4 hidden sm:block">
-                  Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-                </p>
-              </div>
-              {renderUploadButton("blue")}
-            </div>
-          );
-        }
-
-        // Style 02: Executive Slate Chassis (Requested Active Style)
-        if (activeHeaderStyle === "style-02") {
-          return (
-            <div className="bg-gradient-to-r from-slate-100/90 via-slate-50/70 to-white border border-slate-200/90 rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-row items-center justify-between gap-2 sm:gap-3 mb-2 sm:mb-4 shadow-2xs">
+            <div className="relative bg-gradient-to-r from-[#0c1427] via-[#0f1d38] to-[#142347] border border-[#1e325c] rounded-xl sm:rounded-2xl p-2 sm:p-5 shadow-lg overflow-hidden flex flex-row items-center justify-between gap-2 sm:gap-3 mb-2 sm:mb-4 text-white">
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400 pointer-events-none" />
               <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
-                <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-white border border-slate-200/90 flex items-center justify-center shadow-xs shrink-0">
-                  <FileSpreadsheet className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-600" />
+                <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-blue-950/90 border border-blue-500/30 flex items-center justify-center shrink-0 shadow-inner text-blue-400">
+                  <FileSpreadsheet className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                 </div>
                 <div className="min-w-0">
                   <div className="hidden sm:flex items-center gap-2 mb-0.5">
-                    <span className="text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase">
+                    <span className="text-[10px] font-mono font-bold tracking-wider text-blue-300 uppercase">
                       WORKSPACE // AR LEDGER
                     </span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[9px] font-bold text-emerald-400 font-mono">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      OPERATIONAL
+                    </span>
                   </div>
-                  <h1 className="text-sm sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate flex items-center gap-1.5">
+                  <h1 className="text-sm sm:text-xl md:text-2xl font-black text-white tracking-tight truncate flex items-center gap-1.5">
                     <span>Overdue Invoices</span>
-                    <span className="sm:hidden w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span className="sm:hidden w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   </h1>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
+                  <p className="text-xs text-slate-400 mt-0.5 truncate hidden sm:block">
                     Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
                   </p>
                 </div>
               </div>
-              {renderUploadButton("dark")}
-            </div>
-          );
-        }
-
-        // Style 03: Cockpit Flight Deck (Inline Metric Ribbons)
-        if (activeHeaderStyle === "style-03") {
-          return (
-            <div className="flex flex-row items-center justify-between gap-2.5 sm:gap-3 pb-2 sm:pb-5 border-b border-slate-200/60 mb-2 sm:mb-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-3">
-                  <h1 className="text-sm sm:text-2xl font-black text-slate-900 tracking-tight truncate">
-                    Overdue Invoices
-                  </h1>
-                  <div className="hidden sm:flex flex-wrap items-center gap-1.5">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-rose-600 bg-rose-50 border-rose-200 shadow-2xs">
-                      <span className="text-[10px] font-medium opacity-80">Total Overdue:</span>
-                      <span>$3,500,238</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-amber-600 bg-amber-50 border-amber-200 shadow-2xs">
-                      <span className="text-[10px] font-medium opacity-80">Past Due:</span>
-                      <span>261 Invoices</span>
-                    </div>
-                    <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-blue-600 bg-blue-50 border-blue-200 shadow-2xs">
-                      <span className="text-[10px] font-medium opacity-80">Active Vendors:</span>
-                      <span>155 Accounts</span>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 mt-1 hidden sm:block">
-                  Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-                </p>
-              </div>
               {renderUploadButton("blue")}
             </div>
           );
         }
 
-        // Style 04: Frosted Glass Floating Dock
+        // Style 02: Royal Indigo Aurora
+        if (activeHeaderStyle === "style-02") {
+          return (
+            <div className="relative bg-gradient-to-r from-[#172554] via-[#1e1b4b] to-[#0f172a] border border-indigo-500/40 rounded-xl sm:rounded-2xl p-2 sm:p-5 shadow-xl overflow-hidden flex flex-col gap-2 mb-2 sm:mb-4 text-white">
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-400 via-indigo-400 to-violet-400 pointer-events-none" />
+              <div className="flex flex-row items-center justify-between gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+                  <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-indigo-950/90 border border-indigo-400/40 text-indigo-300 flex items-center justify-center shrink-0 shadow-xs">
+                    <FileSpreadsheet className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-sm sm:text-xl md:text-2xl font-black text-white tracking-tight truncate">
+                        Overdue Invoices
+                      </h1>
+                      <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-400/40 text-[10px] font-bold text-indigo-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        Live Sync
+                      </span>
+                    </div>
+                    <p className="text-xs text-indigo-200/80 mt-0.5 truncate hidden sm:block">
+                      Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
+                    </p>
+                  </div>
+                </div>
+                {renderUploadButton("aurora")}
+              </div>
+
+              {/* Telemetry Ribbons */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold border text-rose-300 bg-rose-950/60 border-rose-500/40 shadow-2xs">
+                  <span className="text-[9px] sm:text-[10px] font-medium opacity-80">Total Overdue:</span>
+                  <span>$3,500,238</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold border text-amber-300 bg-amber-950/60 border-amber-500/40 shadow-2xs">
+                  <span className="text-[9px] sm:text-[10px] font-medium opacity-80">Past Due:</span>
+                  <span>261 Invoices</span>
+                </div>
+                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-cyan-300 bg-cyan-950/60 border-cyan-500/40 shadow-2xs">
+                  <span className="text-[10px] font-medium opacity-80">Active Vendors:</span>
+                  <span>155 Accounts</span>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Style 03: Cyber HUD Console
+        if (activeHeaderStyle === "style-03") {
+          return (
+            <div className="relative bg-gradient-to-r from-[#090d16] via-[#0d1726] to-[#080d1a] border border-emerald-500/30 rounded-xl sm:rounded-2xl p-2 sm:p-5 shadow-xl overflow-hidden flex flex-row items-center justify-between gap-2 sm:gap-3 pl-3.5 sm:pl-6 mb-2 sm:mb-4 text-white">
+              <div className="absolute left-0 top-2 bottom-2 w-1 sm:w-1.5 bg-emerald-400 rounded-r-full shadow-[0_0_12px_#10b981]" />
+              <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+                <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-black/60 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
+                  <FileSpreadsheet className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="hidden sm:flex items-center gap-2 mb-0.5">
+                    <span className="text-[10px] font-mono font-bold tracking-widest text-emerald-400 uppercase flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                      CYBER_HUD // AR_LEDGER
+                    </span>
+                  </div>
+                  <h1 className="text-sm sm:text-xl md:text-2xl font-black text-white tracking-tight truncate font-mono flex items-center gap-1.5">
+                    <span>Overdue Invoices</span>
+                    <span className="sm:hidden text-[10px] text-emerald-400 font-mono font-bold">• HUD</span>
+                  </h1>
+                  <div className="hidden sm:flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-300">
+                      Total: $3,500,238
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-300">
+                      Past Due: 261
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-300">
+                      Status: ACTIVE
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {renderUploadButton("cyber")}
+            </div>
+          );
+        }
+
+        // Style 04: Frosted Aero Horizon
         return (
-          <div className="relative bg-white/90 backdrop-blur-md rounded-xl sm:rounded-2xl border border-slate-200/90 p-2 sm:p-5 shadow-xs overflow-hidden flex flex-row items-center justify-between gap-2.5 sm:gap-3 mb-2 sm:mb-4">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-transparent pointer-events-none" />
+          <div className="relative bg-gradient-to-r from-white/95 via-blue-50/40 to-indigo-50/30 backdrop-blur-xl border border-blue-200/90 rounded-xl sm:rounded-2xl p-2 sm:p-5 shadow-md overflow-hidden flex flex-row items-center justify-between gap-2.5 sm:gap-3 ring-1 ring-blue-500/10 mb-2 sm:mb-4">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-teal-400 pointer-events-none" />
             <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
-              <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200/80 shadow-2xs flex items-center justify-center shrink-0">
-                <FileSpreadsheet className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-600" />
+              <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200/80 text-blue-600 shadow-2xs flex items-center justify-center shrink-0">
+                <FileSpreadsheet className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <h1 className="text-sm sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
                     Overdue Invoices
                   </h1>
-                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 shrink-0">
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 shadow-2xs">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Live Sync
+                    Live Sync • 99.8%
                   </span>
                   <span className="sm:hidden w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 </div>
@@ -1090,7 +1153,7 @@ export function InvoicesView() {
                 </p>
               </div>
             </div>
-            {renderUploadButton("blue")}
+            {renderUploadButton("dark")}
           </div>
         );
       })()}
