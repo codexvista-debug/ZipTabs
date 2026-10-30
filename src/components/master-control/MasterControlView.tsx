@@ -34,7 +34,11 @@ import {
   Ghost,
   X,
 } from "lucide-react";
-import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
+import {
+  ExecutiveToast,
+  getToastPosition,
+  TOAST_POSITION_CLASSES,
+} from "@/components/ui/ExecutiveToast";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 
 interface AppUserRecord {
@@ -918,9 +922,9 @@ export function MasterControlView() {
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
-      {/* Premium Elevated Toast Notification (Architectural Executive Chassis) */}
+      {/* Premium Elevated Toast Notification (Semantic Spatial Placement) */}
       {actionMessage && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-md animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-auto">
+        <div className={TOAST_POSITION_CLASSES[getToastPosition(actionMessage.text)]}>
           <ExecutiveToast
             type={actionMessage.type}
             title={actionMessage.text}

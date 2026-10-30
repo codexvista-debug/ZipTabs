@@ -19,6 +19,10 @@ import {
   Loader2,
   Download,
 } from "lucide-react";
+import {
+  ExecutiveToast,
+  TOAST_POSITION_CLASSES,
+} from "@/components/ui/ExecutiveToast";
 
 export interface HolidayItem {
   date: number; // day of month (1-31)
@@ -138,6 +142,7 @@ export function USCalendarView() {
   const [viewMode, setViewMode] = useState<"grid" | "agenda">("grid");
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportSuccess, setExportSuccess] = useState<boolean>(false);
+  const [toast, setToast] = useState<{ title: string; description?: string; type: "success" | "info" | "error" } | null>(null);
 
   // Navigation handlers
   const handlePrevMonth = () => {
@@ -427,9 +432,21 @@ export function USCalendarView() {
       URL.revokeObjectURL(url);
 
       setExportSuccess(true);
+      setToast({
+        title: "Timesheet Exported",
+        description: `Timesheet_${monthName}_${selectedYear}.xlsx downloaded successfully.`,
+        type: "success",
+      });
       setTimeout(() => setExportSuccess(false), 2500);
+      setTimeout(() => setToast(null), 3500);
     } catch (err) {
       console.error("Failed to export Excel timesheet:", err);
+      setToast({
+        title: "Export Failed",
+        description: "Could not generate timesheet spreadsheet.",
+        type: "error",
+      });
+      setTimeout(() => setToast(null), 3500);
     } finally {
       setIsExporting(false);
     }
@@ -437,6 +454,21 @@ export function USCalendarView() {
 
   return (
     <div className="space-y-4 sm:space-y-6 relative pb-16">
+      {/* Toast Notification (Top-Right Placement) */}
+      {toast && (
+        <div className={TOAST_POSITION_CLASSES["top-right"]}>
+          <ExecutiveToast
+            type={toast.type}
+            title={toast.title}
+            description={toast.description}
+            headerMeta="Payroll Timesheet Engine"
+            metric="Excel Export"
+            onClose={() => setToast(null)}
+            durationMs={3500}
+          />
+        </div>
+      )}
+
       {/* Top Header Row with Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-4 pb-3 sm:pb-6 border-b border-slate-200/60">
         <div>

@@ -15,6 +15,10 @@ import {
   X,
   Info,
 } from "lucide-react";
+import {
+  ExecutiveToast,
+  TOAST_POSITION_CLASSES,
+} from "@/components/ui/ExecutiveToast";
 
 type HeaderPreviewTab = "invoices" | "notes" | "dashboard" | "drive";
 
@@ -117,22 +121,18 @@ export function DesignLabView() {
 
   return (
     <div className="space-y-6 sm:space-y-8 p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24">
-      {/* Toast Feedback */}
+      {/* Toast Feedback (Top-Right Placement) */}
       {toastFeedback && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className="w-full bg-[#0c1427]/95 backdrop-blur-md text-white border border-slate-700/80 rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{toastFeedback}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setToastFeedback(null)}
-              className="text-slate-400 hover:text-white p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+        <div className={TOAST_POSITION_CLASSES["top-right"]}>
+          <ExecutiveToast
+            type="success"
+            title="Design Lab Updated"
+            description={toastFeedback}
+            headerMeta="UI Design Studio"
+            metric="Live Theme"
+            onClose={() => setToastFeedback(null)}
+            durationMs={4000}
+          />
         </div>
       )}
 

@@ -36,7 +36,12 @@ import {
 import { UniversalFileViewer } from "./UniversalFileViewer";
 import { downloadFileDirectly } from "@/lib/download";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
-import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
+import {
+  ExecutiveToast,
+  getToastPosition,
+  TOAST_POSITION_CLASSES,
+  ToastPosition,
+} from "@/components/ui/ExecutiveToast";
 
 export interface DriveFolder {
   id: string;
@@ -116,8 +121,13 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   // Universal File Preview Modal (Supports Word, Excel, CSV, PDF, Images, Code, etc.)
   const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);
 
-  // Toast Notification
-  const [toast, setToast] = useState<{ title: string; description?: string; type: "success" | "error" | "info" } | null>(null);
+  // Toast Notification with Semantic Spatial Placement
+  const [toast, setToast] = useState<{
+    title: string;
+    description?: string;
+    type: "success" | "error" | "info";
+    position?: ToastPosition;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -131,8 +141,14 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     return createPortal(children, document.body);
   };
 
-  const showToast = (title: string, description?: string, type: "success" | "error" | "info" = "success") => {
-    setToast({ title, description, type });
+  const showToast = (
+    title: string,
+    description?: string,
+    type: "success" | "error" | "info" = "success",
+    position?: ToastPosition
+  ) => {
+    const resolvedPosition = getToastPosition(title, position);
+    setToast({ title, description, type, position: resolvedPosition });
     setTimeout(() => setToast(null), 3500);
   };
 
@@ -555,10 +571,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         }
       }}
     >
-      {/* Toast Notification (Architectural Executive Chassis) */}
+      {/* Toast Notification (Architectural Executive Chassis with Semantic Spatial Placement) */}
       {toast &&
         renderPortal(
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+          <div className={TOAST_POSITION_CLASSES[toast.position || getToastPosition(toast.title)]}>
             <ExecutiveToast
               type={toast.type}
               title={toast.title}
@@ -568,6 +584,27 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               onClose={() => setToast(null)}
               durationMs={3500}
             />
+          </div>
+        )}
+
+      {/* Floating Upload Progress Indicator (Bottom-Center) */}
+      {isUploading &&
+        renderPortal(
+          <div className="fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100vw-24px)] sm:w-80 max-w-sm animate-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
+            <div className="bg-white/98 border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-900/10 p-2.5 px-3.5 flex items-center justify-between gap-3 backdrop-blur-md ring-1 ring-slate-900/5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse ring-2 ring-blue-200 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 truncate">
+                    {uploadProgressText || "Uploading Files..."}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    Encrypting & syncing to Supabase Drive
+                  </div>
+                </div>
+              </div>
+              <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+            </div>
           </div>
         )}
 

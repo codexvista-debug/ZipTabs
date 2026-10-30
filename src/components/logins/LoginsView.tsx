@@ -44,6 +44,12 @@ import {
   User,
   History,
 } from "lucide-react";
+import {
+  ExecutiveToast,
+  getToastPosition,
+  TOAST_POSITION_CLASSES,
+  ToastPosition,
+} from "@/components/ui/ExecutiveToast";
 
 export type LoginCategory = string;
 
@@ -265,6 +271,25 @@ export function LoginsView() {
     setIsModalAddingCategory(false);
     setNewCategoryName("");
     setModalNewCategoryName("");
+  };
+
+  // Toast Notification with Semantic Spatial Placement
+  const [toast, setToast] = useState<{
+    title: string;
+    description?: string;
+    type: "success" | "error" | "info";
+    position?: ToastPosition;
+  } | null>(null);
+
+  const showToast = (
+    title: string,
+    description?: string,
+    type: "success" | "error" | "info" = "success",
+    position?: ToastPosition
+  ) => {
+    const resolvedPosition = getToastPosition(title, position);
+    setToast({ title, description, type, position: resolvedPosition });
+    setTimeout(() => setToast(null), 3500);
   };
 
   // Modal State
@@ -599,6 +624,7 @@ export function LoginsView() {
   };
 
   const handleDelete = async (id: string) => {
+    const target = logins.find((item) => item.id === id);
     if (supabase) {
       await supabase
         .from("vault_credentials")
@@ -608,6 +634,7 @@ export function LoginsView() {
     }
 
     setLogins((prev) => prev.filter((item) => item.id !== id));
+    showToast("Credential Deleted", `"${target?.title || "Credential"}" removed from vault.`, "info");
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -760,8 +787,10 @@ export function LoginsView() {
         setLogins((prev) =>
           prev.map((item) => (item.id === editingId ? updatedDecrypted : item))
         );
+        showToast("Credential Updated", `"${formData.title}" saved to encrypted vault.`, "success");
       } else {
         setLogins((prev) => [updatedDecrypted, ...prev]);
+        showToast("Credential Added", `"${formData.title}" securely saved with AES-GCM.`, "success");
       }
 
       setIsModalOpen(false);
@@ -927,7 +956,22 @@ export function LoginsView() {
 
   // 3. UNLOCKED VAULT VIEW
   return (
-    <div className="space-y-3.5 sm:space-y-6 pb-16 max-w-7xl mx-auto">
+    <div className="space-y-3.5 sm:space-y-6 pb-16 max-w-7xl mx-auto relative">
+      {/* Toast Notification (Architectural Executive Chassis with Semantic Spatial Placement) */}
+      {toast && (
+        <div className={TOAST_POSITION_CLASSES[toast.position || getToastPosition(toast.title)]}>
+          <ExecutiveToast
+            type={toast.type}
+            title={toast.title}
+            description={toast.description}
+            headerMeta="Encrypted Cloud Vault"
+            metric={toast.position === "bottom-right" ? "Purged" : "Vault Synced"}
+            onClose={() => setToast(null)}
+            durationMs={3500}
+          />
+        </div>
+      )}
+
       {/* Header (Single compact row on mobile) */}
       <div className="flex items-center justify-between gap-2.5 pb-3 sm:pb-6 border-b border-slate-200/60">
         <div className="min-w-0">

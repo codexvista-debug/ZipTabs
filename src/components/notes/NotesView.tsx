@@ -45,7 +45,12 @@ import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/Full
 import { downloadFileDirectly } from "@/lib/download";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import { extractTextFromImageFile } from "@/lib/ocr";
-import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
+import {
+  ExecutiveToast,
+  getToastPosition,
+  TOAST_POSITION_CLASSES,
+  ToastPosition,
+} from "@/components/ui/ExecutiveToast";
 
 export interface NoteAttachment {
   id: string;
@@ -481,11 +486,12 @@ export function NotesView() {
   const [backgroundUploads, setBackgroundUploads] = useState<BackgroundUploadJob[]>([]);
   const [isUploadsMinimized, setIsUploadsMinimized] = useState(false);
 
-  // Custom Styled Toast Notification
+  // Custom Styled Toast Notification with Semantic Spatial Placement
   const [toastNotification, setToastNotification] = useState<{
     type: "success" | "error" | "info";
     title: string;
     description?: string;
+    position?: ToastPosition;
   } | null>(null);
 
   // Quick Note Inline Composer State
@@ -511,8 +517,14 @@ export function NotesView() {
     return createPortal(children, document.body);
   };
 
-  const showToast = (title: string, description?: string, type: "success" | "error" | "info" = "success") => {
-    setToastNotification({ title, description, type });
+  const showToast = (
+    title: string,
+    description?: string,
+    type: "success" | "error" | "info" = "success",
+    position?: ToastPosition
+  ) => {
+    const resolvedPosition = getToastPosition(title, position);
+    setToastNotification({ title, description, type, position: resolvedPosition });
   };
 
   useEffect(() => {
@@ -1460,10 +1472,10 @@ export function NotesView() {
 
   return (
     <div className="space-y-6 relative pb-16">
-      {/* Toast Notification (Architectural Executive Chassis) */}
+      {/* Toast Notification (Architectural Executive Chassis with Semantic Spatial Placement) */}
       {toastNotification &&
         renderPortal(
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+          <div className={TOAST_POSITION_CLASSES[toastNotification.position || getToastPosition(toastNotification.title)]}>
             <ExecutiveToast
               type={toastNotification.type}
               title={toastNotification.title}
@@ -2920,10 +2932,10 @@ export function NotesView() {
           />
         )}
 
-      {/* Floating Background Upload Progress Notification (Project Light Style, Compact) */}
+      {/* Floating Background Upload Progress Notification (Project Light Style, Compact, Bottom-Center) */}
       {backgroundUploads.length > 0 &&
         renderPortal(
-          <div className="fixed bottom-16 sm:bottom-5 right-3 sm:right-5 z-40 w-[calc(100vw-24px)] sm:w-80 max-w-sm animate-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
+          <div className="fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100vw-24px)] sm:w-80 max-w-sm animate-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
             <div className="bg-white/98 border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-900/10 text-slate-900 backdrop-blur-md overflow-hidden ring-1 ring-slate-900/5">
               {/* Executive Top Header Bar */}
               <div className="bg-gradient-to-r from-slate-100/90 via-slate-50 to-slate-100/90 px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-200/80">

@@ -11,6 +11,36 @@ import {
 } from "lucide-react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
+export type ToastPosition = "top-right" | "bottom-right" | "bottom-center" | "top-center" | "none";
+
+export function getToastPosition(
+  title?: string,
+  explicitPosition?: ToastPosition
+): "top-right" | "bottom-right" | "bottom-center" | "top-center" {
+  if (explicitPosition && explicitPosition !== "none") return explicitPosition;
+  const lower = (title || "").toLowerCase();
+  if (
+    lower.includes("delete") ||
+    lower.includes("remove") ||
+    lower.includes("purge") ||
+    lower.includes("trash")
+  ) {
+    return "bottom-right";
+  }
+  return "top-right";
+}
+
+export const TOAST_POSITION_CLASSES: Record<ToastPosition, string> = {
+  "top-right":
+    "fixed top-4 sm:top-6 right-3 sm:right-6 left-3 sm:left-auto z-50 w-auto max-w-[calc(100vw-24px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-top-3 sm:slide-in-from-right-3 duration-200 flex justify-end",
+  "bottom-right":
+    "fixed bottom-16 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto z-50 w-auto max-w-[calc(100vw-24px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-end",
+  "bottom-center":
+    "fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100vw-24px)] sm:w-auto sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
+  "top-center":
+    "fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-24px)] sm:max-w-lg pointer-events-auto animate-in fade-in slide-in-from-top-3 duration-200 flex justify-center",
+  none: "",
+};
 
 export interface ExecutiveToastProps {
   type?: ToastType;
@@ -18,6 +48,7 @@ export interface ExecutiveToastProps {
   description?: string;
   headerMeta?: string;
   metric?: string;
+  position?: ToastPosition;
   action?: {
     label: string;
     onClick: () => void;
@@ -32,6 +63,7 @@ export function ExecutiveToast({
   description,
   headerMeta,
   metric,
+  position,
   action,
   onClose,
   durationMs = 4000,
@@ -66,11 +98,11 @@ export function ExecutiveToast({
       ? "Active Process"
       : "Synced");
 
-  return (
+  const card = (
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-zinc-200/90 overflow-hidden w-full max-w-[calc(100vw-24px)] sm:max-w-lg transition-all duration-300 ring-1 ring-zinc-950/10"
+      className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-zinc-200/90 overflow-hidden w-full max-w-[calc(100vw-24px)] sm:max-w-md transition-all duration-300 ring-1 ring-zinc-950/10 pointer-events-auto"
     >
       {/* Executive Top Header Bar: Clean workspace context */}
       <div className="bg-gradient-to-r from-zinc-100/90 via-zinc-50 to-zinc-100/90 px-3.5 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-2 border-b border-zinc-200/80">
@@ -168,4 +200,10 @@ export function ExecutiveToast({
       </div>
     </div>
   );
+
+  if (position && position !== "none") {
+    return <div className={TOAST_POSITION_CLASSES[position]}>{card}</div>;
+  }
+
+  return card;
 }

@@ -23,7 +23,11 @@ import {
   User,
   Sparkles,
 } from "lucide-react";
-import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
+import {
+  ExecutiveToast,
+  getToastPosition,
+  TOAST_POSITION_CLASSES,
+} from "@/components/ui/ExecutiveToast";
 
 export interface InvoiceRecord {
   id?: string;
@@ -834,10 +838,10 @@ export function InvoicesView() {
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
       {/* ==================================================== */}
-      {/* FLOATING TOP-CENTER NOTIFICATIONS (STATUS & COPY)    */}
+      {/* FLOATING NOTIFICATIONS (SEMANTIC SPATIAL PLACEMENT)  */}
       {/* ==================================================== */}
       {statusMessage && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+        <div className={TOAST_POSITION_CLASSES[getToastPosition(statusMessage.text)]}>
           <ExecutiveToast
             type={statusMessage.type}
             title={statusMessage.text}
@@ -850,7 +854,7 @@ export function InvoicesView() {
       )}
 
       {copiedNotification && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+        <div className={TOAST_POSITION_CLASSES["top-right"]}>
           <ExecutiveToast
             type="info"
             title={copiedNotification}
@@ -860,6 +864,26 @@ export function InvoicesView() {
             onClose={() => setCopiedNotification(null)}
             durationMs={3500}
           />
+        </div>
+      )}
+
+      {/* Floating File Processing & Uploading Indicator (Bottom-Center) */}
+      {isProcessing && (
+        <div className="fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100vw-24px)] sm:w-80 max-w-sm animate-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
+          <div className="bg-white/98 border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-900/10 p-2.5 px-3.5 flex items-center justify-between gap-3 backdrop-blur-md ring-1 ring-slate-900/5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse ring-2 ring-blue-200 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-900 truncate">
+                  Processing Ledger File...
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  Purging and inserting fresh records
+                </div>
+              </div>
+            </div>
+            <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+          </div>
         </div>
       )}
 
