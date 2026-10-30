@@ -626,19 +626,19 @@ export function InvoicesView() {
         </div>
       )}
 
-      {/* Top Header Row (Export CSV, Purge, and Refresh buttons removed as requested) */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+      {/* Top Header Row */}
+      <div className="flex flex-row items-center justify-between gap-3 pb-3 sm:pb-6 border-b border-slate-200/60">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate sm:whitespace-normal">
             Overdue Invoices
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1 hidden xs:block">
             Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
           </p>
         </div>
 
-        {/* Sole Action: Dedicated Upload Button (Feels like a real upload component with compact width) */}
-        <div className="flex items-center gap-2.5 self-start sm:self-center">
+        {/* Sole Action: Upload Button (Compact on mobile, rich dropzone on desktop) */}
+        <div className="flex items-center gap-2 shrink-0">
           <input
             type="file"
             ref={fileInputRef}
@@ -653,6 +653,7 @@ export function InvoicesView() {
             }}
           />
 
+          {/* Desktop Rich Button */}
           <button
             type="button"
             disabled={isProcessing}
@@ -673,7 +674,7 @@ export function InvoicesView() {
                 fileInputRef.current.click();
               }
             }}
-            className={`group relative inline-flex items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${
+            className={`hidden sm:inline-flex group relative items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${
               isDragHover
                 ? "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
                 : "bg-[#2563eb] hover:bg-blue-600 active:scale-98 text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35"
@@ -695,6 +696,26 @@ export function InvoicesView() {
                 Drop or select .csv / .xlsx
               </div>
             </div>
+          </button>
+
+          {/* Mobile Compact Button: Saves massive vertical space on phones */}
+          <button
+            type="button"
+            disabled={isProcessing}
+            onClick={() => {
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+                fileInputRef.current.click();
+              }
+            }}
+            className="sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50"
+          >
+            {isProcessing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+            ) : (
+              <Upload className="w-3.5 h-3.5 text-white" />
+            )}
+            <span>Upload</span>
           </button>
         </div>
       </div>
