@@ -31,6 +31,7 @@ import {
   Shield,
   FileCheck,
 } from "lucide-react";
+import { ExecutiveToast, ToastType } from "@/components/ui/ExecutiveToast";
 
 type NotifCategory = "security" | "success" | "warning" | "info";
 type ProfessionalStyleId = "chrono-dial" | "instrument-gyro" | "architectural-chassis" | "studio-capsule";
@@ -117,7 +118,7 @@ export function DesignLabView() {
     if (!isMounted || !activeLiveToast || typeof document === "undefined") return null;
 
     return createPortal(
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[94%] sm:w-auto animate-in fade-in slide-in-from-top-6 duration-300 pointer-events-auto">
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-6 duration-300 pointer-events-auto">
         {renderNotificationCard(activeLiveToast.styleId, activeLiveToast.category, true)}
       </div>,
       document.body
@@ -354,102 +355,35 @@ export function DesignLabView() {
 
     // =========================================================================
     // STYLE 03: Architectural Executive Chassis (Refined Cartridge)
-    // Replaces the retro-synth look with a sleek luxury hardware aesthetic.
+    // WINNING PROJECT STANDARD: Architectural Executive Chassis
     // =========================================================================
     if (styleId === "architectural-chassis") {
+      const categoryType: ToastType =
+        category === "security"
+          ? "error"
+          : category === "warning"
+          ? "warning"
+          : category === "info"
+          ? "info"
+          : "success";
+
       return (
-        <div
-          className={`relative bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-zinc-200/90 overflow-hidden transition-all duration-300 ${
-            isLive ? "shadow-2xl shadow-zinc-950/15 max-w-lg ring-1 ring-zinc-900/10" : "w-full"
-          }`}
-        >
-          {/* Executive Top Header Bar: Clean workspace context, zero retro clutter */}
-          <div className="bg-gradient-to-r from-zinc-100/90 via-zinc-50 to-zinc-100/90 px-4 py-2 flex items-center justify-between border-b border-zinc-200/80">
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full animate-pulse ${
-                  category === "security"
-                    ? "bg-rose-500 ring-2 ring-rose-200"
-                    : category === "warning"
-                    ? "bg-amber-500 ring-2 ring-amber-200"
-                    : category === "info"
-                    ? "bg-blue-500 ring-2 ring-blue-200"
-                    : "bg-emerald-500 ring-2 ring-emerald-200"
-                }`}
-              />
-              <span className="text-[11px] font-bold text-zinc-800 tracking-tight">
-                {data.headerMeta}
-              </span>
-            </div>
-
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-white text-zinc-600 border border-zinc-200 shadow-2xs tabular-nums">
-              {data.metric}
-            </span>
-          </div>
-
-          {/* Main Content Area */}
-          <div className="p-4 sm:p-5">
-            <div className="flex items-center gap-4">
-              {/* Recessed Precision Well with Subtle Breathing Icon */}
-              <div className="relative shrink-0 w-11 h-11 rounded-2xl bg-zinc-50 border border-zinc-200 shadow-inner flex items-center justify-center">
-                <span
-                  className={`absolute inset-0 rounded-2xl border animate-ping opacity-20 ${
-                    category === "security"
-                      ? "border-rose-500"
-                      : category === "warning"
-                      ? "border-amber-500"
-                      : category === "info"
-                      ? "border-blue-500"
-                      : "border-emerald-500"
-                  }`}
-                />
-
-                <div className="w-8 h-8 rounded-xl bg-white border border-zinc-200 shadow-2xs flex items-center justify-center text-zinc-900">
-                  {category === "security" ? (
-                    <ShieldCheck className="w-4 h-4 text-rose-600 animate-pulse" />
-                  ) : category === "warning" ? (
-                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  ) : category === "info" ? (
-                    <Zap className="w-4 h-4 text-blue-600 animate-bounce" />
-                  ) : (
-                    <FileCheck className="w-4 h-4 text-emerald-600" />
-                  )}
-                </div>
-              </div>
-
-              {/* Title & Subtitle */}
-              <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-black text-zinc-900 tracking-tight truncate">
-                  {data.title}
-                </h4>
-                <p className="text-xs text-zinc-500 mt-0.5 truncate leading-relaxed">
-                  {data.subtitle}
-                </p>
-              </div>
-
-              {/* Professional Action Button */}
-              <div className="shrink-0 flex items-center gap-2">
-                <button
-                  type="button"
-                  className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>{data.actionText}</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-zinc-300" />
-                </button>
-                {isLive && (
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer"
-                    aria-label="Close"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ExecutiveToast
+          type={categoryType}
+          title={data.title}
+          description={data.subtitle}
+          headerMeta={data.headerMeta}
+          metric={data.metric}
+          action={{
+            label: data.actionText,
+            onClick: () => {
+              if (isLive) handleClose();
+              else triggerToast("architectural-chassis");
+            },
+          }}
+          onClose={isLive ? handleClose : undefined}
+          durationMs={isLive ? 6000 : undefined}
+        />
       );
     }
 
@@ -688,14 +622,20 @@ export function DesignLabView() {
           </div>
         </div>
 
-        {/* Concept 3: Architectural Executive Chassis */}
-        <div className="bg-zinc-50/80 rounded-3xl border border-zinc-200 p-5 sm:p-6 flex flex-col justify-between space-y-4 hover:border-zinc-300 transition-all shadow-xs">
+        {/* Concept 3: Architectural Executive Chassis (Active Selected Standard) */}
+        <div className="bg-white rounded-3xl border-2 border-emerald-500/80 p-5 sm:p-6 flex flex-col justify-between space-y-4 hover:border-emerald-600 transition-all shadow-lg ring-4 ring-emerald-500/10">
           <div>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-                  REFINED 03 // EXECUTIVE CHASSIS
-                </span>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
+                    REFINED 03 // EXECUTIVE CHASSIS
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <Check className="w-2.5 h-2.5" />
+                    ACTIVE APP STANDARD
+                  </span>
+                </div>
                 <h3 className="text-lg font-black text-zinc-900 tracking-tight">
                   Architectural Executive Chassis
                 </h3>
@@ -719,8 +659,8 @@ export function DesignLabView() {
             </div>
           </div>
 
-          <div className="pt-3 border-t border-zinc-200/80 flex items-center justify-between text-[11px] text-zinc-500">
-            <span>Top Context Bar • Recessed Well • Enterprise Action</span>
+          <div className="pt-3 border-t border-emerald-200/80 flex items-center justify-between text-[11px] text-zinc-600 font-medium">
+            <span className="text-emerald-700 font-bold">Standardized across Drive, Notes, Usage, Master Control & Invoices</span>
             <span className="font-mono text-zinc-400">#CHASSIS-CORP</span>
           </div>
         </div>

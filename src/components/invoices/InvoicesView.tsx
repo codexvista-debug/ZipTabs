@@ -20,6 +20,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
+import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
 
 export interface InvoiceRecord {
   id?: string;
@@ -513,50 +514,29 @@ export function InvoicesView() {
       {/* FLOATING TOP-CENTER NOTIFICATIONS (STATUS & COPY)    */}
       {/* ==================================================== */}
       {statusMessage && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-lg w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
-          <div
-            className={`p-3.5 px-5 rounded-2xl shadow-2xl flex items-center justify-between gap-4 border ${
-              statusMessage.type === "success"
-                ? "bg-slate-950 text-white border-slate-800"
-                : "bg-rose-950 text-white border-rose-800"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              {statusMessage.type === "success" ? (
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              ) : (
-                <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-4 h-4" />
-                </div>
-              )}
-              <span className="text-xs font-semibold leading-snug">{statusMessage.text}</span>
-            </div>
-            <button
-              onClick={() => setStatusMessage(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-              title="Dismiss"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+          <ExecutiveToast
+            type={statusMessage.type}
+            title={statusMessage.text}
+            headerMeta="Vendor Accounts Ledger"
+            metric={statusMessage.type === "error" ? "Import Alert" : "Ledger Synced"}
+            onClose={() => setStatusMessage(null)}
+            durationMs={4000}
+          />
         </div>
       )}
 
       {copiedNotification && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-lg w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className="p-3.5 px-5 rounded-2xl bg-slate-950 text-white text-xs font-medium shadow-2xl flex items-center gap-3 border border-slate-800">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-              <Check className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="font-bold text-white">{copiedNotification}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">
-                Ready to paste directly into Zoho Mail with blue headers and borders.
-              </div>
-            </div>
-          </div>
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+          <ExecutiveToast
+            type="info"
+            title={copiedNotification}
+            description="Formatted for Zoho Mail with blue table headers and cell borders."
+            headerMeta="Zoho Mail Clipboard"
+            metric="Copied HTML"
+            onClose={() => setCopiedNotification(null)}
+            durationMs={3500}
+          />
         </div>
       )}
 

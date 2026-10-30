@@ -34,6 +34,7 @@ import {
   Ghost,
   X,
 } from "lucide-react";
+import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
 
 interface AppUserRecord {
   id: string;
@@ -915,30 +916,17 @@ export function MasterControlView() {
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
-      {/* Premium Elevated Toast Notification (Instant feedback) */}
+      {/* Premium Elevated Toast Notification (Architectural Executive Chassis) */}
       {actionMessage && (
-        <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
-          <div
-            className={`px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold flex items-center gap-3 backdrop-blur-md transition-all ${
-              actionMessage.type === "success"
-                ? "bg-slate-900/95 text-white border-slate-700 shadow-slate-900/30"
-                : "bg-rose-600/95 text-white border-rose-500 shadow-rose-900/40"
-            }`}
-          >
-            <div
-              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                actionMessage.type === "success" ? "bg-emerald-500/20 text-emerald-400" : "bg-white/20 text-white"
-              }`}
-            >
-              {actionMessage.type === "success" ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 text-white" />
-              )}
-            </div>
-            <span className="tracking-wide">{actionMessage.text}</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-1" />
-          </div>
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-md animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-auto">
+          <ExecutiveToast
+            type={actionMessage.type}
+            title={actionMessage.text}
+            headerMeta="Chief Security Operations"
+            metric={actionMessage.type === "error" ? "Action Blocked" : "Executed"}
+            onClose={() => setActionMessage(null)}
+            durationMs={3500}
+          />
         </div>
       )}
 

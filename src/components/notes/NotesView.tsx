@@ -45,6 +45,7 @@ import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/Full
 import { downloadFileDirectly } from "@/lib/download";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import { extractTextFromImageFile } from "@/lib/ocr";
+import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
 
 export interface NoteAttachment {
   id: string;
@@ -1463,41 +1464,19 @@ export function NotesView() {
 
   return (
     <div className="space-y-6 relative pb-16">
-      {/* Toast Notification */}
+      {/* Toast Notification (Architectural Executive Chassis) */}
       {toastNotification &&
         renderPortal(
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
-            <div
-              className={`p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 border ${
-                toastNotification.type === "error"
-                  ? "bg-rose-950/95 border-rose-800 text-white"
-                  : "bg-[#0c1427]/95 border-[#1b2b4d] text-white backdrop-blur-md"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                {toastNotification.type === "error" ? (
-                  <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
-                    <AlertCircle className="w-4 h-4" />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-white truncate">{toastNotification.title}</div>
-                  {toastNotification.description && (
-                    <div className="text-[11px] text-slate-300 mt-0.5 truncate">{toastNotification.description}</div>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => setToastNotification(null)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+            <ExecutiveToast
+              type={toastNotification.type}
+              title={toastNotification.title}
+              description={toastNotification.description}
+              headerMeta="Notes & Reminders Engine"
+              metric={toastNotification.type === "error" ? "Action Blocked" : "Workspace Synced"}
+              onClose={() => setToastNotification(null)}
+              durationMs={4000}
+            />
           </div>
         )}
 

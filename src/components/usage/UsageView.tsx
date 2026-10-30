@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 import { downloadFileDirectly } from "@/lib/download";
+import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
 
 export interface StoredFile {
   id: string;
@@ -195,14 +196,18 @@ export function UsageView() {
 
   return (
     <div className="space-y-6 relative pb-16">
-      {/* Toast Notification */}
+      {/* Toast Notification (Architectural Executive Chassis) */}
       {toastMessage &&
         renderPortal(
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
-            <div className="p-3.5 px-5 rounded-2xl bg-[#0c1427] text-white text-xs font-semibold shadow-2xl flex items-center gap-2.5 border border-[#1b2b4d]">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{toastMessage}</span>
-            </div>
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+            <ExecutiveToast
+              type={toastMessage.toLowerCase().includes("error") || toastMessage.toLowerCase().includes("fail") ? "error" : "success"}
+              title={toastMessage}
+              headerMeta="Supabase Storage Engine"
+              metric="Usage Quota"
+              onClose={() => setToastMessage(null)}
+              durationMs={3500}
+            />
           </div>
         )}
 

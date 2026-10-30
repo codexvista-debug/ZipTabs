@@ -36,6 +36,7 @@ import {
 import { UniversalFileViewer } from "./UniversalFileViewer";
 import { downloadFileDirectly } from "@/lib/download";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
+import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
 
 export interface DriveFolder {
   id: string;
@@ -554,29 +555,19 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         }
       }}
     >
-      {/* Toast Notification */}
+      {/* Toast Notification (Architectural Executive Chassis) */}
       {toast &&
         renderPortal(
-          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] sm:w-auto animate-in fade-in slide-in-from-top-4 duration-200">
-            <div
-              className={`p-3.5 px-5 rounded-2xl shadow-2xl flex items-center justify-between gap-3 border ${
-                toast.type === "error"
-                  ? "bg-rose-950 text-white border-rose-800"
-                  : "bg-[#0c1427] text-white border-[#1b2b4d]"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                {toast.type === "error" ? (
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                )}
-                <div className="text-xs font-bold">{toast.title}</div>
-              </div>
-              {toast.description && (
-                <span className="text-[11px] text-slate-300 font-normal truncate max-w-xs">{toast.description}</span>
-              )}
-            </div>
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[calc(100vw-24px)] sm:max-w-lg flex justify-center animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+            <ExecutiveToast
+              type={toast.type}
+              title={toast.title}
+              description={toast.description}
+              headerMeta="Supabase Drive Storage"
+              metric={toast.type === "error" ? "Storage Alert" : "Vault Synced"}
+              onClose={() => setToast(null)}
+              durationMs={3500}
+            />
           </div>
         )}
 
