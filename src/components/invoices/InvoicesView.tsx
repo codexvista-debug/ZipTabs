@@ -606,9 +606,9 @@ export function InvoicesView() {
       </div>
 
       {/* Main Table Container */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs">
         {/* Table Filters & Search Toolbar */}
-        <div className="p-4 border-b border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+        <div className="p-4 border-b border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
           {/* Search Input */}
           <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -721,19 +721,107 @@ export function InvoicesView() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <table className="w-full text-left border-collapse min-w-[680px]">
-              <thead>
-                <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-5">Vendor</th>
-                  <th className="py-3.5 px-4">Invoice</th>
-                  <th className="py-3.5 px-4 text-right">Amount Due</th>
-                  <th className="py-3.5 px-4 text-center">Due Date</th>
-                  <th className="py-3.5 px-4 text-center">Aging</th>
-                  <th className="py-3.5 px-5 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs font-medium">
+          <>
+            {/* Desktop Full Table View (>= md) */}
+            <div className="hidden md:block">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="sticky top-0 z-20 py-3.5 px-5 bg-slate-50 border-b border-slate-200/80 shadow-2xs">Vendor</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-4 bg-slate-50 border-b border-slate-200/80 shadow-2xs font-mono">Invoice</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-4 text-right bg-slate-50 border-b border-slate-200/80 shadow-2xs">Amount Due</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-4 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Due Date</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-4 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Aging</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-5 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-medium">
+                  {paginatedInvoices.map((inv, idx) => {
+                    const rowId = inv.id || inv.invoice_number || inv.vendor_name;
+                    const isSelected = selectedIds.has(rowId);
+                    const isHighAlert = inv.days_overdue > 60;
+                    const isMediumAlert = inv.days_overdue > 30 && inv.days_overdue <= 60;
+
+                    return (
+                      <tr
+                        key={rowId || idx}
+                        onClick={() => toggleSelectRow(rowId)}
+                        className={`cursor-pointer transition-colors select-none ${
+                          isSelected
+                            ? "bg-blue-50/90 hover:bg-blue-100/70"
+                            : "hover:bg-slate-50/80"
+                        }`}
+                      >
+                        {/* 1. Vendor */}
+                        <td className="py-3.5 px-5">
+                          <div className="font-bold text-slate-900 break-words max-w-sm">
+                            {inv.vendor_name}
+                          </div>
+                        </td>
+
+                        {/* 2. Invoice */}
+                        <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap">
+                          {inv.invoice_number || "—"}
+                        </td>
+
+                        {/* 3. Amount Due */}
+                        <td className="py-3.5 px-4 text-right font-black text-slate-900 whitespace-nowrap">
+                          ${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+
+                        {/* 4. Due Date */}
+                        <td className="py-3.5 px-4 text-center text-slate-600 font-mono whitespace-nowrap">
+                          {formatDateMMDDYYYY(inv.due_date)}
+                        </td>
+
+                        {/* 5. Aging (Number only, no 'days') */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          {inv.days_overdue > 0 ? (
+                            <span
+                              className={`inline-flex items-center justify-center min-w-10 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                isHighAlert
+                                  ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                  : isMediumAlert
+                                  ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                  : "bg-orange-50 text-orange-700 border border-orange-200"
+                              }`}
+                            >
+                              <span>{inv.days_overdue}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3.5 px-5 text-center whitespace-nowrap">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              inv.days_overdue > 0
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            }`}
+                          >
+                            {inv.status || "Overdue"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile / Tablet Responsive View (< md) - Zero horizontal scroll, all details in one go */}
+            <div className="block md:hidden">
+              {/* Sticky Mobile Header Row */}
+              <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-xs px-4 py-2.5 border-b border-slate-200/80 shadow-2xs flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <span>Vendor & Invoice</span>
+                <span>Amount & Aging</span>
+              </div>
+
+              {/* Mobile Invoice Rows */}
+              <div className="divide-y divide-slate-100">
                 {paginatedInvoices.map((inv, idx) => {
                   const rowId = inv.id || inv.invoice_number || inv.vendor_name;
                   const isSelected = selectedIds.has(rowId);
@@ -741,79 +829,74 @@ export function InvoicesView() {
                   const isMediumAlert = inv.days_overdue > 30 && inv.days_overdue <= 60;
 
                   return (
-                    <tr
+                    <div
                       key={rowId || idx}
                       onClick={() => toggleSelectRow(rowId)}
-                      className={`cursor-pointer transition-colors select-none ${
+                      className={`p-3.5 transition-colors cursor-pointer select-none flex items-start justify-between gap-3 ${
                         isSelected
-                          ? "bg-blue-50/90 hover:bg-blue-100/70"
-                          : "hover:bg-slate-50/80"
+                          ? "bg-blue-50/90 border-l-4 border-l-blue-600"
+                          : "hover:bg-slate-50/80 bg-white border-l-4 border-l-transparent"
                       }`}
                     >
-                      {/* 1. Vendor (Notes removed completely as requested) */}
-                      <td className="py-3.5 px-5">
-                        <div className="font-bold text-slate-900">
+                      {/* Left: Vendor & Invoice Details */}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900 text-xs leading-snug break-words">
                           {inv.vendor_name}
                         </div>
-                      </td>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-slate-500 font-medium">
+                          <span className="font-mono text-slate-700 bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded text-[10px] font-semibold">
+                            #{inv.invoice_number || "—"}
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-slate-500">
+                            Due {formatDateMMDDYYYY(inv.due_date)}
+                          </span>
+                        </div>
+                      </div>
 
-                      {/* 2. Invoice */}
-                      <td className="py-3.5 px-4 font-mono text-slate-600">
-                        {inv.invoice_number || "—"}
-                      </td>
-
-                      {/* 3. Amount Due */}
-                      <td className="py-3.5 px-4 text-right font-black text-slate-900">
-                        ${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-
-                      {/* 4. Due Date */}
-                      <td className="py-3.5 px-4 text-center text-slate-600 font-mono">
-                        {formatDateMMDDYYYY(inv.due_date)}
-                      </td>
-
-                      {/* 5. Aging (Number only, no 'days') */}
-                      <td className="py-3.5 px-4 text-center">
-                        {inv.days_overdue > 0 ? (
+                      {/* Right: Amount & Overdue Aging */}
+                      <div className="text-right shrink-0">
+                        <div className="font-black text-slate-900 text-xs sm:text-sm">
+                          ${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        <div className="flex items-center justify-end gap-1.5 mt-1">
+                          {inv.days_overdue > 0 ? (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                isHighAlert
+                                  ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                  : isMediumAlert
+                                  ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                  : "bg-orange-50 text-orange-700 border border-orange-200"
+                              }`}
+                            >
+                              {inv.days_overdue}d
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[10px] font-medium">0d</span>
+                          )}
                           <span
-                            className={`inline-flex items-center justify-center min-w-10 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                              isHighAlert
-                                ? "bg-rose-100 text-rose-800 border border-rose-200"
-                                : isMediumAlert
-                                ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                : "bg-orange-50 text-orange-700 border border-orange-200"
+                            className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                              inv.days_overdue > 0
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             }`}
                           >
-                            <span>{inv.days_overdue}</span>
+                            {inv.status || "Overdue"}
                           </span>
-                        ) : (
-                          <span className="text-slate-400">0</span>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-5 text-center">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            inv.days_overdue > 0
-                              ? "bg-rose-50 text-rose-700 border border-rose-200"
-                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          }`}
-                        >
-                          {inv.status || "Overdue"}
-                        </span>
-                      </td>
-                    </tr>
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Table Footer with 50-row Pagination Controls */}
         {filteredInvoices.length > 0 && (
-          <div className="p-4 border-t border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
+          <div className="p-4 border-t border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 rounded-b-2xl">
             <div className="flex items-center gap-2">
               <span>
                 Showing <strong>{startIndex + 1}</strong>–<strong>{endIndex}</strong> of <strong>{filteredInvoices.length}</strong> records (up to 50 per page)
@@ -859,7 +942,7 @@ export function InvoicesView() {
 
       {/* Floating Bottom Action Bar when Rows are Selected */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-3 sm:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-200 max-w-[calc(100vw-24px)] w-auto">
           <div className="flex items-center gap-2 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
             <span>
