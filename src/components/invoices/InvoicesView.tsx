@@ -32,6 +32,59 @@ export interface InvoiceRecord {
   created_at?: string;
 }
 
+/**
+ * Accurately calculates the exact number of calendar days overdue from a due date to today.
+ * Uses pure UTC calendar date math to prevent daylight savings and timezone boundary shifts.
+ */
+export function calculateAgingDaysFromDueDate(dueDateStr?: string | number | null): number {
+  if (!dueDateStr) return 0;
+
+  let year: number, month: number, day: number;
+
+  if (typeof dueDateStr === "number" && dueDateStr > 25000 && dueDateStr < 60000) {
+    // Excel serial date (e.g. 45780)
+    const jsDate = new Date((dueDateStr - 25569) * 86400 * 1000);
+    year = jsDate.getUTCFullYear();
+    month = jsDate.getUTCMonth();
+    day = jsDate.getUTCDate();
+  } else {
+    const str = String(dueDateStr).trim();
+    if (!str || str === "—") return 0;
+
+    // 1. MM/DD/YYYY
+    const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+      month = parseInt(slashMatch[1], 10) - 1;
+      day = parseInt(slashMatch[2], 10);
+      year = parseInt(slashMatch[3], 10);
+    } else {
+      // 2. YYYY-MM-DD
+      const dashMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (dashMatch) {
+        year = parseInt(dashMatch[1], 10);
+        month = parseInt(dashMatch[2], 10) - 1;
+        day = parseInt(dashMatch[3], 10);
+      } else {
+        const parsed = new Date(str);
+        if (isNaN(parsed.getTime())) return 0;
+        year = parsed.getFullYear();
+        month = parsed.getMonth();
+        day = parsed.getDate();
+      }
+    }
+  }
+
+  // Today in local calendar components:
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueUtc = Date.UTC(year, month, day);
+
+  const diffMs = todayUtc - dueUtc;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  return Math.max(0, diffDays);
+}
+
 export function InvoicesView() {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,7 +134,39 @@ export function InvoicesView() {
       if (error) {
         console.error("Error loading invoices from Supabase:", error);
       } else if (data) {
-        setInvoices(data);
+        // Recalculate real-time aging as of today for all invoices
+        const updated = data.map((inv) => {
+          if (inv.due_date && inv.due_date !== "—") {
+            const dynamicDays = calculateAgingDaysFromDueDate(inv.due_date);
+            return {
+              ...inv,
+              days_overdue: dynamicDays,
+              status: dynamicDays > 0 ? (inv.status && inv.status !== "Current" ? inv.status : "Overdue") : "Current",
+            };
+          }
+          return inv;
+        });
+
+        setInvoices(updated);
+
+        // Background sync: update database rows that have mismatched days_overdue
+        const mismatched = updated.filter(
+          (inv, idx) => inv.id && inv.days_overdue !== data[idx].days_overdue
+        );
+        if (mismatched.length > 0) {
+          (async () => {
+            try {
+              for (const item of mismatched) {
+                await supabase
+                  .from("invoices")
+                  .update({ days_overdue: item.days_overdue, status: item.status })
+                  .eq("id", item.id);
+              }
+            } catch (syncErr) {
+              console.warn("Background aging sync warning:", syncErr);
+            }
+          })();
+        }
       }
     } catch (err) {
       console.error("Failed to load invoices:", err);
@@ -108,19 +193,16 @@ export function InvoicesView() {
     return isNaN(parsed) ? 0 : parsed;
   };
 
-  // Helper to extract clean days overdue
+  // Helper to extract clean days overdue (prioritizes due_date to today)
   const parseDays = (val: any, dueDateVal: any): number => {
+    // 1. If we have a valid due date, ALWAYS calculate aging accurately from due date to today:
+    if (dueDateVal && dueDateVal !== "—") {
+      return calculateAgingDaysFromDueDate(dueDateVal);
+    }
+    // 2. Fallback to numeric value from file only if no due date exists:
     if (typeof val === "number") return Math.max(0, Math.floor(val));
     if (val && !isNaN(parseInt(val, 10))) {
       return Math.max(0, parseInt(val, 10));
-    }
-    if (dueDateVal) {
-      const parsedDate = new Date(dueDateVal);
-      if (!isNaN(parsedDate.getTime())) {
-        const diffMs = Date.now() - parsedDate.getTime();
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        return Math.max(0, diffDays);
-      }
     }
     return 0;
   };
