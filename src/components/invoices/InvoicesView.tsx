@@ -9,9 +9,6 @@ import {
   FileSpreadsheet,
   Search,
   AlertCircle,
-  Clock,
-  DollarSign,
-  Users,
   CheckCircle2,
   Loader2,
   Copy,
@@ -39,6 +36,7 @@ export function InvoicesView() {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDragHover, setIsDragHover] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Search & Filter State
@@ -369,12 +367,6 @@ export function InvoicesView() {
       return 0;
     });
 
-  // Calculate Metrics
-  const totalOverdueAmount = invoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
-  const totalOverdueCount = invoices.filter((inv) => inv.days_overdue > 0).length;
-  const uniqueVendorsCount = new Set(invoices.map((inv) => inv.vendor_name.toLowerCase())).size;
-  const criticalOverdueCount = invoices.filter((inv) => inv.days_overdue > 60).length;
-
   // Pagination Calculations (50 rows per page)
   const totalPages = Math.ceil(filteredInvoices.length / pageSize) || 1;
   const startIndex = (currentPage - 1) * pageSize;
@@ -551,8 +543,8 @@ export function InvoicesView() {
           </p>
         </div>
 
-        {/* Sole Action Button: Import File */}
-        <div className="flex items-center gap-2.5">
+        {/* Sole Action: Dedicated Upload Button (Feels like a real upload component with compact width) */}
+        <div className="flex items-center gap-2.5 self-start sm:self-center">
           <input
             type="file"
             ref={fileInputRef}
@@ -570,76 +562,46 @@ export function InvoicesView() {
           <button
             type="button"
             disabled={isProcessing}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragHover(true);
+            }}
+            onDragLeave={() => setIsDragHover(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragHover(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) handleFileUpload(file);
+            }}
             onClick={() => {
               if (fileInputRef.current) {
                 fileInputRef.current.value = "";
                 fileInputRef.current.click();
               }
             }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all cursor-pointer disabled:opacity-50"
+            className={`group relative inline-flex items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${
+              isDragHover
+                ? "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
+                : "bg-[#2563eb] hover:bg-blue-600 active:scale-98 text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35"
+            }`}
           >
-            {isProcessing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4" />
-            )}
-            <span>{isProcessing ? "Processing & Importing..." : "Import File (.csv / .xlsx)"}</span>
+            <div className="w-8 h-8 rounded-lg sm:rounded-xl bg-white/20 border border-white/25 flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform">
+              {isProcessing ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <Upload className="w-4 h-4 text-white" />
+              )}
+            </div>
+
+            <div className="text-left pr-1">
+              <div className="text-xs sm:text-[13px] font-bold leading-tight tracking-tight text-white flex items-center gap-1.5">
+                <span>{isProcessing ? "Processing File..." : "Upload File"}</span>
+              </div>
+              <div className="text-[10px] text-blue-100 font-medium leading-tight mt-0.5">
+                Drop or select .csv / .xlsx
+              </div>
+            </div>
           </button>
-        </div>
-      </div>
-
-      {/* Summary KPI Cards (2x2 on mobile, 4 columns on desktop) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className="truncate">Total Overdue</span>
-            <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
-          </div>
-          <div className="text-base sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2 truncate">
-            ${totalOverdueAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
-            Across {invoices.length} total entries
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className="truncate">Past Due Invoices</span>
-            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
-            {totalOverdueCount}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
-            Overdue items requiring action
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className="truncate">Unique Vendors</span>
-            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
-            {uniqueVendorsCount}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
-            Active vendor accounts
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className="truncate">Critical (60+ Days)</span>
-            <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-500 shrink-0" />
-          </div>
-          <div className={`text-xl sm:text-2xl font-black tracking-tight mt-1 sm:mt-2 ${criticalOverdueCount > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-            {criticalOverdueCount}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
-            High priority collections
-          </div>
         </div>
       </div>
 
