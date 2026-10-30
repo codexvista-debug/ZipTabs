@@ -89,28 +89,40 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December"
 ];
 
+const DASHBOARD_CACHE_KEY = "ziptabs_cached_dashboard_v1";
+
 export function DashboardView({ onNavigate }: DashboardViewProps) {
-  const [isLoading, setIsLoading] = useState(true);
+  const [cachedSnapshot] = useState<any>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = sessionStorage.getItem(DASHBOARD_CACHE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+    return null;
+  });
+
+  const [isLoading, setIsLoading] = useState(!cachedSnapshot);
 
   // Live Metrics
-  const [invoicesCount, setInvoicesCount] = useState(0);
-  const [totalInvoiceAmount, setTotalInvoiceAmount] = useState(0);
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [overdueAmount, setOverdueAmount] = useState(0);
-  const [uniqueVendorsCount, setUniqueVendorsCount] = useState(0);
-  const [topOverdueInvoices, setTopOverdueInvoices] = useState<InvoiceSummaryItem[]>([]);
+  const [invoicesCount, setInvoicesCount] = useState<number>(cachedSnapshot?.invoicesCount ?? 0);
+  const [totalInvoiceAmount, setTotalInvoiceAmount] = useState<number>(cachedSnapshot?.totalInvoiceAmount ?? 0);
+  const [overdueCount, setOverdueCount] = useState<number>(cachedSnapshot?.overdueCount ?? 0);
+  const [overdueAmount, setOverdueAmount] = useState<number>(cachedSnapshot?.overdueAmount ?? 0);
+  const [uniqueVendorsCount, setUniqueVendorsCount] = useState<number>(cachedSnapshot?.uniqueVendorsCount ?? 0);
+  const [topOverdueInvoices, setTopOverdueInvoices] = useState<InvoiceSummaryItem[]>(cachedSnapshot?.topOverdueInvoices ?? []);
 
   // Notes Metrics
-  const [notesCount, setNotesCount] = useState(0);
-  const [urgentNotesCount, setUrgentNotesCount] = useState(0);
-  const [recentNotes, setRecentNotes] = useState<NoteSummaryItem[]>([]);
+  const [notesCount, setNotesCount] = useState<number>(cachedSnapshot?.notesCount ?? 0);
+  const [urgentNotesCount, setUrgentNotesCount] = useState<number>(cachedSnapshot?.urgentNotesCount ?? 0);
+  const [recentNotes, setRecentNotes] = useState<NoteSummaryItem[]>(cachedSnapshot?.recentNotes ?? []);
 
   // Usage Metrics
-  const [storageBytes, setStorageBytes] = useState(0);
-  const [storageFilesCount, setStorageFilesCount] = useState(0);
-  const [databaseSizeBytes, setDatabaseSizeBytes] = useState(0);
-  const [driveFilesCount, setDriveFilesCount] = useState(0);
-  const [expiringDriveFiles, setExpiringDriveFiles] = useState<ExpiringDriveFile[]>([]);
+  const [storageBytes, setStorageBytes] = useState<number>(cachedSnapshot?.storageBytes ?? 0);
+  const [storageFilesCount, setStorageFilesCount] = useState<number>(cachedSnapshot?.storageFilesCount ?? 0);
+  const [databaseSizeBytes, setDatabaseSizeBytes] = useState<number>(cachedSnapshot?.databaseSizeBytes ?? 0);
+  const [driveFilesCount, setDriveFilesCount] = useState<number>(cachedSnapshot?.driveFilesCount ?? 0);
+  const [expiringDriveFiles, setExpiringDriveFiles] = useState<ExpiringDriveFile[]>(cachedSnapshot?.expiringDriveFiles ?? []);
 
   // Live Indian Standard Time (IST) Clock (Only for Executive Greeting element)
   const [istTimeStr, setIstTimeStr] = useState<string>("");
@@ -258,13 +270,16 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       ]);
 
       // 1. Process Invoices
+      let totalAmt = 0;
+      let ovdCount = 0;
+      let ovdAmt = 0;
+      let vendorsCount = 0;
+      let topOvd: InvoiceSummaryItem[] = [];
+
       if (invRes.data) {
         const rows = invRes.data as InvoiceSummaryItem[];
         setInvoicesCount(rows.length);
 
-        let totalAmt = 0;
-        let ovdCount = 0;
-        let ovdAmt = 0;
         const vendors = new Set<string>();
 
         rows.forEach((inv) => {
@@ -277,28 +292,31 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           if (inv.vendor_name) vendors.add(inv.vendor_name.trim());
         });
 
+        vendorsCount = vendors.size;
+        topOvd = rows.filter((r) => r.days_overdue > 0).slice(0, 4);
+
         setTotalInvoiceAmount(totalAmt);
         setOverdueCount(ovdCount);
         setOverdueAmount(ovdAmt);
-        setUniqueVendorsCount(vendors.size);
-
-        // Pick top 4 highest overdue invoices
-        const topOvd = rows.filter((r) => r.days_overdue > 0).slice(0, 4);
+        setUniqueVendorsCount(vendorsCount);
         setTopOverdueInvoices(topOvd);
       }
 
       // 2. Process Notes
+      let totalNotes = 0;
+      let urgentNotes = 0;
+      let recentNotesList: NoteSummaryItem[] = [];
+
       if (notesRes.data) {
         const notes = notesRes.data as NoteSummaryItem[];
-        setNotesCount(notes.length);
+        totalNotes = notes.length;
+        setNotesCount(totalNotes);
 
         // Calculate urgent / attention notes (High or Urgent priority, uncompleted)
-        let urgent = 0;
-
         notes.forEach((n) => {
           if (n.is_completed) return;
           if (n.priority === "urgent" || n.priority === "high") {
-            urgent++;
+            urgentNotes++;
           }
         });
 
@@ -311,8 +329,9 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           return pB - pA;
         });
 
-        setUrgentNotesCount(urgent);
-        setRecentNotes(sortedNotes.slice(0, 4));
+        recentNotesList = sortedNotes.slice(0, 4);
+        setUrgentNotesCount(urgentNotes);
+        setRecentNotes(recentNotesList);
       }
 
       // 3. Process Usage
@@ -324,8 +343,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       }
 
       // 4. Process Expiring Temp Stash Drive Files (Starting 3 days before auto-purge)
+      const expiring: ExpiringDriveFile[] = [];
       if (driveRes.data) {
-        const expiring: ExpiringDriveFile[] = [];
         const nowMs = Date.now();
         driveRes.data.forEach((f: any) => {
           if (!f.expires_at) return;
@@ -350,6 +369,29 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         });
         setExpiringDriveFiles(expiring);
       }
+
+      // Save snapshot to cache for instant 0ms reload
+      try {
+        sessionStorage.setItem(
+          DASHBOARD_CACHE_KEY,
+          JSON.stringify({
+            invoicesCount: invRes.data ? invRes.data.length : 0,
+            totalInvoiceAmount: totalAmt,
+            overdueCount: ovdCount,
+            overdueAmount: ovdAmt,
+            uniqueVendorsCount: vendorsCount,
+            topOverdueInvoices: topOvd,
+            notesCount: totalNotes,
+            urgentNotesCount: urgentNotes,
+            recentNotes: recentNotesList,
+            storageBytes: usageRes.data?.storage_bytes || 0,
+            storageFilesCount: usageRes.data?.storage_files || 0,
+            databaseSizeBytes: usageRes.data?.database_size_bytes || 0,
+            driveFilesCount: usageRes.data?.drive_files_count || 0,
+            expiringDriveFiles: expiring,
+          })
+        );
+      } catch {}
     } catch (err) {
       console.error("Dashboard data load error:", err);
     } finally {

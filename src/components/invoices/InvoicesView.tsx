@@ -141,8 +141,32 @@ export function isWithinReminderWindow(dueDateStr?: string | number | null): boo
 }
 
 export function InvoicesView() {
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const INVOICE_CACHE_KEY = "ziptabs_cached_invoices_v1";
+
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = sessionStorage.getItem(INVOICE_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = sessionStorage.getItem(INVOICE_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return false;
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragHover, setIsDragHover] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -242,25 +266,9 @@ export function InvoicesView() {
         });
 
         setInvoices(updated);
-
-        // Background sync: update database rows that have mismatched days_overdue
-        const mismatched = updated.filter(
-          (inv, idx) => inv.id && inv.days_overdue !== data[idx].days_overdue
-        );
-        if (mismatched.length > 0) {
-          (async () => {
-            try {
-              for (const item of mismatched) {
-                await supabase
-                  .from("invoices")
-                  .update({ days_overdue: item.days_overdue, status: item.status })
-                  .eq("id", item.id);
-              }
-            } catch (syncErr) {
-              console.warn("Background aging sync warning:", syncErr);
-            }
-          })();
-        }
+        try {
+          sessionStorage.setItem(INVOICE_CACHE_KEY, JSON.stringify(updated));
+        } catch {}
       }
     } catch (err) {
       console.error("Failed to load invoices:", err);

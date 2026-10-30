@@ -41,8 +41,10 @@ import {
   TrendingUp,
   Clock,
   ArrowUpRight,
+  Smartphone,
 } from "lucide-react";
 import { ExecutiveToast, ToastType } from "@/components/ui/ExecutiveToast";
+import { MobileBottomBar, MobileBottomBarStyle } from "@/components/layout/MobileBottomBar";
 
 type NotifCategory = "security" | "success" | "warning" | "info";
 type ProfessionalStyleId = "chrono-dial" | "instrument-gyro" | "architectural-chassis" | "studio-capsule";
@@ -164,7 +166,7 @@ const TAB_HEADER_DATA: Record<HeaderPreviewTab, HeaderData> = {
 };
 
 export function DesignLabView() {
-  const [activeStudioSection, setActiveStudioSection] = useState<"headers" | "notifications">("headers");
+  const [activeStudioSection, setActiveStudioSection] = useState<"headers" | "notifications" | "mobile-bar">("headers");
   const [selectedPreviewTab, setSelectedPreviewTab] = useState<HeaderPreviewTab>("invoices");
   const [selectedCategory, setSelectedCategory] = useState<NotifCategory>("security");
   const [liveWorkspaceStyle, setLiveWorkspaceStyle] = useState<string>("style-02");
@@ -175,13 +177,86 @@ export function DesignLabView() {
   } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
+  // Mobile Bottom Bar Studio States
+  const [mobileBottomBarStyle, setMobileBottomBarStyle] = useState<MobileBottomBarStyle>("bottom-style-01");
+  const [isLiveTestingTopHeaderDisabled, setIsLiveTestingTopHeaderDisabled] = useState(true);
+  const [isPermanentlyAppliedMobileBar, setIsPermanentlyAppliedMobileBar] = useState(false);
+
   useEffect(() => {
     setIsMounted(true);
     try {
       const saved = localStorage.getItem("ziptabs_active_header_style");
       if (saved) setLiveWorkspaceStyle(saved);
+
+      const savedMode = localStorage.getItem("ziptabs_mobile_top_header_hidden") === "true";
+      setIsPermanentlyAppliedMobileBar(savedMode);
+
+      const savedStyle = localStorage.getItem("ziptabs_mobile_bottom_bar_style") as MobileBottomBarStyle;
+      if (savedStyle && ["bottom-style-01", "bottom-style-02", "bottom-style-03", "bottom-style-04"].includes(savedStyle)) {
+        setMobileBottomBarStyle(savedStyle);
+      }
     } catch {}
   }, []);
+
+  // Sync with live mobile header in app
+  useEffect(() => {
+    if (activeStudioSection === "mobile-bar") {
+      window.dispatchEvent(
+        new CustomEvent("ziptabs-mobile-header-mode", {
+          detail: {
+            hideTopHeader: isLiveTestingTopHeaderDisabled,
+            bottomBarStyle: mobileBottomBarStyle,
+          },
+        })
+      );
+    } else {
+      window.dispatchEvent(
+        new CustomEvent("ziptabs-mobile-header-mode", {
+          detail: {
+            hideTopHeader: isPermanentlyAppliedMobileBar,
+            bottomBarStyle: mobileBottomBarStyle,
+          },
+        })
+      );
+    }
+  }, [activeStudioSection, isLiveTestingTopHeaderDisabled, mobileBottomBarStyle, isPermanentlyAppliedMobileBar]);
+
+  const applyMobileBarToLive = (styleId: MobileBottomBarStyle) => {
+    try {
+      localStorage.setItem("ziptabs_mobile_top_header_hidden", "true");
+      localStorage.setItem("ziptabs_mobile_bottom_bar_style", styleId);
+      setIsPermanentlyAppliedMobileBar(true);
+      setMobileBottomBarStyle(styleId);
+      window.dispatchEvent(
+        new CustomEvent("ziptabs-mobile-header-mode", {
+          detail: {
+            hideTopHeader: true,
+            bottomBarStyle: styleId,
+          },
+        })
+      );
+      setToastFeedback(`Mobile Bottom Bar (${styleId}) is now permanently active! Top header disabled on mobile.`);
+      setTimeout(() => setToastFeedback(null), 4000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const resetToStandardTopHeader = () => {
+    try {
+      localStorage.removeItem("ziptabs_mobile_top_header_hidden");
+      setIsPermanentlyAppliedMobileBar(false);
+      window.dispatchEvent(
+        new CustomEvent("ziptabs-mobile-header-mode", {
+          detail: {
+            hideTopHeader: false,
+          },
+        })
+      );
+      setToastFeedback(`Restored standard top header on mobile.`);
+      setTimeout(() => setToastFeedback(null), 4000);
+    } catch (e) {}
+  };
 
   const applyStyleToLiveWorkspace = (styleId: string) => {
     try {
@@ -464,11 +539,11 @@ export function DesignLabView() {
         </div>
 
         {/* Section Tabs */}
-        <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-center">
+        <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200/80 self-start sm:self-center overflow-x-auto max-w-full no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveStudioSection("headers")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               activeStudioSection === "headers"
                 ? "bg-white text-blue-600 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
@@ -480,7 +555,7 @@ export function DesignLabView() {
           <button
             type="button"
             onClick={() => setActiveStudioSection("notifications")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               activeStudioSection === "notifications"
                 ? "bg-white text-blue-600 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
@@ -488,6 +563,19 @@ export function DesignLabView() {
           >
             <Bell className="w-3.5 h-3.5" />
             <span>Notifications (Live)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStudioSection("mobile-bar")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeStudioSection === "mobile-bar"
+                ? "bg-white text-blue-600 shadow-xs ring-1 ring-blue-500/20"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5 text-blue-500" />
+            <span>Mobile Bar</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </button>
         </div>
       </div>
@@ -1031,6 +1119,328 @@ export function DesignLabView() {
               <div className="pt-3 border-t border-zinc-200/80 flex items-center justify-between text-[11px] text-zinc-500">
                 <span>Dark Tile Anchor • Corner Beacon • Clean Pill Action</span>
                 <span className="font-mono text-zinc-400">#SOLID-STATE</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MOBILE BAR STUDIO MODULE */}
+      {/* ========================================================================= */}
+      {activeStudioSection === "mobile-bar" && (
+        <div className="space-y-8 animate-in fade-in duration-200">
+          {/* Live Mobile Testing Control Center */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-4 sm:p-6 border border-slate-700/80 shadow-lg">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-400 bg-blue-950/70 border border-blue-800/60 px-2 py-0.5 rounded-md">
+                    LIVE MOBILE TESTING ENVIRONMENT
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                  Mobile Bottom Bar Testing Suite
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                  The top header is currently <span className="font-bold text-emerald-400">disabled</span> on mobile in this space. Experience how thumb-zone navigation feels without reaching to the top of your phone.
+                </p>
+              </div>
+
+              {/* Action Controls */}
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsLiveTestingTopHeaderDisabled(!isLiveTestingTopHeaderDisabled)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    isLiveTestingTopHeaderDisabled
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                      : "bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${isLiveTestingTopHeaderDisabled ? "bg-emerald-400" : "bg-slate-500"}`} />
+                  <span>{isLiveTestingTopHeaderDisabled ? "Top Header: Disabled" : "Top Header: Visible"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyMobileBarToLive(mobileBottomBarStyle)}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Set as Live Mobile Default</span>
+                </button>
+
+                {isPermanentlyAppliedMobileBar && (
+                  <button
+                    type="button"
+                    onClick={resetToStandardTopHeader}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-all cursor-pointer"
+                  >
+                    Reset to Top Header
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Phone Simulator & Architectural Analysis */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Phone Simulator Frame */}
+            <div className="lg:col-span-5 flex flex-col items-center">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                <span>Simulated Mobile Viewport (375 × 640)</span>
+              </div>
+
+              {/* iPhone Hardware Shell */}
+              <div className="w-full max-w-[340px] bg-slate-900 rounded-[44px] p-3 shadow-2xl border-4 border-slate-800 relative">
+                {/* Dynamic Island Pill */}
+                <div className="absolute top-5 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-full z-30 flex items-center justify-between px-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-950 border border-slate-800" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 animate-pulse" />
+                </div>
+
+                {/* Screen Content Canvas */}
+                <div className="w-full h-[540px] bg-[#f8fafc] rounded-[34px] overflow-hidden flex flex-col relative border border-slate-700/50">
+                  {/* Top Status Bar (No Top App Header!) */}
+                  <div className="pt-7 px-5 pb-2 flex items-center justify-between text-[11px] font-bold text-slate-400 bg-white/70 backdrop-blur-sm border-b border-slate-200/50">
+                    <span>9:41</span>
+                    <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">5G • 100%</span>
+                  </div>
+
+                  {/* Simulated Invoices App Body */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2.5 text-xs text-slate-800">
+                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">AR LEDGER</span>
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">438 Invoices</span>
+                      </div>
+                      <h4 className="font-black text-slate-900 text-sm">Overdue Invoices</h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Top header is hidden. Bottom dock controls navigation.</p>
+                    </div>
+
+                    {/* Sample Table Rows */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden divide-y divide-slate-100">
+                      <div className="p-2.5 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-slate-900 text-xs">Diverse Lynx - Prathyusha</div>
+                          <div className="text-[10px] text-slate-400">Inv #34038 • 70 Days</div>
+                        </div>
+                        <span className="font-black text-slate-900">$3,508.73</span>
+                      </div>
+                      <div className="p-2.5 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-slate-900 text-xs">Diverse Team - Yamini</div>
+                          <div className="text-[10px] text-slate-400">Inv #28769 • 46 Days</div>
+                        </div>
+                        <span className="font-black text-slate-900">$9,744.00</span>
+                      </div>
+                      <div className="p-2.5 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-slate-900 text-xs">Diverse Lynx - Mufrad</div>
+                          <div className="text-[10px] text-slate-400">Inv #34282 • Current</div>
+                        </div>
+                        <span className="font-black text-slate-900">$2,976.00</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Bar in Simulator */}
+                  <div className="shrink-0 bg-transparent">
+                    <MobileBottomBar
+                      styleId={mobileBottomBarStyle}
+                      activeTab="invoices"
+                      onSelectTab={(tab) => setToastFeedback(`Simulator: Switched to ${tab}`)}
+                      onOpenMenu={() => setToastFeedback("Simulator: Slide-out Navigation Drawer Opened")}
+                      isSimulated={true}
+                    />
+                  </div>
+
+                  {/* Home Indicator */}
+                  <div className="h-4 bg-slate-900 flex items-center justify-center">
+                    <div className="w-24 h-1 bg-slate-600 rounded-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Variations Selection Cards */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs">
+                <h3 className="text-base font-black text-slate-900 tracking-tight mb-1">
+                  Bottom Bar Variations Available
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  Select a style to preview it inside the simulator and on your live mobile device immediately.
+                </p>
+
+                <div className="space-y-4">
+                  {/* Variation 01 */}
+                  <div
+                    className={`rounded-2xl border p-4 transition-all ${
+                      mobileBottomBarStyle === "bottom-style-01"
+                        ? "border-blue-600 bg-blue-50/20 shadow-xs ring-2 ring-blue-500/20"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-900">01 // Executive Command Bar</span>
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full">
+                          Direct 1:1 Relocation
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMobileBottomBarStyle("bottom-style-01")}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          mobileBottomBarStyle === "bottom-style-01"
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        {mobileBottomBarStyle === "bottom-style-01" ? "Selected" : "Preview"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Takes all elements of the current top header (Menu, Active Tab pill, Brand Identity) and anchors them cleanly to the bottom edge. Zero visual clutter, identical familiarity.
+                    </p>
+                    <div className="rounded-xl overflow-hidden border border-slate-700/50">
+                      <MobileBottomBar
+                        styleId="bottom-style-01"
+                        activeTab="invoices"
+                        onSelectTab={() => {}}
+                        onOpenMenu={() => {}}
+                        isSimulated={true}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Variation 02 */}
+                  <div
+                    className={`rounded-2xl border p-4 transition-all ${
+                      mobileBottomBarStyle === "bottom-style-02"
+                        ? "border-blue-600 bg-blue-50/20 shadow-xs ring-2 ring-blue-500/20"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-900">02 // Dynamic Island Floating Dock</span>
+                        <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-full">
+                          Modern iOS / Linear
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMobileBottomBarStyle("bottom-style-02")}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          mobileBottomBarStyle === "bottom-style-02"
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        {mobileBottomBarStyle === "bottom-style-02" ? "Selected" : "Preview"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Detached floating capsule hovering 12px above the screen bottom with frosted dark glass blur. Quick 1-tap switching between Invoices, Notes, Vault, and Menu.
+                    </p>
+                    <div className="rounded-xl overflow-hidden bg-slate-100 p-2">
+                      <MobileBottomBar
+                        styleId="bottom-style-02"
+                        activeTab="invoices"
+                        onSelectTab={() => {}}
+                        onOpenMenu={() => {}}
+                        isSimulated={true}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Variation 03 */}
+                  <div
+                    className={`rounded-2xl border p-4 transition-all ${
+                      mobileBottomBarStyle === "bottom-style-03"
+                        ? "border-blue-600 bg-blue-50/20 shadow-xs ring-2 ring-blue-500/20"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-900">03 // Action-First Cockpit</span>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
+                          High-Speed Workflow
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMobileBottomBarStyle("bottom-style-03")}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          mobileBottomBarStyle === "bottom-style-03"
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        {mobileBottomBarStyle === "bottom-style-03" ? "Selected" : "Preview"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Features a prominent elevated central Action Launcher (Upload File / Add Note) directly under the thumb. Flanked by Invoices, Notes, and the full Menu.
+                    </p>
+                    <div className="rounded-xl overflow-hidden border border-slate-700/50 pt-3">
+                      <MobileBottomBar
+                        styleId="bottom-style-03"
+                        activeTab="invoices"
+                        onSelectTab={() => {}}
+                        onOpenMenu={() => {}}
+                        isSimulated={true}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Variation 04 */}
+                  <div
+                    className={`rounded-2xl border p-4 transition-all ${
+                      mobileBottomBarStyle === "bottom-style-04"
+                        ? "border-blue-600 bg-blue-50/20 shadow-xs ring-2 ring-blue-500/20"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-900">04 // Minimalist Tactile Rail</span>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                          Max Table Height
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMobileBottomBarStyle("bottom-style-04")}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          mobileBottomBarStyle === "bottom-style-04"
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        {mobileBottomBarStyle === "bottom-style-04" ? "Selected" : "Preview"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Ultra-slim 42px profile. Sacrifices extra labels to give you maximum vertical space for spreadsheets and table rows on mobile.
+                    </p>
+                    <div className="rounded-xl overflow-hidden border border-slate-800">
+                      <MobileBottomBar
+                        styleId="bottom-style-04"
+                        activeTab="invoices"
+                        onSelectTab={() => {}}
+                        onOpenMenu={() => {}}
+                        isSimulated={true}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

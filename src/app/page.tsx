@@ -17,6 +17,7 @@ import { DesignLabView } from "@/components/lab/DesignLabView";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import { WorkspaceLoadingScreen } from "@/components/ui/WorkspaceLoadingScreen";
+import { MobileBottomBar, MobileBottomBarStyle } from "@/components/layout/MobileBottomBar";
 import { Menu, Loader2 } from "lucide-react";
 
 type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "resources" | "logins" | "master-control" | "lab" | "usage";
@@ -28,6 +29,36 @@ export default function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const mainContentRef = useRef<HTMLElement>(null);
+
+  // Mobile Header Mode & Bottom Bar state
+  const [isMobileTopHeaderHidden, setIsMobileTopHeaderHidden] = useState(false);
+  const [mobileBottomBarStyle, setMobileBottomBarStyle] = useState<MobileBottomBarStyle>("bottom-style-01");
+
+  useEffect(() => {
+    try {
+      const savedMode = localStorage.getItem("ziptabs_mobile_top_header_hidden");
+      if (savedMode === "true") {
+        setIsMobileTopHeaderHidden(true);
+      }
+      const savedStyle = localStorage.getItem("ziptabs_mobile_bottom_bar_style") as MobileBottomBarStyle;
+      if (savedStyle && ["bottom-style-01", "bottom-style-02", "bottom-style-03", "bottom-style-04"].includes(savedStyle)) {
+        setMobileBottomBarStyle(savedStyle);
+      }
+    } catch {}
+
+    const handleMobileHeaderMode = (e: any) => {
+      if (e.detail) {
+        if (e.detail.hideTopHeader !== undefined) {
+          setIsMobileTopHeaderHidden(Boolean(e.detail.hideTopHeader));
+        }
+        if (e.detail.bottomBarStyle) {
+          setMobileBottomBarStyle(e.detail.bottomBarStyle);
+        }
+      }
+    };
+    window.addEventListener("ziptabs-mobile-header-mode", handleMobileHeaderMode);
+    return () => window.removeEventListener("ziptabs-mobile-header-mode", handleMobileHeaderMode);
+  }, []);
 
   // Synchronize and persist active tab across page refreshes and browser history
   useEffect(() => {
@@ -125,30 +156,34 @@ export default function Home() {
 
       {/* Main Workspace Column */}
       <div className="flex-1 flex flex-col min-w-0 h-full h-[100dvh] overflow-hidden relative">
-        {/* Mobile / Tablet Top Navigation Bar (Pinned Sticky at Top) */}
-        <header className="sticky top-0 z-30 lg:hidden h-14 bg-[#0c1427]/95 backdrop-blur-md border-b border-[#15203b] px-4 flex items-center justify-between shrink-0 text-white shadow-xs">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-              aria-label="Open navigation menu"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <span className="text-xs font-bold text-slate-200 capitalize">
-              {activeTab === "dashboard" ? "Dashboard" : activeTab.replace("-", " ")}
-            </span>
-          </div>
-          <div className="scale-90 origin-right">
-            <ZipTabsLogo size="sm" showText={true} />
-          </div>
-        </header>
+        {/* Mobile / Tablet Top Navigation Bar (Hidden when testing or active bottom bar mode) */}
+        {!isMobileTopHeaderHidden && (
+          <header className="sticky top-0 z-30 lg:hidden h-14 bg-[#0c1427]/95 backdrop-blur-md border-b border-[#15203b] px-4 flex items-center justify-between shrink-0 text-white shadow-xs">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                aria-label="Open navigation menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <span className="text-xs font-bold text-slate-200 capitalize">
+                {activeTab === "dashboard" ? "Dashboard" : activeTab.replace("-", " ")}
+              </span>
+            </div>
+            <div className="scale-90 origin-right">
+              <ZipTabsLogo size="sm" showText={true} />
+            </div>
+          </header>
+        )}
 
         {/* Content Canvas */}
         <main
           ref={mainContentRef}
           className={`flex-1 overflow-x-hidden px-3.5 sm:px-6 md:px-8 lg:px-10 overscroll-contain ${
+            isMobileTopHeaderHidden ? "pb-20 lg:pb-0" : ""
+          } ${
             activeTab === "invoices"
               ? "overflow-y-hidden py-3 sm:py-4 flex flex-col"
               : "overflow-y-auto py-4 sm:py-8"
@@ -178,6 +213,16 @@ export default function Home() {
             )}
           </div>
         </main>
+
+        {/* Mobile Live Bottom Navigation Bar (Active when top header is disabled) */}
+        {isMobileTopHeaderHidden && (
+          <MobileBottomBar
+            styleId={mobileBottomBarStyle}
+            activeTab={activeTab}
+            onSelectTab={(tab) => handleTabChange(tab)}
+            onOpenMenu={() => setIsMobileMenuOpen(true)}
+          />
+        )}
       </div>
 
       {/* Change Password Dialog Modal */}
