@@ -28,6 +28,7 @@ import {
   Sparkles,
   Flag,
   CalendarCheck,
+  Flame,
 } from "lucide-react";
 
 interface DashboardViewProps {
@@ -291,27 +292,27 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         const notes = notesRes.data as NoteSummaryItem[];
         setNotesCount(notes.length);
 
-        // Calculate urgent / attention notes (due within 7 days or overdue)
-        const todayStr = new Date().toISOString().slice(0, 10);
+        // Calculate urgent / attention notes (High or Urgent priority, uncompleted)
         let urgent = 0;
 
         notes.forEach((n) => {
           if (n.is_completed) return;
           if (n.priority === "urgent" || n.priority === "high") {
             urgent++;
-            return;
-          }
-          if (n.target_date) {
-            const diffTime = new Date(n.target_date).getTime() - new Date(todayStr).getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            if (diffDays <= 7) {
-              urgent++;
-            }
           }
         });
 
+        // Sort notes strictly by priority: urgent (3) > high (2) > normal (1), uncompleted first
+        const priorityWeight: Record<string, number> = { urgent: 3, high: 2, normal: 1 };
+        const sortedNotes = [...notes].sort((a, b) => {
+          if (a.is_completed !== b.is_completed) return a.is_completed ? 1 : -1;
+          const pA = priorityWeight[a.priority || "normal"] || 1;
+          const pB = priorityWeight[b.priority || "normal"] || 1;
+          return pB - pA;
+        });
+
         setUrgentNotesCount(urgent);
-        setRecentNotes(notes.slice(0, 4));
+        setRecentNotes(sortedNotes.slice(0, 4));
       }
 
       // 3. Process Usage
@@ -1005,25 +1006,34 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                         <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                           {note.category || "Quick Notes"}
                         </span>
-                        {note.priority === "urgent" && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
-                            Urgent 🔥
-                          </span>
-                        )}
                       </div>
                       <div className="text-xs font-bold text-slate-900 truncate">
                         {note.title}
                       </div>
                     </div>
 
-                    {note.target_date && (
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{note.target_date}</span>
+                    <div className="text-right shrink-0">
+                      {note.is_completed ? (
+                        <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Done</span>
                         </span>
-                      </div>
-                    )}
+                      ) : note.priority === "urgent" ? (
+                        <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1">
+                          <Flame className="w-3 h-3 text-rose-500 fill-rose-500" />
+                          <span>Urgent 🔥</span>
+                        </span>
+                      ) : note.priority === "high" ? (
+                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 text-amber-500" />
+                          <span>High Priority</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full font-medium">
+                          <span>Normal</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -1031,7 +1041,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span>{urgentNotesCount} item(s) due soon</span>
+            <span>{urgentNotesCount} high / urgent note(s)</span>
             <span className="font-semibold text-slate-600">{notesCount} total notes logged</span>
           </div>
         </div>

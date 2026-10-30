@@ -39,6 +39,7 @@ import {
   UploadCloud,
   Eye,
   ScanText,
+  Flame,
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 import { downloadFileDirectly } from "@/lib/download";
@@ -449,7 +450,6 @@ export function NotesView() {
   // Form State
   const [formContent, setFormContent] = useState("");
   const [formCategory, setFormCategory] = useState("Quick Notes");
-  const [formTargetDate, setFormTargetDate] = useState("");
   const [formPriority, setFormPriority] = useState<"normal" | "high" | "urgent">("normal");
   const [existingAttachments, setExistingAttachments] = useState<NoteAttachment[]>([]);
   const [newFilesToUpload, setNewFilesToUpload] = useState<File[]>([]);
@@ -848,7 +848,6 @@ export function NotesView() {
     setEditingNote(null);
     setFormContent("");
     setFormCategory("Quick Notes");
-    setFormTargetDate(new Date().toISOString().slice(0, 10)); // Default to today
     setFormPriority("normal");
     setExistingAttachments([]);
     setNewFilesToUpload([]);
@@ -864,7 +863,6 @@ export function NotesView() {
     setEditingNote(note);
     setFormContent(note.content || note.title || "");
     setFormCategory(normalizeCategory(note.category));
-    setFormTargetDate(note.target_date || "");
     setFormPriority(note.priority || "normal");
     setExistingAttachments(note.attachments || []);
     setNewFilesToUpload([]);
@@ -1089,7 +1087,7 @@ export function NotesView() {
         title: finalSubject,
         content: contentTrimmed,
         category: canonicalCategory,
-        target_date: formTargetDate || null,
+        target_date: null,
         priority: formPriority,
         attachments: finalAttachments,
         updated_at: nowIso,
@@ -1106,7 +1104,7 @@ export function NotesView() {
             title: updatedItem.title,
             content: updatedItem.content,
             category: updatedItem.category,
-            target_date: updatedItem.target_date,
+            target_date: null,
             priority: updatedItem.priority,
             attachments: finalAttachments,
             updated_at: nowIso,
@@ -1132,7 +1130,7 @@ export function NotesView() {
         title: finalSubject,
         content: contentTrimmed,
         category: canonicalCategory,
-        target_date: formTargetDate || null,
+        target_date: null,
         priority: formPriority,
         is_completed: false,
         attachments: finalAttachments,
@@ -1153,7 +1151,7 @@ export function NotesView() {
               title: newItem.title,
               content: newItem.content,
               category: newItem.category,
-              target_date: newItem.target_date,
+              target_date: null,
               priority: newItem.priority,
               is_completed: false,
               attachments: finalAttachments,
@@ -1241,7 +1239,7 @@ export function NotesView() {
     e.stopPropagation();
     let text = `${note.title}\n`;
     if (note.category) text += `[Category: ${normalizeCategory(note.category)}]\n`;
-    if (note.target_date) text += `[Target Date: ${note.target_date}]\n`;
+    if (note.priority) text += `[Priority: ${note.priority.toUpperCase()}]\n`;
     if (note.content && note.content !== note.title) text += `\n${note.content}\n`;
     if (note.attachments && note.attachments.length > 0) {
       text += `\nAttachments:\n` + note.attachments.map((a) => `- ${a.name}: ${a.url}`).join("\n");
@@ -1257,14 +1255,20 @@ export function NotesView() {
   const completedNotesCount = notes.filter((n) => n.is_completed).length;
   const urgentCount = notes.filter((n) => {
     if (n.is_completed) return false;
-    const u = getDateUrgency(n.target_date, n.is_completed);
-    return u.status === "overdue" || u.status === "today" || u.status === "urgent";
+    return n.priority === "urgent" || n.priority === "high";
   }).length;
   const invoiceNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Invoices").length;
   const payrollNotesCount = notes.filter((n) => normalizeCategory(n.category) === "Payroll").length;
   const totalAttachmentsCount = notes.reduce((acc, n) => acc + (n.attachments?.length || 0), 0);
 
-  // Filtered & Sorted Notes
+  // Priority ranking map: urgent (3) > high (2) > normal (1)
+  const priorityWeights: Record<string, number> = {
+    urgent: 3,
+    high: 2,
+    normal: 1,
+  };
+
+  // Filtered & Sorted Notes (Sorted strictly by Priority: Urgent & High on top)
   const filteredNotes = notes
     .filter((note) => {
       // 1. Status Filter: "active" (default) vs "completed"
@@ -1289,24 +1293,28 @@ export function NotesView() {
         }
       }
 
-      // 4. Urgency
-      const urgency = getDateUrgency(note.target_date, note.is_completed);
+      // 4. Priority Filter (Needs Attention = Urgent & High Priority)
       if (urgencyFilter === "attention") {
-        return (
-          !note.is_completed &&
-          (urgency.status === "overdue" || urgency.status === "today" || urgency.status === "urgent")
-        );
+        return !note.is_completed && (note.priority === "urgent" || note.priority === "high");
       }
 
       return true;
     })
     .sort((a, b) => {
+      // Active notes before completed notes
       if (a.is_completed !== b.is_completed) {
         return a.is_completed ? 1 : -1;
       }
-      const uA = getDateUrgency(a.target_date, a.is_completed);
-      const uB = getDateUrgency(b.target_date, b.is_completed);
-      return uA.daysDiff - uB.daysDiff;
+      // Highest priority first (urgent -> high -> normal)
+      const pA = priorityWeights[a.priority || "normal"] || 1;
+      const pB = priorityWeights[b.priority || "normal"] || 1;
+      if (pB !== pA) {
+        return pB - pA;
+      }
+      // Secondary: Newest note first
+      const timeA = new Date(a.created_at || a.updated_at || 0).getTime();
+      const timeB = new Date(b.created_at || b.updated_at || 0).getTime();
+      return timeB - timeA;
     });
 
   // Live 2-3 keyword subject generated from content
@@ -1407,15 +1415,15 @@ export function NotesView() {
         >
           <div className="flex items-center justify-between text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
             <span className={`truncate ${urgentCount > 0 ? "text-amber-800 font-bold" : "text-slate-400"}`}>
-              Due Soon / Urgent
+              High & Urgent
             </span>
-            <AlertTriangle className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${urgentCount > 0 ? "text-amber-600" : "text-slate-400"}`} />
+            <Flame className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${urgentCount > 0 ? "text-rose-500 fill-rose-500" : "text-slate-400"}`} />
           </div>
           <div className={`text-xl sm:text-2xl font-black tracking-tight mt-1 sm:mt-2 ${urgentCount > 0 ? "text-amber-700" : "text-slate-900"}`}>
             {urgentCount}
           </div>
           <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 sm:mt-1 truncate">
-            {urgentCount > 0 ? "🔥 Action items" : "All dates on schedule"}
+            {urgentCount > 0 ? "🔥 Priority action items" : "No high priority items"}
           </div>
         </div>
 
@@ -1487,19 +1495,19 @@ export function NotesView() {
               Active ({activeNotesCount})
             </button>
 
-            {/* Needs Attention Filter */}
+            {/* High & Urgent Filter */}
             {urgentCount > 0 && (
               <button
                 type="button"
                 onClick={() => setUrgencyFilter(urgencyFilter === "attention" ? "all" : "attention")}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                   urgencyFilter === "attention"
-                    ? "bg-amber-600 text-white shadow-xs"
-                    : "bg-white border border-slate-200 text-amber-700 hover:bg-amber-50"
+                    ? "bg-rose-600 text-white shadow-xs"
+                    : "bg-white border border-slate-200 text-rose-700 hover:bg-rose-50"
                 }`}
               >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Needs Attention ({urgentCount})</span>
+                <Flame className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+                <span>High & Urgent ({urgentCount})</span>
               </button>
             )}
 
@@ -1599,7 +1607,6 @@ export function NotesView() {
         ) : (
           <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredNotes.map((note) => {
-              const urgency = getDateUrgency(note.target_date, note.is_completed);
               const normalizedCat = normalizeCategory(note.category);
               const catConfig =
                 allCategories.find(
@@ -1607,6 +1614,8 @@ export function NotesView() {
                 ) || allCategories[0];
               const CatIcon = catConfig.icon || Tag;
               const attachments = note.attachments || [];
+              const isUrgent = note.priority === "urgent";
+              const isHigh = note.priority === "high";
 
               return (
                 <div
@@ -1615,19 +1624,15 @@ export function NotesView() {
                   className={`group relative rounded-2xl border p-5 transition-all duration-200 flex flex-col justify-between cursor-pointer ${
                     note.is_completed
                       ? "bg-slate-50/70 border-slate-200/90 hover:border-slate-300 opacity-80 hover:opacity-100 shadow-2xs"
-                      : urgency.cardBorder
+                      : isUrgent
+                      ? "bg-rose-50/10 border-rose-300 hover:border-rose-400 shadow-xs ring-1 ring-rose-500/10"
+                      : isHigh
+                      ? "bg-amber-50/10 border-amber-300 hover:border-amber-400 shadow-xs ring-1 ring-amber-500/10"
+                      : "bg-white border-slate-200/90 hover:border-slate-300 shadow-2xs"
                   }`}
                 >
                   <div>
-                    {/* Urgency Highlight Banner (if close to or past date, only for active notes) */}
-                    {urgency.highlightNotice && !note.is_completed && (
-                      <div className="mb-3 px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 bg-amber-500/15 text-amber-900 border border-amber-300">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-700" />
-                        <span>{urgency.highlightNotice}</span>
-                      </div>
-                    )}
-
-                    {/* Top Row: Category Pill & Target Date */}
+                    {/* Top Row: Category Pill & Priority Pill (Replacing Target Date) */}
                     <div className="flex items-center justify-between gap-2 mb-2.5">
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${catConfig.color} shrink-0 whitespace-nowrap`}
@@ -1636,20 +1641,25 @@ export function NotesView() {
                         <span>{normalizedCat}</span>
                       </span>
 
-                      {note.target_date && (
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] border ${
-                            note.is_completed
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold"
-                              : urgency.badgeClass
-                          } shrink-0 whitespace-nowrap`}
-                        >
-                          {note.is_completed ? (
-                            <Check className="w-3 h-3 text-emerald-600" />
-                          ) : (
-                            <CalendarClock className="w-3 h-3" />
-                          )}
-                          <span>{urgency.label}</span>
+                      {/* Priority Pill */}
+                      {note.is_completed ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span>Done</span>
+                        </span>
+                      ) : isUrgent ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0 whitespace-nowrap">
+                          <Flame className="w-3 h-3 text-rose-500 fill-rose-500" />
+                          <span>Urgent 🔥</span>
+                        </span>
+                      ) : isHigh ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 shrink-0 whitespace-nowrap">
+                          <AlertCircle className="w-3 h-3 text-amber-500" />
+                          <span>High Priority</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200/80 shrink-0 whitespace-nowrap">
+                          <span>Normal</span>
                         </span>
                       )}
                     </div>
@@ -1829,88 +1839,73 @@ export function NotesView() {
 
             {/* Modal Form Scrollable Body */}
             <form onSubmit={handleSaveNote} className="p-6 space-y-4 overflow-y-auto flex-1">
-              {/* Category & Target Date with '+ New Category' Creator */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Category
-                    </label>
-                    {!isCreatingCategory ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCreatingCategory(true);
-                          setNewCategoryName("");
-                        }}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>New Category</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setIsCreatingCategory(false)}
-                        className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-
-                  {isCreatingCategory ? (
-                    <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
-                      <input
-                        type="text"
-                        autoFocus
-                        value={newCategoryName}
-                        onChange={(e) => setNewCategoryName(e.target.value)}
-                        placeholder="New category name..."
-                        className="flex-1 px-3 py-2 bg-white border border-blue-400 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddNewCategory();
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddNewCategory}
-                        disabled={!newCategoryName.trim()}
-                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  ) : (
-                    <select
-                      value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 transition-all font-medium"
+              {/* Category with '+ New Category' Creator */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Category
+                  </label>
+                  {!isCreatingCategory ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingCategory(true);
+                        setNewCategoryName("");
+                      }}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
                     >
-                      {allCategories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
+                      <Plus className="w-3 h-3" />
+                      <span>New Category</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingCategory(false)}
+                      className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                    <span>Target Date</span>
-                    <span className="text-[10px] text-blue-600 normal-case font-semibold">Highlights when close</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={formTargetDate}
-                    onChange={(e) => setFormTargetDate(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 transition-all font-medium"
-                  />
-                </div>
+                {isCreatingCategory ? (
+                  <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="New category name..."
+                      className="flex-1 px-3 py-2 bg-white border border-blue-400 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddNewCategory();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNewCategory}
+                      disabled={!newCategoryName.trim()}
+                      className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Add
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 transition-all font-medium"
+                  >
+                    {allCategories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Note Details (Primary Input: Subject auto-extracts 3 important key words) */}
@@ -2296,36 +2291,25 @@ export function NotesView() {
                     );
                   })()}
 
-                  {/* Priority Pill */}
-                  {viewingNote.priority === "urgent" && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0">
-                      <span>Urgent</span>
-                      <span>🔥</span>
-                    </span>
-                  )}
-                  {viewingNote.priority === "high" && (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs shrink-0">
-                      <span>High Priority</span>
-                      <span>⚡</span>
-                    </span>
-                  )}
-
-                  {/* Target Date Pill */}
-                  {viewingNote.target_date && (() => {
-                    const urg = getDateUrgency(viewingNote.target_date, viewingNote.is_completed);
-                    return (
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border font-semibold ${urg.badgeClass} shadow-2xs shrink-0`}>
-                        <CalendarClock className="w-3.5 h-3.5 shrink-0" />
-                        <span>{urg.label}</span>
-                      </span>
-                    );
-                  })()}
-
-                  {/* Completed Badge */}
-                  {viewingNote.is_completed && (
+                  {/* Priority / Completed Pill */}
+                  {viewingNote.is_completed ? (
                     <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs shrink-0">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Completed</span>
+                    </span>
+                  ) : viewingNote.priority === "urgent" ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0">
+                      <Flame className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+                      <span>Urgent 🔥</span>
+                    </span>
+                  ) : viewingNote.priority === "high" ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs shrink-0">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                      <span>High Priority</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs shrink-0">
+                      <span>Normal Priority</span>
                     </span>
                   )}
                 </div>
