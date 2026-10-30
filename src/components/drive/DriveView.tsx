@@ -1310,7 +1310,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         </div>
       )}
 
-      {/* Delete Folder Confirmation Modal (Black, White & Gray Scheme) */}
+      {/* Delete Folder Confirmation Modal (Black, White & Gray Scheme - Precision Vault Styling) */}
       {confirmDeleteFolder && (() => {
         const folderFiles = files.filter((f) => f.folder_id === confirmDeleteFolder.id);
         const totalSize = folderFiles.reduce((acc, f) => acc + (f.size || 0), 0);
@@ -1323,9 +1323,35 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
-            <div className="relative bg-white rounded-3xl shadow-2xl border border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-              {/* Top Accent Gradient Bar (Monochrome) */}
-              <div className="h-1.5 w-full bg-gradient-to-r from-zinc-950 via-zinc-700 to-zinc-400" />
+            <div className="relative bg-white rounded-3xl shadow-2xl border border-zinc-300/80 ring-1 ring-zinc-950/10 ring-offset-4 ring-offset-zinc-100 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+              {/* Creative Top: Sculpted Crown Header with Technical Indicators */}
+              <div className="relative pt-2.5 pb-2 px-6 flex items-center justify-between border-b border-zinc-200 bg-gradient-to-b from-zinc-100 to-zinc-50/80">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-zinc-600 uppercase tracking-widest pl-1">
+                    VAULT PURGE // AUTH-LOCK
+                  </span>
+                </div>
+                <div className="text-[9px] font-mono text-zinc-400 font-semibold">
+                  SEC-256
+                </div>
+              </div>
+
+              {/* Creative Sides: Left & Right Tactile Flank Grips */}
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pl-1.5 pointer-events-none z-10">
+                <span className="w-1 h-3 rounded-full bg-zinc-300" />
+                <span className="w-1 h-6 rounded-full bg-zinc-500" />
+                <span className="w-1 h-3 rounded-full bg-zinc-300" />
+              </div>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pr-1.5 pointer-events-none z-10">
+                <span className="w-1 h-3 rounded-full bg-zinc-300" />
+                <span className="w-1 h-6 rounded-full bg-zinc-500" />
+                <span className="w-1 h-3 rounded-full bg-zinc-300" />
+              </div>
 
               <div className="p-6 sm:p-7">
                 {/* Header Row: Badge & Close Button */}
@@ -1406,7 +1432,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         );
       })()}
 
-      {/* Delete File Confirmation Modal (Black, White & Gray Scheme) */}
+      {/* Delete File Confirmation Modal (Black, White & Gray Scheme - Precision Vault Styling) */}
       {confirmDeleteFile && (() => {
         const parentFolder = folders.find((f) => f.id === confirmDeleteFile.folder_id);
         const folderLabel = parentFolder ? parentFolder.name : "Root Drive";
@@ -1419,9 +1445,35 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
-            <div className="relative bg-white rounded-3xl shadow-2xl border border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-              {/* Top Accent Gradient Bar (Monochrome) */}
-              <div className="h-1.5 w-full bg-gradient-to-r from-zinc-950 via-zinc-700 to-zinc-400" />
+            <div className="relative bg-white rounded-3xl shadow-2xl border border-zinc-300/80 ring-1 ring-zinc-950/10 ring-offset-4 ring-offset-zinc-100 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+              {/* Creative Top: Sculpted Crown Header with Technical Indicators */}
+              <div className="relative pt-2.5 pb-2 px-6 flex items-center justify-between border-b border-zinc-200 bg-gradient-to-b from-zinc-100 to-zinc-50/80">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-zinc-600 uppercase tracking-widest pl-1">
+                    VAULT PURGE // AUTH-LOCK
+                  </span>
+                </div>
+                <div className="text-[9px] font-mono text-zinc-400 font-semibold">
+                  SEC-256
+                </div>
+              </div>
+
+              {/* Creative Sides: Left & Right Tactile Flank Grips */}
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pl-1.5 pointer-events-none z-10">
+                <span className="w-1 h-3 rounded-full bg-zinc-300" />
+                <span className="w-1 h-6 rounded-full bg-zinc-500" />
+                <span className="w-1 h-3 rounded-full bg-zinc-300" />
+              </div>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pr-1.5 pointer-events-none z-10">
+                <span className="w-1 h-3 rounded-full bg-zinc-300" />
+                <span className="w-1 h-6 rounded-full bg-zinc-500" />
+                <span className="w-1 h-3 rounded-full bg-zinc-300" />
+              </div>
 
               <div className="p-6 sm:p-7">
                 {/* Header Row: Badge & Close Button */}
@@ -1447,7 +1499,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                 </div>
 
                 {/* File Spotlight Preview Card (Highlighted element preserved with monochrome accents) */}
-                <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-4 flex items-center gap-3.5 mb-4">
+                <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-4 flex items-center gap-3.5 mb-4 shadow-2xs">
                   <div className="shrink-0">
                     <FileBrandIcon
                       fileName={confirmDeleteFile.name}
