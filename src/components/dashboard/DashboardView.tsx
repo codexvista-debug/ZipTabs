@@ -481,57 +481,73 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       {/* ==================================================== */}
       {/* 1. EXECUTIVE DYNAMIC GREETING & SUMMARY PILL         */}
       {/* ==================================================== */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs relative overflow-hidden bg-gradient-to-br from-white via-slate-50/40 to-blue-50/20">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-500 flex items-center justify-center shrink-0 shadow-2xs">
-                {currentHour >= 5 && currentHour < 17 ? (
-                  <Sun className="w-5 h-5 text-amber-500" />
-                ) : (
-                  <Moon className="w-5 h-5 text-indigo-500" />
-                )}
-              </div>
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>{greeting}, Chief</span>
-                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                </h2>
-                <div className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
-                  Real-time command center is synchronized and operational.
-                </div>
-              </div>
-            </div>
+      <div className="bg-gradient-to-br from-[#0c1427] via-[#0f1d38] to-[#142347] border border-[#1e325c] rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden text-white">
+        {/* Subtle Top Ambient Gradient Line */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-blue-500 to-indigo-400" />
+        <div className="absolute -top-24 -right-24 w-60 h-60 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Personalized Summary Pill: Next US Holiday Countdown */}
-            <div className="mt-3.5 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/90 border border-slate-200/90 text-xs text-slate-700 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => onNavigate("calendar")}
-                className="flex items-center gap-1.5 font-semibold text-slate-700 hover:text-blue-600 transition-colors cursor-pointer"
-                title="View upcoming US holidays on calendar"
-              >
-                <span>🇺🇸</span>
-                <span>
-                  {upcomingHoliday
-                    ? `Next US holiday in ${daysUntilHoliday} days (${upcomingHoliday.name})`
-                    : "Next US holiday in 15 days"}
-                </span>
-              </button>
+        <div className="relative z-10 flex flex-col gap-4 sm:gap-5">
+          {/* Top Greeting Row */}
+          <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-amber-400/15 border border-amber-400/30 text-amber-300 flex items-center justify-center shrink-0 shadow-inner">
+              {currentHour >= 5 && currentHour < 17 ? (
+                <Sun className="w-5 h-5 text-amber-400" />
+              ) : (
+                <Moon className="w-5 h-5 text-amber-300" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                <span>{greeting}, Chief</span>
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              </h2>
+              <div className="text-[11px] sm:text-xs text-slate-300 font-medium mt-0.5 truncate">
+                Real-time command center is synchronized and operational.
+              </div>
             </div>
           </div>
 
-          {/* Right Side: Current IST Time & Date (Indian Time) */}
-          <div className="flex flex-col items-start md:items-end justify-center px-4 py-3 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-2xs self-start md:self-center shrink-0">
-            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>🇮🇳 IST · Indian Time</span>
-            </div>
-            <div className="text-base sm:text-lg font-black text-slate-900 tracking-tight font-mono mt-0.5" suppressHydrationWarning>
-              {istTimeStr || "--:--:--"}
-            </div>
-            <div className="text-[11px] text-slate-500 font-medium mt-0.5" suppressHydrationWarning>
-              {istDateStr}
+          {/* Bottom Dual Control Strip: US Holiday Tracker & IST Clock (Grid on Mobile and Desktop) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4 pt-3 sm:pt-4 border-t border-white/10">
+            {/* Left: US Holiday Countdown */}
+            <button
+              type="button"
+              onClick={() => onNavigate("calendar")}
+              className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs transition-colors cursor-pointer group text-left w-full"
+              title="View upcoming US holidays on calendar"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="text-base leading-none shrink-0">🇺🇸</span>
+                <div className="min-w-0">
+                  <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Next US Holiday
+                  </div>
+                  <div className="text-xs sm:text-sm font-bold text-white truncate">
+                    {upcomingHoliday ? upcomingHoliday.name : "None Scheduled"}
+                  </div>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[10px] font-mono font-bold shrink-0">
+                {daysUntilHoliday}d left
+              </span>
+            </button>
+
+            {/* Right: IST Live Indian Time & Date */}
+            <div className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 w-full">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ring-2 ring-emerald-400/30 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    IST · Indian Time
+                  </div>
+                  <div className="text-[11px] text-slate-300 font-medium truncate" suppressHydrationWarning>
+                    {istDateStr}
+                  </div>
+                </div>
+              </div>
+              <div className="text-sm sm:text-base font-black text-white font-mono tracking-tight tabular-nums px-2.5 py-1 rounded-lg bg-black/30 border border-white/10 shrink-0" suppressHydrationWarning>
+                {istTimeStr || "--:--:--"}
+              </div>
             </div>
           </div>
         </div>
@@ -542,21 +558,45 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       {/* ==================================================== */}
       <div
         onClick={() => onNavigate("calendar")}
-        className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+        className="bg-gradient-to-br from-[#0c1427] via-[#0f1d38] to-[#16274e] border border-indigo-500/30 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden group cursor-pointer hover:border-indigo-400/60 transition-all text-white"
         title="Click to view detailed US Calendar & Payroll Breakdown"
       >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-          {/* Left section: Animated Circular Gauge + Headline Details */}
-          <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+        {/* Subtle Top Ambient Gradient Line */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+        <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col gap-4">
+          {/* Top Header Row with Category Tag & Navigation Action */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[10px] font-black uppercase tracking-wider shrink-0">
+                Payroll Cycle
+              </span>
+              <span className="text-slate-500">•</span>
+              <span className="text-xs font-bold text-slate-300 truncate">
+                {currentMonthName} {currentYear}
+              </span>
+            </div>
+
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 group-hover:bg-indigo-600 text-indigo-300 group-hover:text-white border border-indigo-400/20 text-xs font-bold transition-all shrink-0">
+              <CalendarCheck className="w-3.5 h-3.5 text-indigo-400 group-hover:text-white" />
+              <span className="hidden sm:inline">Open US Calendar</span>
+              <span className="sm:hidden">Calendar</span>
+              <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+
+          {/* Main Content Area: Circular Gauge + Clean Text Hierarchy */}
+          <div className="flex items-center gap-3.5 sm:gap-5 min-w-0">
             {/* Animated Circular Progress Gauge */}
-            <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 flex items-center justify-center">
+            <div className="relative w-14 h-14 sm:w-18 sm:h-18 shrink-0 flex items-center justify-center">
               <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 72 72">
                 <circle
                   cx="36"
                   cy="36"
                   r="28"
                   fill="transparent"
-                  stroke="#f1f5f9"
+                  stroke="#1e293b"
                   strokeWidth="6"
                 />
                 <circle
@@ -564,7 +604,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   cy="36"
                   r="28"
                   fill="transparent"
-                  stroke="url(#payrollCycleGradient)"
+                  stroke="url(#payrollCycleGradientDark)"
                   strokeWidth="6"
                   strokeDasharray={175.93}
                   strokeDashoffset={175.93 - (175.93 * cycleProgressPercent) / 100}
@@ -572,19 +612,19 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   className="transition-all duration-1000 ease-out"
                 />
                 <defs>
-                  <linearGradient id="payrollCycleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#2563eb" />
-                    <stop offset="50%" stopColor="#4f46e5" />
-                    <stop offset="100%" stopColor="#7c3aed" />
+                  <linearGradient id="payrollCycleGradientDark" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#38bdf8" />
+                    <stop offset="50%" stopColor="#6366f1" />
+                    <stop offset="100%" stopColor="#a855f7" />
                   </linearGradient>
                 </defs>
               </svg>
               {/* Circular Gauge Center Label */}
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-xs sm:text-sm font-black text-slate-900 leading-none">
+                <span className="text-xs sm:text-sm font-black text-white leading-none">
                   {cycleProgressPercent}%
                 </span>
-                <span className="text-[9px] font-bold text-indigo-600 mt-0.5 leading-none">
+                <span className="text-[9px] font-bold text-indigo-300 mt-0.5 leading-none">
                   {cycleName.replace("Cycle ", "")}
                 </span>
               </div>
@@ -592,52 +632,32 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
             {/* Gauge Description & Key Details */}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-indigo-600">
-                  Payroll Cycle
-                </span>
-                <span className="text-slate-300">•</span>
-                <span className="text-xs font-bold text-slate-500">
-                  {currentMonthName} {currentYear}
-                </span>
-              </div>
-
-              {/* Exact Prominent Highlight: Cycle P2: 88h total • Day 12 of 16 • 4 working days remaining until cutoff */}
-              <h3 className="text-sm sm:text-base md:text-lg font-black text-slate-900 tracking-tight mt-1.5 leading-snug">
-                {cycleName}: {cycleTotalHours}h total <span className="text-slate-300 mx-1">•</span> Day {cycleCurrentDay} of {cycleTotalDays} <span className="text-slate-300 mx-1">•</span> <span className="text-indigo-600">{workingDaysRemaining} working day{workingDaysRemaining !== 1 ? "s" : ""} remaining</span> until cutoff
+              <h3 className="text-sm sm:text-base font-black text-white tracking-tight leading-snug">
+                {cycleName}: {cycleTotalHours}h total <span className="text-slate-500 mx-1">•</span> Day {cycleCurrentDay} of {cycleTotalDays} <span className="text-slate-500 mx-1">•</span> <span className="text-indigo-300 font-bold">{workingDaysRemaining} working day{workingDaysRemaining !== 1 ? "s" : ""} remaining</span> until cutoff
               </h3>
 
-              <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span>Cutoff deadline: <strong>{cutoffDateLabel}</strong> ({workingDaysRemaining} workdays to submit approvals)</span>
+              <div className="text-[11px] sm:text-xs text-slate-300 mt-1 flex items-center gap-1.5 flex-wrap">
+                <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span>Cutoff deadline: <strong className="text-white">{cutoffDateLabel}</strong> ({workingDaysRemaining} workdays to submit approvals)</span>
               </div>
             </div>
           </div>
 
-          {/* Right Action Pill */}
-          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all shadow-2xs">
-              <CalendarCheck className="w-4 h-4 text-indigo-600" />
-              <span>Open US Calendar</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-            </span>
-          </div>
-        </div>
+          {/* Animated Linear Progress Bar Gauge with Milestone Ticks */}
+          <div className="pt-3 border-t border-white/10">
+            <div className="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden border border-slate-700/60 p-0.5">
+              <div
+                className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 h-full rounded-full transition-all duration-1000 ease-out shadow-xs"
+                style={{ width: `${cycleProgressPercent}%` }}
+              />
+            </div>
 
-        {/* Animated Linear Progress Bar Gauge with Milestone Ticks */}
-        <div className="mt-5 pt-4 border-t border-slate-100">
-          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200/70 p-0.5">
-            <div
-              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 h-full rounded-full transition-all duration-1000 ease-out shadow-xs"
-              style={{ width: `${cycleProgressPercent}%` }}
-            />
-          </div>
-
-          {/* Linear Gauge Markers */}
-          <div className="flex items-center justify-between mt-2 text-[10px] sm:text-[11px] text-slate-400 font-semibold">
-            <span>{isP1 ? "Day 1 (Start)" : "Day 16 (Start)"}</span>
-            <span className="hidden sm:inline">Mid-Cycle ({Math.round(cycleTotalDays / 2)}d)</span>
-            <span className="text-indigo-600 font-bold">Cutoff: {cutoffDateLabel} ({workingDaysRemaining} workdays left)</span>
+            {/* Linear Gauge Markers */}
+            <div className="flex items-center justify-between mt-1.5 text-[10px] sm:text-[11px] text-slate-400 font-semibold">
+              <span>{isP1 ? "Day 1 (Start)" : "Day 16 (Start)"}</span>
+              <span className="hidden sm:inline">Mid-Cycle ({Math.round(cycleTotalDays / 2)}d)</span>
+              <span className="text-indigo-300 font-bold">Cutoff: {cutoffDateLabel} ({workingDaysRemaining} workdays left)</span>
+            </div>
           </div>
         </div>
       </div>
