@@ -22,18 +22,18 @@ import {
   Flame,
   Check,
   RefreshCw,
-  Cpu,
   Compass,
   Sliders,
   ChevronRight,
   ShieldCheck,
   Eye,
   KeyRound,
-  Fingerprint,
+  Shield,
+  FileCheck,
 } from "lucide-react";
 
 type NotifCategory = "security" | "success" | "warning" | "info";
-type CreativeStyleId = "sculpted-crown" | "calibration-dial" | "modular-cartridge" | "prism-blade";
+type ProfessionalStyleId = "chrono-dial" | "instrument-gyro" | "architectural-chassis" | "studio-capsule";
 
 interface NotificationSample {
   category: NotifCategory;
@@ -42,52 +42,52 @@ interface NotificationSample {
   badge: string;
   metric: string;
   actionText: string;
-  codeStamp: string;
+  headerMeta: string;
 }
 
 const NOTIFICATION_PAYLOADS: Record<NotifCategory, NotificationSample> = {
   security: {
     category: "security",
     title: "Unauthorized IP Evicted",
-    subtitle: "Vanish Mode active: IP 192.168.1.104 routed to Wikipedia decoy",
-    badge: "DEFENSE LEVEL 1",
-    metric: "403 EVICTION",
+    subtitle: "Vanish Mode rerouted IP 192.168.1.104 to Wikipedia decoy safely.",
+    badge: "Security Defense",
+    metric: "403 Evicted",
     actionText: "Inspect Network",
-    codeStamp: "SEC-882 // ACTIVE",
+    headerMeta: "Chief Security Engine",
   },
   success: {
     category: "success",
-    title: "Document Vault Encrypted",
-    subtitle: "September_P2.xlsx committed to Supabase Storage with AES-256 GCM",
-    badge: "VAULT SECURED",
-    metric: "+89.9 KB FREED",
+    title: "Document Stashed in Vault",
+    subtitle: "September_P2.xlsx uploaded and encrypted with AES-256 cloud storage.",
+    badge: "Cloud Storage",
+    metric: "+89.9 KB Freed",
     actionText: "Open in Drive",
-    codeStamp: "SYNC-204 // 0.04s",
+    headerMeta: "Supabase Vault Sync",
   },
   warning: {
     category: "warning",
-    title: "Cloud Quota Approaching Limit",
-    subtitle: "21.4 MB of 25.0 MB quota consumed. Review 30d temp files",
-    badge: "85.6% CAPACITY",
-    metric: "3.6 MB REMAINING",
-    actionText: "Purge Stash",
-    codeStamp: "WARN-419 // CHIEF",
+    title: "Cloud Quota at 85%",
+    subtitle: "21.4 MB of 25.0 MB quota consumed. Review 30-day temporary stash.",
+    badge: "Storage Quota",
+    metric: "3.6 MB Remaining",
+    actionText: "Review Files",
+    headerMeta: "Drive Resource Alert",
   },
   info: {
     category: "info",
     title: "AI Vision Text Extracted",
-    subtitle: "Processed receipt screenshot: 4 items detected & formatted into note",
-    badge: "OCR PIPELINE",
-    metric: "99.4% CONFIDENCE",
-    actionText: "Review Note",
-    codeStamp: "NEURAL-71 // DONE",
+    subtitle: "Processed screenshot: 4 invoice lines formatted directly into note.",
+    badge: "Neural Vision",
+    metric: "99.4% Accuracy",
+    actionText: "View Note",
+    headerMeta: "OCR Processing Complete",
   },
 };
 
 export function DesignLabView() {
   const [selectedCategory, setSelectedCategory] = useState<NotifCategory>("security");
   const [activeLiveToast, setActiveLiveToast] = useState<{
-    styleId: CreativeStyleId;
+    styleId: ProfessionalStyleId;
     category: NotifCategory;
   } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -106,7 +106,7 @@ export function DesignLabView() {
     }
   }, [activeLiveToast]);
 
-  const triggerToast = (styleId: CreativeStyleId) => {
+  const triggerToast = (styleId: ProfessionalStyleId) => {
     setActiveLiveToast({ styleId, category: selectedCategory });
   };
 
@@ -126,7 +126,7 @@ export function DesignLabView() {
 
   // Render the specific notification style
   const renderNotificationCard = (
-    styleId: CreativeStyleId,
+    styleId: ProfessionalStyleId,
     category: NotifCategory,
     isLive = false
   ) => {
@@ -136,454 +136,101 @@ export function DesignLabView() {
     };
 
     // =========================================================================
-    // CONCEPT 1: Sculpted Crown Micro-Notch (The Notification Twin to the Modal)
+    // STYLE 01: Executive Chrono-Ring (Refined Calibration Dial)
+    // Professional Swiss horology / executive metrics. No sci-fi crop marks.
     // =========================================================================
-    if (styleId === "sculpted-crown") {
+    if (styleId === "chrono-dial") {
       return (
         <div
-          className={`relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 overflow-hidden transition-all duration-300 ${
-            isLive ? "shadow-zinc-950/20 ring-1 ring-zinc-950/10 max-w-lg" : "w-full"
+          className={`relative bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-zinc-200/90 overflow-hidden transition-all duration-300 ${
+            isLive ? "shadow-2xl shadow-zinc-950/15 max-w-lg ring-1 ring-zinc-900/10" : "w-full"
           }`}
         >
-          {/* Creative Top: Sculpted Dynamic Island Notch */}
-          <div className="flex justify-center -mt-px">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-zinc-950 text-white rounded-b-xl shadow-xs text-[9px] font-mono tracking-widest font-bold border-x border-b border-zinc-800">
-              <span
-                className={`w-1.5 h-1.5 rounded-full animate-ping ${
-                  category === "security"
-                    ? "bg-rose-500"
-                    : category === "warning"
-                    ? "bg-amber-400"
-                    : category === "info"
-                    ? "bg-sky-400"
-                    : "bg-emerald-400"
-                }`}
-              />
-              <span>{data.codeStamp}</span>
-            </div>
-          </div>
-
-          {/* Creative Sides: Subtle Gradient Shadow Rails */}
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
-
-          {/* Main Card Body */}
-          <div className="p-4 sm:p-5 pt-3">
-            <div className="flex items-start gap-3.5">
-              {/* Animated Icon Box: Pulsing Concentric Radar Rings */}
-              <div className="relative shrink-0 mt-0.5">
-                {/* Ping wave */}
-                <div
-                  className={`absolute -inset-1.5 rounded-2xl animate-ping opacity-30 ${
-                    category === "security"
-                      ? "bg-rose-500"
-                      : category === "warning"
-                      ? "bg-amber-500"
-                      : category === "info"
-                      ? "bg-sky-500"
-                      : "bg-emerald-500"
-                  }`}
-                />
-
-                <div className="relative w-11 h-11 rounded-2xl bg-zinc-900 border border-zinc-800 text-white flex items-center justify-center shadow-md">
-                  {category === "security" ? (
-                    <div className="relative flex items-center justify-center">
-                      <ShieldAlert className="w-5 h-5 text-rose-400 animate-pulse" />
-                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-zinc-900 animate-bounce" />
-                    </div>
-                  ) : category === "warning" ? (
-                    <div className="relative flex items-center justify-center">
-                      <AlertTriangle className="w-5 h-5 text-amber-400" />
-                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-zinc-900 animate-pulse" />
-                    </div>
-                  ) : category === "info" ? (
-                    <div className="relative flex items-center justify-center">
-                      <Radio className="w-5 h-5 text-sky-400 animate-pulse" />
-                      <span className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-sky-400 ring-2 ring-zinc-900" />
-                    </div>
-                  ) : (
-                    <div className="relative flex items-center justify-center">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-zinc-900 animate-pulse" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Title & Metadata */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold font-mono uppercase tracking-wide bg-zinc-100 border border-zinc-200 text-zinc-800">
-                      {data.badge}
-                    </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold font-mono tracking-tight bg-zinc-900 text-white tabular-nums shadow-2xs">
-                      {data.metric}
-                    </span>
-                  </div>
-
-                  {isLive && (
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
-                      aria-label="Close"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                <h4 className="text-sm font-black text-zinc-900 tracking-tight">
-                  {data.title}
-                </h4>
-                <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
-                  {data.subtitle}
-                </p>
-
-                {/* Footer Action Bar */}
-                <div className="mt-3 pt-2.5 border-t border-zinc-100 flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-zinc-400 font-medium">
-                    STATUS // CONFIRMED
-                  </span>
-
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-zinc-900 hover:bg-black text-white text-[11px] font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
-                  >
-                    <span>{data.actionText}</span>
-                    <ArrowRight className="w-3 h-3 text-zinc-400" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Micro Progress Bar on Live */}
-          {isLive && (
-            <div className="h-1 w-full bg-zinc-100 overflow-hidden">
-              <div
-                className={`h-full w-full origin-left ${
-                  category === "security"
-                    ? "bg-rose-500"
-                    : category === "warning"
-                    ? "bg-amber-500"
-                    : category === "info"
-                    ? "bg-sky-500"
-                    : "bg-emerald-500"
-                }`}
-                style={{
-                  animation: "shrinkProgress 6s linear forwards",
-                }}
-              />
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // =========================================================================
-    // CONCEPT 2: Calibration Dial (Swiss Horology & Precision Gauge)
-    // =========================================================================
-    if (styleId === "calibration-dial") {
-      return (
-        <div
-          className={`relative bg-white rounded-3xl shadow-2xl border-2 border-zinc-300/90 overflow-hidden transition-all duration-300 ${
-            isLive ? "shadow-zinc-950/20 ring-4 ring-zinc-100 max-w-lg" : "w-full"
-          }`}
-        >
-          {/* Precision 4-Corner Architectural Brackets */}
-          <span className="absolute top-1.5 left-1.5 text-[9px] font-mono font-bold text-zinc-400 pointer-events-none select-none">
-            ⌜
-          </span>
-          <span className="absolute top-1.5 right-1.5 text-[9px] font-mono font-bold text-zinc-400 pointer-events-none select-none">
-            ⌝
-          </span>
-          <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono font-bold text-zinc-400 pointer-events-none select-none">
-            ⌞
-          </span>
-          <span className="absolute bottom-1.5 right-1.5 text-[9px] font-mono font-bold text-zinc-400 pointer-events-none select-none">
-            ⌟
-          </span>
-
-          <div className="p-4 sm:p-5">
-            <div className="flex items-center gap-4">
-              {/* Rotating SVG Calibration Dial / Compass Radar */}
-              <div className="relative shrink-0 w-14 h-14 flex items-center justify-center">
-                {/* Rotating Outer Ticks Ring */}
-                <svg
-                  className="absolute inset-0 w-full h-full animate-[spin_10s_linear_infinite]"
-                  viewBox="0 0 100 100"
-                >
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="44"
-                    fill="none"
-                    stroke="#e4e4e7"
-                    strokeWidth="3"
-                    strokeDasharray="4 6"
-                  />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="36"
-                    fill="none"
-                    stroke={
-                      category === "security"
-                        ? "#f43f5e"
-                        : category === "warning"
-                        ? "#f59e0b"
-                        : category === "info"
-                        ? "#0ea5e9"
-                        : "#10b981"
-                    }
-                    strokeWidth="2.5"
-                    strokeDasharray="20 40"
-                    strokeLinecap="round"
-                  />
-                </svg>
-
-                {/* Inner Static White Core with Icon */}
-                <div className="w-10 h-10 rounded-full bg-zinc-50 border border-zinc-200 shadow-inner flex items-center justify-center z-10">
-                  {category === "security" ? (
-                    <ShieldAlert className="w-5 h-5 text-rose-600 animate-pulse" />
-                  ) : category === "warning" ? (
-                    <AlertTriangle className="w-5 h-5 text-amber-600" />
-                  ) : category === "info" ? (
-                    <Activity className="w-5 h-5 text-sky-600 animate-pulse" />
-                  ) : (
-                    <Check className="w-5 h-5 text-emerald-600 stroke-[3]" />
-                  )}
-                </div>
-              </div>
-
-              {/* Text Info Column */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-mono font-black text-zinc-900 tracking-wider uppercase bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-md">
-                    {data.badge}
-                  </span>
-                  <span className="text-[10px] font-mono text-zinc-400">
-                    DIAL-CAL // 01
-                  </span>
-                </div>
-
-                <h4 className="text-sm font-black text-zinc-900 tracking-tight truncate">
-                  {data.title}
-                </h4>
-                <p className="text-xs text-zinc-500 mt-0.5 truncate leading-relaxed">
-                  {data.subtitle}
-                </p>
-              </div>
-
-              {/* Action Column */}
-              <div className="shrink-0 flex items-center gap-2">
-                <button
-                  type="button"
-                  className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>{data.actionText}</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-                {isLive && (
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer"
-                    aria-label="Close"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // =========================================================================
-    // CONCEPT 3: Tactile Modular Cartridge (Dieter Rams / Luxury Hardware)
-    // =========================================================================
-    if (styleId === "modular-cartridge") {
-      return (
-        <div
-          className={`relative bg-zinc-50 rounded-3xl border border-zinc-300 shadow-2xl overflow-hidden transition-all duration-300 ${
-            isLive ? "shadow-zinc-950/20 max-w-lg" : "w-full"
-          }`}
-        >
-          {/* Top Inset Metal Strip with Micro Screws & Vents */}
-          <div className="bg-gradient-to-r from-zinc-200 via-zinc-100 to-zinc-200 px-4 py-1.5 flex items-center justify-between border-b border-zinc-300/80">
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
-              <span className="text-[9px] font-mono font-bold text-zinc-700 tracking-widest pl-1 uppercase">
-                CARTRIDGE-UNIT // ZP-2026
-              </span>
-            </div>
-
-            {/* Stepped Animated LED Meter */}
-            <div className="flex items-center gap-1">
-              <span
-                className={`w-1 h-2 rounded-xs animate-[pulse_800ms_infinite_100ms] ${
-                  category === "security" ? "bg-rose-500" : "bg-emerald-500"
-                }`}
-              />
-              <span
-                className={`w-1 h-3 rounded-xs animate-[pulse_800ms_infinite_250ms] ${
-                  category === "security" ? "bg-rose-500" : "bg-emerald-500"
-                }`}
-              />
-              <span
-                className={`w-1 h-2.5 rounded-xs animate-[pulse_800ms_infinite_400ms] ${
-                  category === "security" ? "bg-rose-500" : "bg-emerald-500"
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Cartridge Main Tray */}
-          <div className="p-4 sm:p-5 bg-white">
-            <div className="flex items-center gap-4">
-              {/* Recessed Hardware Well Icon */}
-              <div className="relative shrink-0 w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 shadow-inner flex items-center justify-center">
-                {/* Floating micro orbit ring */}
-                <span className="absolute inset-0 rounded-2xl border border-zinc-300/80 animate-ping opacity-25" />
-
-                <div className="w-9 h-9 rounded-xl bg-white border border-zinc-200 shadow-xs flex items-center justify-center text-zinc-900">
-                  {category === "security" ? (
-                    <Fingerprint className="w-5 h-5 text-rose-600 animate-pulse" />
-                  ) : category === "warning" ? (
-                    <AlertTriangle className="w-5 h-5 text-amber-600 animate-bounce" />
-                  ) : category === "info" ? (
-                    <Cpu className="w-5 h-5 text-sky-600 animate-pulse" />
-                  ) : (
-                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                  )}
-                </div>
-              </div>
-
-              {/* Content Details */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[10px] font-mono font-bold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">
-                    {data.badge}
-                  </span>
-                  <span className="text-[10px] font-mono font-bold text-zinc-500 tabular-nums">
-                    {data.metric}
-                  </span>
-                </div>
-                <h4 className="text-sm font-black text-zinc-900 tracking-tight truncate">
-                  {data.title}
-                </h4>
-                <p className="text-xs text-zinc-500 truncate mt-0.5">
-                  {data.subtitle}
-                </p>
-              </div>
-
-              {/* Mechanical Latch Button */}
-              <div className="shrink-0 flex items-center gap-2">
-                <button
-                  type="button"
-                  className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-mono font-bold uppercase transition-all shadow-md shadow-zinc-900/10 active:scale-95 cursor-pointer border border-zinc-800"
-                >
-                  [{data.actionText}]
-                </button>
-                {isLive && (
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer"
-                    aria-label="Close"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // =========================================================================
-    // CONCEPT 4: Prism Refraction Blade (Light-mode Holographic Crystal)
-    // =========================================================================
-    return (
-      <div
-        className={`relative bg-white rounded-3xl shadow-2xl border border-zinc-200/90 overflow-hidden transition-all duration-300 ${
-          isLive ? "shadow-zinc-950/20 max-w-lg ring-1 ring-zinc-950/10" : "w-full"
-        }`}
-      >
-        {/* Top Edge: Iridescent Prismatic Light Beam Refraction */}
-        <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-sky-400 to-rose-400 animate-[pulse_3s_infinite]" />
-
-        <div className="p-4 sm:p-5">
-          <div className="flex items-center gap-3.5">
-            {/* Hexagonal Crystal Icon with Dual Orbiting Particles */}
+          <div className="p-4 sm:p-5 flex items-center gap-4">
+            {/* Animated SVG Progress Ring with Soft Pulsing Beacon */}
             <div className="relative shrink-0 w-12 h-12 flex items-center justify-center">
-              {/* Spinning Satellite Dot */}
-              <div className="absolute inset-0 animate-[spin_4s_linear_infinite]">
-                <span
-                  className={`absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${
-                    category === "security"
-                      ? "bg-rose-500 shadow-[0_0_8px_#f43f5e]"
-                      : category === "warning"
-                      ? "bg-amber-500 shadow-[0_0_8px_#f59e0b]"
-                      : category === "info"
-                      ? "bg-sky-500 shadow-[0_0_8px_#0ea5e9]"
-                      : "bg-emerald-500 shadow-[0_0_8px_#10b981]"
-                  }`}
+              {/* Outer rotating smooth progress halo */}
+              <svg
+                className="absolute inset-0 w-full h-full animate-[spin_8s_linear_infinite]"
+                viewBox="0 0 100 100"
+              >
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke="#f4f4f5"
+                  strokeWidth="4"
                 />
-              </div>
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="42"
+                  fill="none"
+                  stroke={
+                    category === "security"
+                      ? "#e11d48"
+                      : category === "warning"
+                      ? "#d97706"
+                      : category === "info"
+                      ? "#2563eb"
+                      : "#059669"
+                  }
+                  strokeWidth="4"
+                  strokeDasharray="80 180"
+                  strokeLinecap="round"
+                />
+              </svg>
 
-              {/* Counter-Spinning Satellite Dot */}
-              <div className="absolute inset-1 animate-[spin_6s_linear_infinite_reverse]">
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-zinc-900" />
-              </div>
-
-              {/* Crystal Hex Core */}
-              <div className="w-9 h-9 rounded-xl bg-zinc-50 border border-zinc-200 shadow-sm flex items-center justify-center text-zinc-900 z-10">
+              {/* Inner Clean Core Badge */}
+              <div
+                className={`w-9 h-9 rounded-full flex items-center justify-center shadow-xs ${
+                  category === "security"
+                    ? "bg-rose-50 text-rose-600 border border-rose-200"
+                    : category === "warning"
+                    ? "bg-amber-50 text-amber-600 border border-amber-200"
+                    : category === "info"
+                    ? "bg-blue-50 text-blue-600 border border-blue-200"
+                    : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                }`}
+              >
                 {category === "security" ? (
-                  <ShieldAlert className="w-5 h-5 text-rose-600 animate-pulse" />
+                  <ShieldAlert className="w-4 h-4 animate-pulse" />
                 ) : category === "warning" ? (
-                  <Flame className="w-5 h-5 text-amber-500 animate-bounce" />
+                  <AlertTriangle className="w-4 h-4" />
                 ) : category === "info" ? (
-                  <Sparkles className="w-5 h-5 text-sky-600 animate-pulse" />
+                  <Sparkles className="w-4 h-4 animate-pulse" />
                 ) : (
-                  <Check className="w-5 h-5 text-emerald-600 stroke-[3]" />
+                  <Check className="w-4 h-4 stroke-[2.5]" />
                 )}
               </div>
             </div>
 
-            {/* Text Information Column */}
+            {/* Content Details */}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-[10px] font-black text-zinc-900 tracking-wider uppercase">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-bold text-zinc-800 bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded-md tracking-tight">
                   {data.badge}
                 </span>
-                <span className="text-zinc-300">•</span>
-                <span className="text-[10px] font-mono text-zinc-500 font-bold">
-                  {data.metric}
-                </span>
+                <span className="text-[11px] text-zinc-400 font-medium">Just now</span>
               </div>
+
               <h4 className="text-sm font-black text-zinc-900 tracking-tight truncate">
                 {data.title}
               </h4>
-              <p className="text-xs text-zinc-500 truncate mt-0.5">
+              <p className="text-xs text-zinc-500 mt-0.5 truncate leading-relaxed">
                 {data.subtitle}
               </p>
             </div>
 
-            {/* Action Chip */}
+            {/* Action Button & Dismiss */}
             <div className="shrink-0 flex items-center gap-2">
               <button
                 type="button"
-                className="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 text-zinc-900 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs hover:shadow-xs"
+                className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
               >
-                {data.actionText}
+                <span>{data.actionText}</span>
+                <ArrowRight className="w-3.5 h-3.5 text-zinc-300" />
               </button>
               {isLive && (
                 <button
@@ -598,6 +245,302 @@ export function DesignLabView() {
             </div>
           </div>
         </div>
+      );
+    }
+
+    // =========================================================================
+    // STYLE 02: Precision Instrument Gyro (Minimalist Dual-Orbit)
+    // Executive instrument dial with clean satellite dot and metric badge.
+    // =========================================================================
+    if (styleId === "instrument-gyro") {
+      return (
+        <div
+          className={`relative bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-zinc-200/90 overflow-hidden transition-all duration-300 ${
+            isLive ? "shadow-2xl shadow-zinc-950/15 max-w-lg ring-1 ring-zinc-900/10" : "w-full"
+          }`}
+        >
+          {/* Subtle Left Accent Rail */}
+          <div
+            className={`absolute left-0 top-0 bottom-0 w-1 ${
+              category === "security"
+                ? "bg-rose-500"
+                : category === "warning"
+                ? "bg-amber-500"
+                : category === "info"
+                ? "bg-blue-600"
+                : "bg-emerald-500"
+            }`}
+          />
+
+          <div className="p-4 sm:p-5 pl-5 sm:pl-6 flex items-center gap-4">
+            {/* Animated Gyro Ring with Orbiting Micro-Dot */}
+            <div className="relative shrink-0 w-11 h-11 flex items-center justify-center">
+              {/* Outer Orbit Ring */}
+              <div className="absolute inset-0 rounded-full border border-zinc-200" />
+
+              {/* Orbiting Satellite Particle */}
+              <div className="absolute inset-0 animate-[spin_4s_linear_infinite]">
+                <span
+                  className={`absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${
+                    category === "security"
+                      ? "bg-rose-500"
+                      : category === "warning"
+                      ? "bg-amber-500"
+                      : category === "info"
+                      ? "bg-blue-500"
+                      : "bg-emerald-500"
+                  }`}
+                />
+              </div>
+
+              {/* Center Icon */}
+              <div className="w-8 h-8 rounded-full bg-zinc-50 border border-zinc-200 flex items-center justify-center text-zinc-900 shadow-2xs">
+                {category === "security" ? (
+                  <ShieldAlert className="w-4 h-4 text-rose-600" />
+                ) : category === "warning" ? (
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                ) : category === "info" ? (
+                  <Radio className="w-4 h-4 text-blue-600 animate-pulse" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                )}
+              </div>
+            </div>
+
+            {/* Content Details */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] font-bold text-zinc-900 uppercase tracking-wider">
+                  {data.badge}
+                </span>
+                <span className="text-zinc-300">•</span>
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold text-zinc-600 bg-zinc-100 tabular-nums">
+                  {data.metric}
+                </span>
+              </div>
+
+              <h4 className="text-sm font-black text-zinc-900 tracking-tight truncate">
+                {data.title}
+              </h4>
+              <p className="text-xs text-zinc-500 mt-0.5 truncate leading-relaxed">
+                {data.subtitle}
+              </p>
+            </div>
+
+            {/* Action Button & Dismiss */}
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                className="px-3.5 py-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-800 text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <span>{data.actionText}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
+              </button>
+              {isLive && (
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // STYLE 03: Architectural Executive Chassis (Refined Cartridge)
+    // Replaces the retro-synth look with a sleek luxury hardware aesthetic.
+    // =========================================================================
+    if (styleId === "architectural-chassis") {
+      return (
+        <div
+          className={`relative bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-zinc-200/90 overflow-hidden transition-all duration-300 ${
+            isLive ? "shadow-2xl shadow-zinc-950/15 max-w-lg ring-1 ring-zinc-900/10" : "w-full"
+          }`}
+        >
+          {/* Executive Top Header Bar: Clean workspace context, zero retro clutter */}
+          <div className="bg-gradient-to-r from-zinc-100/90 via-zinc-50 to-zinc-100/90 px-4 py-2 flex items-center justify-between border-b border-zinc-200/80">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-2 h-2 rounded-full animate-pulse ${
+                  category === "security"
+                    ? "bg-rose-500 ring-2 ring-rose-200"
+                    : category === "warning"
+                    ? "bg-amber-500 ring-2 ring-amber-200"
+                    : category === "info"
+                    ? "bg-blue-500 ring-2 ring-blue-200"
+                    : "bg-emerald-500 ring-2 ring-emerald-200"
+                }`}
+              />
+              <span className="text-[11px] font-bold text-zinc-800 tracking-tight">
+                {data.headerMeta}
+              </span>
+            </div>
+
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-white text-zinc-600 border border-zinc-200 shadow-2xs tabular-nums">
+              {data.metric}
+            </span>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="p-4 sm:p-5">
+            <div className="flex items-center gap-4">
+              {/* Recessed Precision Well with Subtle Breathing Icon */}
+              <div className="relative shrink-0 w-11 h-11 rounded-2xl bg-zinc-50 border border-zinc-200 shadow-inner flex items-center justify-center">
+                <span
+                  className={`absolute inset-0 rounded-2xl border animate-ping opacity-20 ${
+                    category === "security"
+                      ? "border-rose-500"
+                      : category === "warning"
+                      ? "border-amber-500"
+                      : category === "info"
+                      ? "border-blue-500"
+                      : "border-emerald-500"
+                  }`}
+                />
+
+                <div className="w-8 h-8 rounded-xl bg-white border border-zinc-200 shadow-2xs flex items-center justify-center text-zinc-900">
+                  {category === "security" ? (
+                    <ShieldCheck className="w-4 h-4 text-rose-600 animate-pulse" />
+                  ) : category === "warning" ? (
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  ) : category === "info" ? (
+                    <Zap className="w-4 h-4 text-blue-600 animate-bounce" />
+                  ) : (
+                    <FileCheck className="w-4 h-4 text-emerald-600" />
+                  )}
+                </div>
+              </div>
+
+              {/* Title & Subtitle */}
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-black text-zinc-900 tracking-tight truncate">
+                  {data.title}
+                </h4>
+                <p className="text-xs text-zinc-500 mt-0.5 truncate leading-relaxed">
+                  {data.subtitle}
+                </p>
+              </div>
+
+              {/* Professional Action Button */}
+              <div className="shrink-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>{data.actionText}</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-zinc-300" />
+                </button>
+                {isLive && (
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer"
+                    aria-label="Close"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // STYLE 04: Studio Solid-State Capsule (Apple Pro / Clean Solid-State)
+    // Minimalist single-chassis notification with smooth tactile badge.
+    // =========================================================================
+    return (
+      <div
+        className={`relative bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-zinc-200/90 overflow-hidden transition-all duration-300 ${
+          isLive ? "shadow-2xl shadow-zinc-950/15 max-w-lg ring-1 ring-zinc-900/10" : "w-full"
+        }`}
+      >
+        <div className="p-4 sm:p-5 flex items-center gap-3.5">
+          {/* Animated Status Beacon Container */}
+          <div className="relative shrink-0">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-xs ${
+                category === "security"
+                  ? "bg-zinc-900 text-rose-400 border border-zinc-800"
+                  : category === "warning"
+                  ? "bg-zinc-900 text-amber-400 border border-zinc-800"
+                  : category === "info"
+                  ? "bg-zinc-900 text-blue-400 border border-zinc-800"
+                  : "bg-zinc-900 text-emerald-400 border border-zinc-800"
+              }`}
+            >
+              {category === "security" ? (
+                <ShieldAlert className="w-5 h-5 animate-pulse" />
+              ) : category === "warning" ? (
+                <AlertTriangle className="w-5 h-5" />
+              ) : category === "info" ? (
+                <Radio className="w-5 h-5 animate-pulse" />
+              ) : (
+                <Check className="w-5 h-5 stroke-[2.5]" />
+              )}
+            </div>
+
+            {/* Micro Live Corner LED */}
+            <span
+              className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ring-2 ring-white animate-pulse ${
+                category === "security"
+                  ? "bg-rose-500"
+                  : category === "warning"
+                  ? "bg-amber-500"
+                  : category === "info"
+                  ? "bg-blue-500"
+                  : "bg-emerald-500"
+              }`}
+            />
+          </div>
+
+          {/* Text Information Column */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-[11px] font-bold text-zinc-900 tracking-tight">
+                {data.badge}
+              </span>
+              <span className="text-zinc-300">•</span>
+              <span className="text-[11px] text-zinc-400 font-medium">
+                {data.metric}
+              </span>
+            </div>
+            <h4 className="text-sm font-black text-zinc-900 tracking-tight truncate">
+              {data.title}
+            </h4>
+            <p className="text-xs text-zinc-500 truncate mt-0.5">
+              {data.subtitle}
+            </p>
+          </div>
+
+          {/* Action Button & Dismiss */}
+          <div className="shrink-0 flex items-center gap-2">
+            <button
+              type="button"
+              className="px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs hover:shadow-xs"
+            >
+              {data.actionText}
+            </button>
+            {isLive && (
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     );
   };
@@ -610,16 +553,16 @@ export function DesignLabView() {
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/60">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-950 text-white text-xs font-mono font-bold tracking-wider mb-2 shadow-xs">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-950 text-white text-xs font-bold tracking-wider mb-2 shadow-xs">
             <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span>DESIGN LAB // NOTIFICATION STUDIO v2</span>
+            <span>DESIGN LAB // EXECUTIVE NOTIFICATIONS</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight flex items-center gap-2.5">
             <Bell className="w-7 h-7 text-zinc-900" />
-            <span>High-Craft Notification Concepts</span>
+            <span>Professional Notification Studio</span>
           </h1>
           <p className="text-xs sm:text-sm text-zinc-500 mt-1 max-w-2xl">
-            Clean architectural light-mode designs featuring live dynamic island notches, rotating calibration dials, hardware cartridge meters, and prismatic crystals.
+            Refined Swiss horology dials and architectural executive chassis — redesigned with corporate polish, smooth micro-animations, and zero gaming/cyberpunk aesthetics.
           </p>
         </div>
 
@@ -669,28 +612,28 @@ export function DesignLabView() {
         </div>
       </div>
 
-      {/* Grid of 4 Detailed Notification Concepts */}
+      {/* Grid of 4 Refined Professional Concepts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Concept 1: Sculpted Crown Micro-Notch */}
+        {/* Concept 1: Executive Chrono-Ring */}
         <div className="bg-zinc-50/80 rounded-3xl border border-zinc-200 p-5 sm:p-6 flex flex-col justify-between space-y-4 hover:border-zinc-300 transition-all shadow-xs">
           <div>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
                 <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-                  CONCEPT 01 // MODAL COMPANION
+                  REFINED 01 // SWISS CHRONO
                 </span>
                 <h3 className="text-lg font-black text-zinc-900 tracking-tight">
-                  Sculpted Crown Micro-Notch
+                  Executive Chrono-Ring
                 </h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Direct companion to our winning modal: crisp white chassis, recessed dark top island notch with live pulsing beacon, flank gradient rails, and concentric radar icon.
+                  Refined Swiss watchmaker dial: smooth continuous circular SVG progress halo, centered icon core, clean category badge, and luxury rounded-xl action button.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => triggerToast("sculpted-crown")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+                onClick={() => triggerToast("chrono-dial")}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
               >
                 <Play className="w-3.5 h-3.5 fill-white" />
                 <span>Test Live</span>
@@ -698,36 +641,36 @@ export function DesignLabView() {
             </div>
 
             <div className="pt-2">
-              {renderNotificationCard("sculpted-crown", selectedCategory, false)}
+              {renderNotificationCard("chrono-dial", selectedCategory, false)}
             </div>
           </div>
 
           <div className="pt-3 border-t border-zinc-200/80 flex items-center justify-between text-[11px] text-zinc-500">
-            <span>Sculpted Notch • Radar Waves • Flank Shadow Rails</span>
-            <span className="font-mono text-zinc-400">#NOTCH-TWIN</span>
+            <span>Smooth SVG Ring • Executive Typography • Luxury Finish</span>
+            <span className="font-mono text-zinc-400">#CHRONO-PRO</span>
           </div>
         </div>
 
-        {/* Concept 2: Calibration Dial */}
+        {/* Concept 2: Precision Instrument Gyro */}
         <div className="bg-zinc-50/80 rounded-3xl border border-zinc-200 p-5 sm:p-6 flex flex-col justify-between space-y-4 hover:border-zinc-300 transition-all shadow-xs">
           <div>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
                 <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-                  CONCEPT 02 // SWISS HOROLOGY
+                  REFINED 02 // DUAL-ORBIT INSTRUMENT
                 </span>
                 <h3 className="text-lg font-black text-zinc-900 tracking-tight">
-                  Calibration Dial & Compass
+                  Precision Instrument Gyro
                 </h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Precision measurement aesthetic: 4-corner register marks (`⌜ ⌝ ⌞ ⌟`), rotating circular SVG tickmarks dial, and tactile chevron dispatch button.
+                  Minimalist instrument gauge: dual-orbit ring with a smooth traveling satellite dot, subtle vertical flank border, and a tactile outline chevron button.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => triggerToast("calibration-dial")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+                onClick={() => triggerToast("instrument-gyro")}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
               >
                 <Play className="w-3.5 h-3.5 fill-white" />
                 <span>Test Live</span>
@@ -735,36 +678,36 @@ export function DesignLabView() {
             </div>
 
             <div className="pt-2">
-              {renderNotificationCard("calibration-dial", selectedCategory, false)}
+              {renderNotificationCard("instrument-gyro", selectedCategory, false)}
             </div>
           </div>
 
           <div className="pt-3 border-t border-zinc-200/80 flex items-center justify-between text-[11px] text-zinc-500">
-            <span>Rotating Ticks • 4-Corner Brackets • Gauge Dial</span>
-            <span className="font-mono text-zinc-400">#CHRONO-DIAL</span>
+            <span>Orbiting Satellite • Flank Accent • Tactile Outline Action</span>
+            <span className="font-mono text-zinc-400">#GYRO-MINIMAL</span>
           </div>
         </div>
 
-        {/* Concept 3: Tactile Modular Cartridge */}
+        {/* Concept 3: Architectural Executive Chassis */}
         <div className="bg-zinc-50/80 rounded-3xl border border-zinc-200 p-5 sm:p-6 flex flex-col justify-between space-y-4 hover:border-zinc-300 transition-all shadow-xs">
           <div>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
                 <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-                  CONCEPT 03 // DIETER RAMS HARDWARE
+                  REFINED 03 // EXECUTIVE CHASSIS
                 </span>
                 <h3 className="text-lg font-black text-zinc-900 tracking-tight">
-                  Tactile Modular Cartridge
+                  Architectural Executive Chassis
                 </h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  High-end audio/modular gear aesthetic: brushed aluminum top strip, 3-stage animated mechanical LED meter, recessed well icon, and slotted bracket action.
+                  Refined hardware cartridge: sleek corporate top header bar with live workspace context, recessed tactile icon well with breathing pulse, and executive button.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => triggerToast("modular-cartridge")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+                onClick={() => triggerToast("architectural-chassis")}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
               >
                 <Play className="w-3.5 h-3.5 fill-white" />
                 <span>Test Live</span>
@@ -772,35 +715,35 @@ export function DesignLabView() {
             </div>
 
             <div className="pt-2">
-              {renderNotificationCard("modular-cartridge", selectedCategory, false)}
+              {renderNotificationCard("architectural-chassis", selectedCategory, false)}
             </div>
           </div>
 
           <div className="pt-3 border-t border-zinc-200/80 flex items-center justify-between text-[11px] text-zinc-500">
-            <span>Mechanical LEDs • Cartridge Tray • Recessed Well</span>
-            <span className="font-mono text-zinc-400">#RAMS-UNIT</span>
+            <span>Top Context Bar • Recessed Well • Enterprise Action</span>
+            <span className="font-mono text-zinc-400">#CHASSIS-CORP</span>
           </div>
         </div>
 
-        {/* Concept 4: Prism Refraction Blade */}
+        {/* Concept 4: Studio Solid-State Capsule */}
         <div className="bg-zinc-50/80 rounded-3xl border border-zinc-200 p-5 sm:p-6 flex flex-col justify-between space-y-4 hover:border-zinc-300 transition-all shadow-xs">
           <div>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
                 <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
-                  CONCEPT 04 // CRYSTALLINE REFRACTION
+                  REFINED 04 // SOLID-STATE STUDIO
                 </span>
                 <h3 className="text-lg font-black text-zinc-900 tracking-tight">
-                  Prism Refraction Blade
+                  Studio Solid-State Capsule
                 </h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Razor-thin prismatic light beam along the top edge, hexagonal crystal core with dual counter-orbiting satellite particles, and quick action chip.
+                  Apple Pro inspired solid-state look: high-contrast dark tile with an animated micro-LED corner beacon, clean typography, and a tactile light pill button.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => triggerToast("prism-blade")}
+                onClick={() => triggerToast("studio-capsule")}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
               >
                 <Play className="w-3.5 h-3.5 fill-white" />
@@ -809,13 +752,13 @@ export function DesignLabView() {
             </div>
 
             <div className="pt-2">
-              {renderNotificationCard("prism-blade", selectedCategory, false)}
+              {renderNotificationCard("studio-capsule", selectedCategory, false)}
             </div>
           </div>
 
           <div className="pt-3 border-t border-zinc-200/80 flex items-center justify-between text-[11px] text-zinc-500">
-            <span>Prism Beam • Dual Orbit Satellites • Chamfered Core</span>
-            <span className="font-mono text-zinc-400">#PRISM-BLADE</span>
+            <span>Dark Tile Anchor • Corner Beacon • Clean Pill Action</span>
+            <span className="font-mono text-zinc-400">#SOLID-STATE</span>
           </div>
         </div>
       </div>
@@ -825,7 +768,7 @@ export function DesignLabView() {
         <div className="flex items-center gap-2.5">
           <Info className="w-4 h-4 text-zinc-500 shrink-0" />
           <span>
-            Every style is crafted in <strong>clean white / high-contrast light mode</strong> with dedicated animated micro-mechanics. Click <strong>"Test Live"</strong> on any concept to watch it float to the top of your screen with live exit progress.
+            Stripped away all gaming and cyberpunk traits (no bracket codes, no retro synth LEDs, no sci-fi crosshairs). Clean, professional, and ready for your review!
           </span>
         </div>
       </div>
