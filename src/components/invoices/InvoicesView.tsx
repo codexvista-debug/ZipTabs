@@ -764,7 +764,7 @@ export function InvoicesView() {
             (val, i) =>
               `<td style="background-color: #FFFFFF; color: #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; border: 1px solid #000000; padding: 6px 14px; text-align: ${
                 i === 0 ? "left" : i === 2 ? "right" : "center"
-              }; font-weight: ${i === 2 || i === 4 ? "bold" : "normal"}; vertical-align: middle; white-space: nowrap;">${val}</td>`
+              }; font-weight: ${i === 4 ? "bold" : "normal"}; vertical-align: middle; white-space: nowrap;">${val}</td>`
           )
           .join("");
         return `<tr>${cellsHtml}</tr>`;
