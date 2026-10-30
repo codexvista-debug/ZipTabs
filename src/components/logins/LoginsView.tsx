@@ -927,32 +927,30 @@ export function LoginsView() {
 
   // 3. UNLOCKED VAULT VIEW
   return (
-    <div className="space-y-6 pb-16 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 pb-4 sm:pb-6 border-b border-slate-200/60">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
-              <KeyRound className="w-5 h-5" />
+    <div className="space-y-3.5 sm:space-y-6 pb-16 max-w-7xl mx-auto">
+      {/* Header (Single compact row on mobile) */}
+      <div className="flex items-center justify-between gap-2.5 pb-3 sm:pb-6 border-b border-slate-200/60">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+              <KeyRound className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-                Logins & Portals
-              </h1>
-            </div>
+            <h1 className="text-base sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
+              Logins & Portals
+            </h1>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl hidden sm:block">
             Encrypted directory synced across all your devices, exclusively accessible by <strong>@chief</strong>.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Add Login Button */}
           <button
             onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all cursor-pointer active:scale-95"
+            className="inline-flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all cursor-pointer active:scale-95 shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Add Login</span>
           </button>
         </div>

@@ -211,27 +211,27 @@ export function UsageView() {
           </div>
         )}
 
-      {/* Top Header Row */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-              <HardDrive className="w-5 h-5" />
+      {/* Top Header Row (Single compact row on mobile) */}
+      <div className="flex items-center justify-between gap-2.5 pb-3 sm:pb-6 border-b border-slate-200/60">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+              <HardDrive className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-base sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
               Workspace & Storage Usage
             </h1>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 hidden sm:block">
             Real-time monitoring of Supabase Free Plan file storage, database space, and uploaded documents.
           </p>
         </div>
 
         {/* Status Badge */}
-        <div className="flex items-center self-start sm:self-auto">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Free Plan: Healthy</span>
+        <div className="flex items-center shrink-0">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="hidden sm:inline">Free Plan: </span><span>Healthy</span>
           </div>
         </div>
       </div>

@@ -438,73 +438,35 @@ export function USCalendarView() {
   return (
     <div className="space-y-4 sm:space-y-6 relative pb-16">
       {/* Top Header Row with Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 pb-4 sm:pb-6 border-b border-slate-200/60">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-4 pb-3 sm:pb-6 border-b border-slate-200/60">
         <div>
           <div className="flex items-center gap-2 sm:gap-2.5">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
               <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-base sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
               US Calendar & Working Hours
             </h1>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 hidden sm:block">
             Standard payroll periods: P1 (Days 1–15) and P2 (Days 16–End) with official US Federal Holidays.
           </p>
         </div>
 
-        {/* Month Selector Controls */}
-        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          {/* Export to Excel Sheet Button */}
-          <button
-            type="button"
-            onClick={handleExportToExcel}
-            disabled={isExporting}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer border ${
-              exportSuccess
-                ? "bg-emerald-50 border-emerald-400 text-emerald-700"
-                : "bg-white border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-slate-700 hover:text-emerald-700"
-            } disabled:opacity-50`}
-            title={`Export ${MONTH_NAMES[selectedMonth]} ${selectedYear} into an Excel sheet with hours`}
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-                <span>Exporting...</span>
-              </>
-            ) : exportSuccess ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Exported!</span>
-              </>
-            ) : (
-              <>
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <span className="hidden sm:inline">Export to Excel</span>
-                <span className="sm:hidden">Export</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleJumpToToday}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors shadow-xs cursor-pointer"
-          >
-            Today
-          </button>
-
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-xs">
+        {/* Month Selector Controls (1 compact single line on mobile) */}
+        <div className="flex items-center justify-between gap-1.5 w-full sm:w-auto">
+          {/* Month Stepper */}
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 sm:p-1 shadow-2xs shrink-0">
             <button
               type="button"
               onClick={handlePrevMonth}
               title="Previous Month"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
 
-            <span className="px-2 sm:px-3 text-xs font-extrabold text-slate-900 min-w-[125px] sm:min-w-[140px] text-center select-none">
+            <span className="px-1.5 sm:px-3 text-xs font-extrabold text-slate-900 min-w-[105px] sm:min-w-[140px] text-center select-none truncate">
               {MONTH_NAMES[selectedMonth]} {selectedYear}
             </span>
 
@@ -512,9 +474,51 @@ export function USCalendarView() {
               type="button"
               onClick={handleNextMonth}
               title="Next Month"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Jump to Today Button */}
+            <button
+              type="button"
+              onClick={handleJumpToToday}
+              className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            >
+              Today
+            </button>
+
+            {/* Export to Excel Sheet Button */}
+            <button
+              type="button"
+              onClick={handleExportToExcel}
+              disabled={isExporting}
+              className={`flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer border ${
+                exportSuccess
+                  ? "bg-emerald-50 border-emerald-400 text-emerald-700"
+                  : "bg-white border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-slate-700 hover:text-emerald-700"
+              } disabled:opacity-50`}
+              title={`Export ${MONTH_NAMES[selectedMonth]} ${selectedYear} into an Excel sheet with hours`}
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  <span className="hidden sm:inline">Exporting...</span>
+                </>
+              ) : exportSuccess ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Exported!</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Export to Excel</span>
+                  <span className="sm:hidden">Export</span>
+                </>
+              )}
             </button>
           </div>
         </div>
