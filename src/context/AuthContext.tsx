@@ -98,7 +98,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers["x-auth-user"] = currentUsername;
       }
 
-      const res = await fetch("/api/auth/lockout-status", { headers });
+      const res = await fetch("/api/auth/lockout-status", {
+        headers,
+        signal: typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(1800) : undefined,
+      });
       if (res.ok) {
         const data: LockoutInfo = await res.json();
         setLockoutInfo(data);
@@ -140,6 +143,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           setUser(JSON.parse(stored));
+          // Fast-path unlock: if we already have a validated active session, unlock UI immediately
+          setIsLoading(false);
           // Refresh activity timestamp on confirmed active restore
           try {
             localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());

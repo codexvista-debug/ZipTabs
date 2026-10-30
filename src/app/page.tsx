@@ -101,8 +101,8 @@ export default function Home() {
     );
   }
 
-  // 1. Loading Session State (Guards against any flash of website or login UI before security verification)
-  if (isLoading || lockoutInfo === null) {
+  // 1. Loading Session State (Instantaneous unlock for active sessions; guards against unauth flash)
+  if (isLoading) {
     return <WorkspaceLoadingScreen />;
   }
 

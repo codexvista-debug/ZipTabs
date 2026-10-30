@@ -31,94 +31,50 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 0. Record visitor IP traffic with country (even without login)
     const userAgent = req.headers.get("user-agent") || "unknown";
     const reqSessionId = req.headers.get("x-session-id")?.trim() || "";
     const reqSessionCreated = parseInt(req.headers.get("x-session-created") || "0", 10) || 0;
     const authUser = req.headers.get("x-auth-user")?.trim().toLowerCase();
 
-    try {
-      await supabase.rpc("record_site_visitor", {
-        p_ip: clientIp,
-        p_user_agent: userAgent,
-        p_page: "/",
-        p_country: clientCountry,
-      });
-
-      if (reqSessionId || authUser) {
-        await supabase
-          .from("site_visitors")
-          .update({
-            active_session_id: reqSessionId || null,
-            username: authUser || null,
-          })
-          .eq("ip", clientIp);
-      }
-    } catch (e) {
-      // Non-blocking fallback
-    }
-
-    // 0.1 Associate authenticated user session with IP locks if present
-    if (authUser) {
+    // 0. Asynchronous Non-Blocking Visitor Telemetry (Does NOT block critical auth verification)
+    (async () => {
       try {
-        const { data: currentLock } = await supabase
-          .from("auth_ip_locks")
-          .select("attempt_history, country_code")
-          .eq("ip", clientIp)
-          .maybeSingle();
+        await supabase.rpc("record_site_visitor", {
+          p_ip: clientIp,
+          p_user_agent: userAgent,
+          p_page: "/",
+          p_country: clientCountry,
+        });
 
-        const history = Array.isArray(currentLock?.attempt_history)
-          ? currentLock.attempt_history
-          : [];
-        const hasUser = history.some((h: any) => h.username?.toLowerCase() === authUser);
-
-        if (!hasUser) {
-          const updatedHistory = [
-            ...history,
-            {
-              timestamp: new Date().toISOString(),
-              username: authUser,
-              userAgent: userAgent,
-              success: true,
-            },
-          ].slice(-20);
-
-          await supabase.from("auth_ip_locks").upsert({
-            ip: clientIp,
-            country_code: clientCountry || currentLock?.country_code,
-            attempt_history: updatedHistory,
-            last_attempt_at: new Date().toISOString(),
-          });
+        if (reqSessionId || authUser) {
+          await supabase
+            .from("site_visitors")
+            .update({
+              active_session_id: reqSessionId || null,
+              username: authUser || null,
+            })
+            .eq("ip", clientIp);
         }
       } catch (e) {
         // Non-blocking fallback
       }
-    }
+    })();
 
-    // 1. Check Master Control Security Settings (Global & Vanish Mode)
-    const { data: allSettings } = await supabase
-      .from("system_security_settings")
-      .select("*")
-      .in("id", ["global", "vanish_mode"]);
+    // 1. Parallel High-Speed Security Verification: Run settings and IP lock queries concurrently
+    const [allSettingsRes, lockRecordRes] = await Promise.all([
+      supabase.from("system_security_settings").select("*").in("id", ["global", "vanish_mode"]),
+      supabase.from("auth_ip_locks").select("*").eq("ip", clientIp).maybeSingle(),
+    ]);
 
+    const allSettings = allSettingsRes.data;
     const settings = allSettings?.find((s) => s.id === "global");
     const vanishSettings = allSettings?.find((s) => s.id === "vanish_mode");
     const isVanishMode = Boolean(vanishSettings?.ip_lockdown_enabled);
 
     // 1.1 Priority: Check Vanish Mode
-    // If active, non-whitelisted IPs are instantly evicted to Wikipedia
     if (isVanishMode) {
       const isAllowed = Array.isArray(settings?.allowed_ips) && settings.allowed_ips.includes(clientIp);
       if (!isAllowed) {
-        try {
-          await supabase
-            .from("site_visitors")
-            .update({
-              last_page: "Vanished -> Wikipedia Redirect",
-            })
-            .eq("ip", clientIp);
-        } catch (e) {}
-
         return NextResponse.json({
           ip: clientIp,
           locked: true,
@@ -134,7 +90,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (settings) {
-      // 1.0 Evict Kicked Sessions (Terminates all sessions except the preserved session)
+      // 1.0 Evict Kicked Sessions
       if (settings.kick_sessions_before && authUser) {
         const kickBeforeMs = new Date(settings.kick_sessions_before).getTime();
         const isPreservedSession = Boolean(
@@ -183,11 +139,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const { data: record, error } = await supabase
-      .from("auth_ip_locks")
-      .select("*")
-      .eq("ip", clientIp)
-      .maybeSingle();
+    const record = lockRecordRes.data;
+    const error = lockRecordRes.error;
 
     if (error && error.code !== "PGRST116") {
       console.error("Lockout query error:", error);

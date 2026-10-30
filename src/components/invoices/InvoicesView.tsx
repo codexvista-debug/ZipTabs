@@ -35,6 +35,8 @@ export interface InvoiceRecord {
   created_at?: string;
 }
 
+export type HeaderStyleId = "style-01" | "style-02" | "style-03" | "style-04";
+
 /**
  * Accurately calculates the exact number of calendar days overdue from a due date to today.
  * Uses pure UTC calendar date math to prevent daylight savings and timezone boundary shifts.
@@ -94,6 +96,27 @@ export function InvoicesView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragHover, setIsDragHover] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Active Header Style (Persisted in localStorage; defaults to style-02)
+  const [activeHeaderStyle, setActiveHeaderStyle] = useState<HeaderStyleId>("style-02");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("ziptabs_active_header_style") as HeaderStyleId;
+      if (saved && ["style-01", "style-02", "style-03", "style-04"].includes(saved)) {
+        setActiveHeaderStyle(saved);
+      }
+    } catch {}
+
+    const handleStyleChange = (e: any) => {
+      if (e.detail && ["style-01", "style-02", "style-03", "style-04"].includes(e.detail)) {
+        setActiveHeaderStyle(e.detail);
+      }
+    };
+
+    window.addEventListener("ziptabs-header-style-changed", handleStyleChange);
+    return () => window.removeEventListener("ziptabs-header-style-changed", handleStyleChange);
+  }, []);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -626,114 +649,211 @@ export function InvoicesView() {
         </div>
       )}
 
-      {/* Top Header Row (Style 04: Frosted Glass Floating Dock) */}
-      <div className="relative bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/90 p-3.5 sm:p-5 shadow-xs overflow-hidden flex flex-row items-center justify-between gap-3 mb-4">
-        {/* Prismatic Top Gradient Accent Rail */}
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-transparent pointer-events-none" />
+      {/* Dynamic Header Row (Supports Style 01, 02, 03, 04 live from Design Lab; defaults to Style 02) */}
+      {(() => {
+        const renderUploadButton = (theme: "blue" | "dark" = "blue") => {
+          const isDark = theme === "dark";
+          return (
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".csv, .xlsx, .xls"
+                className="hidden"
+                onClick={(e) => {
+                  (e.target as HTMLInputElement).value = "";
+                }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file);
+                }}
+              />
 
-        <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-50 border border-blue-200/80 shadow-2xs flex items-center justify-center shrink-0">
-            <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-          </div>
+              {/* Desktop Rich Button */}
+              <button
+                type="button"
+                disabled={isProcessing}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragHover(true);
+                }}
+                onDragLeave={() => setIsDragHover(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragHover(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) handleFileUpload(file);
+                }}
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                    fileInputRef.current.click();
+                  }
+                }}
+                className={`hidden sm:inline-flex group relative items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${
+                  isDragHover
+                    ? isDark
+                      ? "bg-black text-white shadow-lg ring-4 ring-slate-700/30 scale-[1.02]"
+                      : "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
+                    : isDark
+                    ? "bg-slate-900 hover:bg-black active:scale-98 text-white shadow-md shadow-slate-900/20 hover:shadow-lg hover:shadow-slate-900/30"
+                    : "bg-[#2563eb] hover:bg-blue-600 active:scale-98 text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35"
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg sm:rounded-xl bg-white/20 border border-white/25 flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform">
+                  {isProcessing ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <Upload className="w-4 h-4 text-white" />
+                  )}
+                </div>
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
-                Overdue Invoices
-              </h1>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Sync
-              </span>
+                <div className="text-left pr-1">
+                  <div className="text-xs sm:text-[13px] font-bold leading-tight tracking-tight text-white flex items-center gap-1.5">
+                    <span>{isProcessing ? "Processing File..." : "Upload File"}</span>
+                  </div>
+                  <div className="text-[10px] text-blue-100 font-medium leading-tight mt-0.5">
+                    Drop or select .csv / .xlsx
+                  </div>
+                </div>
+              </button>
+
+              {/* Mobile Compact Button: Saves massive vertical space on phones */}
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                    fileInputRef.current.click();
+                  }
+                }}
+                className={`sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50 ${
+                  isDark ? "bg-slate-900 hover:bg-black" : "bg-[#2563eb] hover:bg-blue-600"
+                }`}
+              >
+                {isProcessing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5 text-white" />
+                )}
+                <span>Upload</span>
+              </button>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
-              Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-            </p>
-          </div>
-        </div>
+          );
+        };
 
-        {/* Sole Action: Upload Button (Compact on mobile, rich dropzone on desktop) */}
-        <div className="flex items-center gap-2 shrink-0">
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept=".csv, .xlsx, .xls"
-            className="hidden"
-            onClick={(e) => {
-              (e.target as HTMLInputElement).value = "";
-            }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFileUpload(file);
-            }}
-          />
-
-          {/* Desktop Rich Button */}
-          <button
-            type="button"
-            disabled={isProcessing}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragHover(true);
-            }}
-            onDragLeave={() => setIsDragHover(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragHover(false);
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleFileUpload(file);
-            }}
-            onClick={() => {
-              if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-                fileInputRef.current.click();
-              }
-            }}
-            className={`hidden sm:inline-flex group relative items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${
-              isDragHover
-                ? "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
-                : "bg-[#2563eb] hover:bg-blue-600 active:scale-98 text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35"
-            }`}
-          >
-            <div className="w-8 h-8 rounded-lg sm:rounded-xl bg-white/20 border border-white/25 flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform">
-              {isProcessing ? (
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
-              ) : (
-                <Upload className="w-4 h-4 text-white" />
-              )}
-            </div>
-
-            <div className="text-left pr-1">
-              <div className="text-xs sm:text-[13px] font-bold leading-tight tracking-tight text-white flex items-center gap-1.5">
-                <span>{isProcessing ? "Processing File..." : "Upload File"}</span>
+        // Style 01: Architectural Minimal
+        if (activeHeaderStyle === "style-01") {
+          return (
+            <div className="flex flex-row items-center justify-between gap-3 pb-3 sm:pb-5 border-b border-slate-200/60 mb-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate sm:whitespace-normal">
+                    Overdue Invoices
+                  </h1>
+                  <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                    Active View
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 pl-4 hidden sm:block">
+                  Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
+                </p>
               </div>
-              <div className="text-[10px] text-blue-100 font-medium leading-tight mt-0.5">
-                Drop or select .csv / .xlsx
+              {renderUploadButton("blue")}
+            </div>
+          );
+        }
+
+        // Style 02: Executive Slate Chassis (Requested Active Style)
+        if (activeHeaderStyle === "style-02") {
+          return (
+            <div className="bg-gradient-to-r from-slate-100/90 via-slate-50/70 to-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-5 flex flex-row items-center justify-between gap-3 mb-4 shadow-2xs">
+              <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-white border border-slate-200/90 flex items-center justify-center shadow-xs shrink-0">
+                  <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase">
+                      WORKSPACE // AR LEDGER
+                    </span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
+                  <h1 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
+                    Overdue Invoices
+                  </h1>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
+                    Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
+                  </p>
+                </div>
+              </div>
+              {renderUploadButton("dark")}
+            </div>
+          );
+        }
+
+        // Style 03: Cockpit Flight Deck (Inline Metric Ribbons)
+        if (activeHeaderStyle === "style-03") {
+          return (
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 sm:pb-5 border-b border-slate-200/60 mb-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    Overdue Invoices
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-rose-600 bg-rose-50 border-rose-200 shadow-2xs">
+                      <span className="text-[10px] font-medium opacity-80">Total Overdue:</span>
+                      <span>$3,500,238</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-amber-600 bg-amber-50 border-amber-200 shadow-2xs">
+                      <span className="text-[10px] font-medium opacity-80">Past Due:</span>
+                      <span>261 Invoices</span>
+                    </div>
+                    <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-blue-600 bg-blue-50 border-blue-200 shadow-2xs">
+                      <span className="text-[10px] font-medium opacity-80">Active Vendors:</span>
+                      <span>155 Accounts</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 hidden sm:block">
+                  Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
+                </p>
+              </div>
+              {renderUploadButton("blue")}
+            </div>
+          );
+        }
+
+        // Style 04: Frosted Glass Floating Dock
+        return (
+          <div className="relative bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/90 p-3.5 sm:p-5 shadow-xs overflow-hidden flex flex-row items-center justify-between gap-3 mb-4">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-transparent pointer-events-none" />
+            <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-50 border border-blue-200/80 shadow-2xs flex items-center justify-center shrink-0">
+                <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
+                    Overdue Invoices
+                  </h1>
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live Sync
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
+                  Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
+                </p>
               </div>
             </div>
-          </button>
-
-          {/* Mobile Compact Button: Saves massive vertical space on phones */}
-          <button
-            type="button"
-            disabled={isProcessing}
-            onClick={() => {
-              if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-                fileInputRef.current.click();
-              }
-            }}
-            className="sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50"
-          >
-            {isProcessing ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-            ) : (
-              <Upload className="w-3.5 h-3.5 text-white" />
-            )}
-            <span>Upload</span>
-          </button>
-        </div>
-      </div>
+            {renderUploadButton("blue")}
+          </div>
+        );
+      })()}
 
       {/* Main Table Container (Fixed-View Dashboard Architecture) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col overflow-hidden">

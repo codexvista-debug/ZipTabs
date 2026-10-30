@@ -167,6 +167,8 @@ export function DesignLabView() {
   const [activeStudioSection, setActiveStudioSection] = useState<"headers" | "notifications">("headers");
   const [selectedPreviewTab, setSelectedPreviewTab] = useState<HeaderPreviewTab>("invoices");
   const [selectedCategory, setSelectedCategory] = useState<NotifCategory>("security");
+  const [liveWorkspaceStyle, setLiveWorkspaceStyle] = useState<string>("style-02");
+  const [toastFeedback, setToastFeedback] = useState<string | null>(null);
   const [activeLiveToast, setActiveLiveToast] = useState<{
     styleId: ProfessionalStyleId;
     category: NotifCategory;
@@ -175,7 +177,29 @@ export function DesignLabView() {
 
   useEffect(() => {
     setIsMounted(true);
+    try {
+      const saved = localStorage.getItem("ziptabs_active_header_style");
+      if (saved) setLiveWorkspaceStyle(saved);
+    } catch {}
   }, []);
+
+  const applyStyleToLiveWorkspace = (styleId: string) => {
+    try {
+      localStorage.setItem("ziptabs_active_header_style", styleId);
+      window.dispatchEvent(new CustomEvent("ziptabs-header-style-changed", { detail: styleId }));
+      setLiveWorkspaceStyle(styleId);
+      const nameMap: Record<string, string> = {
+        "style-01": "Style 01 (Architectural Minimal)",
+        "style-02": "Style 02 (Executive Slate Chassis)",
+        "style-03": "Style 03 (Cockpit Flight Deck)",
+        "style-04": "Style 04 (Frosted Glass Dock)",
+      };
+      setToastFeedback(`${nameMap[styleId] || styleId} is now LIVE on your workspace! Switch tabs to inspect.`);
+      setTimeout(() => setToastFeedback(null), 4000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Auto dismiss live toast after 6 seconds
   useEffect(() => {
@@ -402,6 +426,25 @@ export function DesignLabView() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-200 font-sans">
+      {/* Live Workspace Feedback Pill */}
+      {toastFeedback && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 flex justify-center animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto">
+          <div className="w-full bg-[#0c1427]/95 backdrop-blur-md text-white border border-slate-700/80 rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{toastFeedback}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastFeedback(null)}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Live Portal Floater */}
       {renderLiveToast()}
 
@@ -547,9 +590,25 @@ export function DesignLabView() {
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-500 bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-                <span><strong>Verdict:</strong> Ultra-clean, zero visual noise, gives 100% of the screen height to the table and content.</span>
-                <span className="font-semibold text-emerald-700">Recommended for spreadsheet & data heavy views</span>
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] text-slate-500 bg-slate-50/80 rounded-2xl p-3 sm:px-4 border border-slate-100">
+                <span className="max-w-md"><strong>Verdict:</strong> Ultra-clean, zero visual noise, gives 100% of the screen height to the table and content.</span>
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  {liveWorkspaceStyle === "style-01" ? (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+                      <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-600" />
+                      <span>Active on Live Workspace</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => applyStyleToLiveWorkspace("style-01")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+                      <span>Apply to Live Workspace</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -600,9 +659,25 @@ export function DesignLabView() {
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-500 bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-                <span><strong>Verdict:</strong> Clearly defines the top of each tab with executive corporate presence.</span>
-                <span className="font-semibold text-slate-700">Best if you want each tab to feel distinct</span>
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] text-slate-500 bg-slate-50/80 rounded-2xl p-3 sm:px-4 border border-slate-100">
+                <span className="max-w-md"><strong>Verdict:</strong> Clearly defines the top of each tab with executive corporate presence.</span>
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  {liveWorkspaceStyle === "style-02" ? (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+                      <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-600" />
+                      <span>Active on Live Workspace</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => applyStyleToLiveWorkspace("style-02")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+                      <span>Apply to Live Workspace</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -658,9 +733,25 @@ export function DesignLabView() {
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-500 bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-                <span><strong>Verdict:</strong> Highest value! Embeds critical numbers directly into the header so separate bulky metric cards aren&apos;t required.</span>
-                <span className="font-semibold text-blue-700">Saves up to 140px of vertical space</span>
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] text-slate-500 bg-slate-50/80 rounded-2xl p-3 sm:px-4 border border-slate-100">
+                <span className="max-w-md"><strong>Verdict:</strong> Highest value! Embeds critical numbers directly into the header so separate bulky metric cards aren&apos;t required.</span>
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  {liveWorkspaceStyle === "style-03" ? (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+                      <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-600" />
+                      <span>Active on Live Workspace</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => applyStyleToLiveWorkspace("style-03")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+                      <span>Apply to Live Workspace</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -721,9 +812,25 @@ export function DesignLabView() {
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-500 bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-                <span><strong>Verdict:</strong> Ultra-premium modern SaaS dock. Adds tactile micro-depth without feeling heavy.</span>
-                <span className="font-semibold text-sky-700">Best for modern Apple-like executive feel</span>
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] text-slate-500 bg-slate-50/80 rounded-2xl p-3 sm:px-4 border border-slate-100">
+                <span className="max-w-md"><strong>Verdict:</strong> Ultra-premium modern SaaS dock. Adds tactile micro-depth without feeling heavy.</span>
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  {liveWorkspaceStyle === "style-04" ? (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+                      <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-600" />
+                      <span>Active on Live Workspace</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => applyStyleToLiveWorkspace("style-04")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+                      <span>Apply to Live Workspace</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
