@@ -566,13 +566,9 @@ export function NotesView() {
           setQuickFiles((prev) => [...prev, ...pastedFiles]);
           showToast(
             "Screenshot Attached",
-            `${pastedFiles.length} item(s) pasted. Scanning image text...`,
-            "info"
+            `${pastedFiles.length} item(s) attached from clipboard.`,
+            "success"
           );
-          const firstImage = pastedFiles.find((f) => f.type.startsWith("image/"));
-          if (firstImage) {
-            handleQuickExtractFromImage(firstImage);
-          }
         }
       }
     };
@@ -1507,10 +1503,6 @@ export function NotesView() {
             const droppedFiles = Array.from(e.dataTransfer.files);
             setQuickFiles((prev) => [...prev, ...droppedFiles]);
             showToast("Files Attached", `${droppedFiles.length} item(s) attached to quick note.`, "info");
-            const firstImg = droppedFiles.find((f) => f.type.startsWith("image/"));
-            if (firstImg) {
-              handleQuickExtractFromImage(firstImg);
-            }
           }
         }}
         className={`bg-white rounded-2xl border p-4 sm:p-5 shadow-xs transition-all duration-200 ${
@@ -1580,7 +1572,7 @@ export function NotesView() {
               </span>
             ) : (
               <span className="text-[11px] text-slate-400 hidden md:inline-flex items-center gap-1">
-                Auto-extracts text from images • Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">Ctrl+Enter</kbd> to add
+                Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">Ctrl+Enter</kbd> to add
               </span>
             )}
           </div>
@@ -1598,54 +1590,94 @@ export function NotesView() {
                 handleQuickAddNote();
               }
             }}
-            placeholder="Type note details or paste a screenshot with Ctrl+V (text will auto-extract from images)..."
+            placeholder="Type note details or paste a screenshot with Ctrl+V..."
             className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 font-medium transition-all resize-y min-h-[64px]"
           />
         </div>
 
-        {/* Attached Files & Screenshots Strip */}
+        {/* Attached Files & Screenshots Strip with Visual Thumbnails (Matches Edit Notes View) */}
         {quickFiles.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
             {quickFiles.map((file, idx) => {
-              const isImg = file.type.startsWith("image/");
+              const isImg = file.type.startsWith("image/") || /\.(png|jpe?g|webp|bmp|gif|tiff)$/i.test(file.name);
+              const previewUrl = isImg ? URL.createObjectURL(file) : null;
+
               return (
                 <div
                   key={`${file.name}-${idx}`}
-                  className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700"
+                  className="flex items-center justify-between p-1.5 pr-2.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs gap-3 hover:border-slate-300 transition-colors shadow-2xs"
                 >
-                  {isImg ? (
-                    <ImageIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                  ) : (
-                    <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  )}
-                  <span className="max-w-[140px] truncate font-medium text-[11px] text-slate-800" title={file.name}>
-                    {file.name}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    ({(file.size / 1024).toFixed(0)} KB)
-                  </span>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {isImg && previewUrl ? (
+                      <div
+                        onClick={() =>
+                          setPreviewAttachment({
+                            url: previewUrl,
+                            name: file.name,
+                            size: file.size,
+                            type: file.type,
+                          })
+                        }
+                        className="relative w-9 h-9 rounded-lg border border-slate-300 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
+                        title="Click to preview image"
+                      >
+                        <img
+                          src={previewUrl}
+                          alt={file.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity text-white">
+                          <ExternalLink className="w-3 h-3" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-2xs">
+                        <FileBrandIcon fileName={file.name} mimeType={file.type} size="sm" className="w-5 h-5 shrink-0" />
+                      </div>
+                    )}
 
-                  {isImg && (
+                    <div className="min-w-0">
+                      <span className="max-w-[140px] sm:max-w-[180px] truncate font-bold text-xs text-slate-800 block" title={file.name}>
+                        {file.name}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-semibold mt-0.5 block">
+                        {formatFileSize(file.size)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isImg && (
+                      <button
+                        type="button"
+                        disabled={isQuickExtracting}
+                        onClick={() => handleQuickExtractFromImage(file)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                        title="Extract text from this image to note details"
+                      >
+                        {isQuickExtracting ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                            <span>{quickExtractProgress > 0 ? `${quickExtractProgress}%` : "Scanning..."}</span>
+                          </>
+                        ) : (
+                          <>
+                            <ScanText className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Extract Text</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
                     <button
                       type="button"
-                      disabled={isQuickExtracting}
-                      onClick={() => handleQuickExtractFromImage(file)}
-                      className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold cursor-pointer transition-colors"
-                      title="Scan/Re-extract text from this image"
+                      onClick={() => setQuickFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                      title="Remove attachment"
                     >
-                      <ScanText className="w-3 h-3" />
-                      <span>Extract</span>
+                      <X className="w-4 h-4" />
                     </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setQuickFiles((prev) => prev.filter((_, i) => i !== idx))}
-                    className="p-0.5 text-slate-400 hover:text-rose-600 hover:bg-slate-200 rounded transition-colors cursor-pointer"
-                    title="Remove attachment"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  </div>
                 </div>
               );
             })}
@@ -1666,10 +1698,6 @@ export function NotesView() {
                 if (e.target.files && e.target.files.length > 0) {
                   const selected = Array.from(e.target.files);
                   setQuickFiles((prev) => [...prev, ...selected]);
-                  const firstImg = selected.find((f) => f.type.startsWith("image/"));
-                  if (firstImg) {
-                    handleQuickExtractFromImage(firstImg);
-                  }
                   e.target.value = "";
                 }
               }}
