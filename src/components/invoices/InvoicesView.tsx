@@ -140,6 +140,43 @@ export function isWithinReminderWindow(dueDateStr?: string | number | null): boo
   return diffDays >= -4 && diffDays <= 4;
 }
 
+/**
+ * Safely converts any invoice due date string (MM/DD/YYYY, YYYY-MM-DD, or Excel serial number)
+ * into a pure UTC timestamp in milliseconds for 100% accurate chronological sorting.
+ */
+export function parseDueDateToTimestamp(dueDateStr?: string | number | null): number {
+  if (!dueDateStr) return 0;
+
+  if (typeof dueDateStr === "number" && dueDateStr > 25000 && dueDateStr < 60000) {
+    const jsDate = new Date((dueDateStr - 25569) * 86400 * 1000);
+    return Date.UTC(jsDate.getUTCFullYear(), jsDate.getUTCMonth(), jsDate.getUTCDate());
+  }
+
+  const str = String(dueDateStr).trim();
+  if (!str || str === "—") return 0;
+
+  // 1. MM/DD/YYYY
+  const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (slashMatch) {
+    const month = parseInt(slashMatch[1], 10) - 1;
+    const day = parseInt(slashMatch[2], 10);
+    const year = parseInt(slashMatch[3], 10);
+    return Date.UTC(year, month, day);
+  }
+
+  // 2. YYYY-MM-DD
+  const dashMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (dashMatch) {
+    const year = parseInt(dashMatch[1], 10);
+    const month = parseInt(dashMatch[2], 10) - 1;
+    const day = parseInt(dashMatch[3], 10);
+    return Date.UTC(year, month, day);
+  }
+
+  const parsed = new Date(str);
+  return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
 export function InvoicesView() {
   const INVOICE_CACHE_KEY = "ziptabs_cached_invoices_v1";
 
@@ -197,7 +234,7 @@ export function InvoicesView() {
   const [activeVendorFilter, setActiveVendorFilter] = useState<string | null>(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [agingFilter, setAgingFilter] = useState<"all" | "reminder" | "30" | "60" | "90+">("all");
-  const [sortBy, setSortBy] = useState<"days_desc" | "amount_desc" | "vendor_asc">("days_desc");
+  const [sortBy, setSortBy] = useState<"days_desc" | "due_date_desc" | "amount_desc" | "vendor_asc">("days_desc");
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // Close search suggestions on click outside
@@ -247,7 +284,7 @@ export function InvoicesView() {
       const { data, error } = await supabase
         .from("invoices")
         .select("*")
-        .order("days_overdue", { ascending: false });
+        .order("due_date", { ascending: true });
 
       if (error) {
         console.error("Error loading invoices from Supabase:", error);
@@ -585,7 +622,7 @@ export function InvoicesView() {
     });
   }, [invoicesMatchingAging, searchQuery]);
 
-  // Final filtered invoices (applying activeVendorFilter if selected, and sorting)
+  // Final filtered invoices (strictly sorted by Due Date chronologically)
   const filteredInvoices = useMemo(() => {
     return invoicesMatchingSearch
       .filter((inv) => {
@@ -595,10 +632,46 @@ export function InvoicesView() {
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "days_desc") return b.days_overdue - a.days_overdue;
-        if (sortBy === "amount_desc") return b.amount - a.amount;
-        if (sortBy === "vendor_asc") return a.vendor_name.localeCompare(b.vendor_name);
-        return 0;
+        const timeA = parseDueDateToTimestamp(a.due_date);
+        const timeB = parseDueDateToTimestamp(b.due_date);
+
+        // Sort by Due Date: Earliest First (Oldest Overdue -> Today -> Upcoming/Future)
+        if (sortBy === "days_desc") {
+          if (timeA && timeB) {
+            if (timeA !== timeB) return timeA - timeB;
+          } else if (timeA) {
+            return -1;
+          } else if (timeB) {
+            return 1;
+          }
+          return (b.days_overdue ?? 0) - (a.days_overdue ?? 0);
+        }
+
+        // Sort by Due Date: Latest First (Farthest Future -> Today -> Oldest)
+        if (sortBy === "due_date_desc") {
+          if (timeA && timeB) {
+            if (timeA !== timeB) return timeB - timeA;
+          } else if (timeA) {
+            return 1;
+          } else if (timeB) {
+            return -1;
+          }
+          return (a.days_overdue ?? 0) - (b.days_overdue ?? 0);
+        }
+
+        if (sortBy === "amount_desc") {
+          if (b.amount !== a.amount) return b.amount - a.amount;
+          return (timeA || 0) - (timeB || 0);
+        }
+
+        if (sortBy === "vendor_asc") {
+          const cmp = a.vendor_name.localeCompare(b.vendor_name);
+          if (cmp !== 0) return cmp;
+          return (timeA || 0) - (timeB || 0);
+        }
+
+        // Default fallback: Always sort by Due Date chronologically (earliest first)
+        return (timeA || 0) - (timeB || 0);
       });
   }, [invoicesMatchingSearch, activeVendorFilter, sortBy]);
 
@@ -1170,7 +1243,8 @@ export function InvoicesView() {
                     onChange={(e: any) => setSortBy(e.target.value)}
                     className="w-full sm:w-auto h-9 pl-3 pr-8 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-600 transition-colors shadow-2xs appearance-none cursor-pointer"
                   >
-                    <option value="days_desc">Sort: Most Overdue</option>
+                    <option value="days_desc">Sort: Due Date (Earliest First)</option>
+                    <option value="due_date_desc">Sort: Due Date (Latest First)</option>
                     <option value="amount_desc">Sort: Highest Amount</option>
                     <option value="vendor_asc">Sort: Vendor (A-Z)</option>
                   </select>
