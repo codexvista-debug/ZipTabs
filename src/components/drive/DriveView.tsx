@@ -1323,47 +1323,29 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
-            <div className="relative bg-white rounded-3xl shadow-2xl border border-zinc-300/80 ring-1 ring-zinc-950/10 ring-offset-4 ring-offset-zinc-100 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-              {/* Creative Top: Sculpted Crown Header with Technical Indicators */}
-              <div className="relative pt-2.5 pb-2 px-6 flex items-center justify-between border-b border-zinc-200 bg-gradient-to-b from-zinc-100 to-zinc-50/80">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-zinc-600 uppercase tracking-widest pl-1">
-                    VAULT PURGE // AUTH-LOCK
-                  </span>
-                </div>
-                <div className="text-[9px] font-mono text-zinc-400 font-semibold">
-                  SEC-256
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+              {/* Creative Top: Sculpted Dynamic Island Notch */}
+              <div className="flex justify-center -mt-px">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span>IRREVERSIBLE PURGE</span>
                 </div>
               </div>
 
-              {/* Creative Sides: Left & Right Tactile Flank Grips */}
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pl-1.5 pointer-events-none z-10">
-                <span className="w-1 h-3 rounded-full bg-zinc-300" />
-                <span className="w-1 h-6 rounded-full bg-zinc-500" />
-                <span className="w-1 h-3 rounded-full bg-zinc-300" />
-              </div>
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pr-1.5 pointer-events-none z-10">
-                <span className="w-1 h-3 rounded-full bg-zinc-300" />
-                <span className="w-1 h-6 rounded-full bg-zinc-500" />
-                <span className="w-1 h-3 rounded-full bg-zinc-300" />
-              </div>
+              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
-              <div className="p-6 sm:p-7">
+              <div className="p-6 sm:p-7 pt-5">
                 {/* Header Row: Badge & Close Button */}
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-800 text-[10px] font-bold uppercase tracking-wider mb-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
-                      <span>Folder Purge</span>
-                    </div>
                     <h3 className="text-lg font-black text-zinc-900 tracking-tight">
                       Delete Folder from Drive?
                     </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Action confirmed from authorized Chief workspace.
+                    </p>
                   </div>
 
                   <button
@@ -1398,14 +1380,24 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                   </div>
                 </div>
 
-                {/* Warning & Storage Notice */}
-                <div className="p-3.5 rounded-2xl bg-zinc-100/90 border border-zinc-200 text-xs text-zinc-700 flex items-start gap-3 mb-6">
-                  <div className="w-7 h-7 rounded-xl bg-zinc-900 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                    <HardDrive className="w-4 h-4" />
+                {/* Warning & Storage Reclaimed Notice */}
+                <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-2xs">
+                        <HardDrive className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-[11px] font-bold text-zinc-900 uppercase tracking-wider">
+                        Storage Reclaimed
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-black tracking-tight tabular-nums shadow-2xs">
+                      +{formatBytes(totalSize)}
+                    </span>
                   </div>
-                  <div className="text-[12px] leading-relaxed text-zinc-600">
-                    This folder and all <strong className="font-bold text-zinc-900">{folderFiles.length} file(s)</strong> stored inside will be permanently removed from Supabase storage. Reclaims <strong className="font-bold text-zinc-950 font-mono">+{formatBytes(totalSize)}</strong>. This action cannot be undone.
-                  </div>
+                  <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
+                    This folder and all <strong className="font-bold text-zinc-900">{folderFiles.length} file(s)</strong> stored inside will be permanently purged from Supabase storage. This action cannot be undone.
+                  </p>
                 </div>
 
                 {/* Action Buttons */}
@@ -1445,47 +1437,29 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
-            <div className="relative bg-white rounded-3xl shadow-2xl border border-zinc-300/80 ring-1 ring-zinc-950/10 ring-offset-4 ring-offset-zinc-100 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-              {/* Creative Top: Sculpted Crown Header with Technical Indicators */}
-              <div className="relative pt-2.5 pb-2 px-6 flex items-center justify-between border-b border-zinc-200 bg-gradient-to-b from-zinc-100 to-zinc-50/80">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-zinc-600 uppercase tracking-widest pl-1">
-                    VAULT PURGE // AUTH-LOCK
-                  </span>
-                </div>
-                <div className="text-[9px] font-mono text-zinc-400 font-semibold">
-                  SEC-256
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+              {/* Creative Top: Sculpted Dynamic Island Notch */}
+              <div className="flex justify-center -mt-px">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span>IRREVERSIBLE PURGE</span>
                 </div>
               </div>
 
-              {/* Creative Sides: Left & Right Tactile Flank Grips */}
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pl-1.5 pointer-events-none z-10">
-                <span className="w-1 h-3 rounded-full bg-zinc-300" />
-                <span className="w-1 h-6 rounded-full bg-zinc-500" />
-                <span className="w-1 h-3 rounded-full bg-zinc-300" />
-              </div>
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pr-1.5 pointer-events-none z-10">
-                <span className="w-1 h-3 rounded-full bg-zinc-300" />
-                <span className="w-1 h-6 rounded-full bg-zinc-500" />
-                <span className="w-1 h-3 rounded-full bg-zinc-300" />
-              </div>
+              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
-              <div className="p-6 sm:p-7">
+              <div className="p-6 sm:p-7 pt-5">
                 {/* Header Row: Badge & Close Button */}
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-800 text-[10px] font-bold uppercase tracking-wider mb-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
-                      <span>Permanent Deletion</span>
-                    </div>
                     <h3 className="text-lg font-black text-zinc-900 tracking-tight">
                       Delete File from Drive?
                     </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Action confirmed from authorized Chief workspace.
+                    </p>
                   </div>
 
                   <button
@@ -1535,13 +1509,23 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                 </div>
 
                 {/* Storage Reclaimed Callout Banner */}
-                <div className="p-3.5 rounded-2xl bg-zinc-100/90 border border-zinc-200 text-xs text-zinc-700 flex items-start gap-3 mb-6">
-                  <div className="w-7 h-7 rounded-xl bg-zinc-900 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                    <HardDrive className="w-4 h-4" />
+                <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-2xs">
+                        <HardDrive className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-[11px] font-bold text-zinc-900 uppercase tracking-wider">
+                        Storage Reclaimed
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-black tracking-tight tabular-nums shadow-2xs">
+                      +{formatBytes(confirmDeleteFile.size)}
+                    </span>
                   </div>
-                  <div className="text-[12px] leading-relaxed text-zinc-600">
-                    Immediately reclaims <strong className="font-bold text-zinc-950 font-mono">+{formatBytes(confirmDeleteFile.size)}</strong> of Supabase cloud storage. This file will be permanently purged and cannot be recovered.
-                  </div>
+                  <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
+                    Immediately reclaims Supabase cloud storage. This file will be permanently purged and cannot be recovered.
+                  </p>
                 </div>
 
                 {/* Action Buttons */}

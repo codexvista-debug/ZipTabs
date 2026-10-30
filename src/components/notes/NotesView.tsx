@@ -490,6 +490,8 @@ export function NotesView() {
   // Quick Note Inline Composer State
   const [quickContent, setQuickContent] = useState("");
   const [quickFiles, setQuickFiles] = useState<File[]>([]);
+  const [quickCategory, setQuickCategory] = useState("Quick Notes");
+  const [quickPriority, setQuickPriority] = useState<"normal" | "high" | "urgent">("normal");
   const [isQuickExtracting, setIsQuickExtracting] = useState(false);
   const [quickExtractProgress, setQuickExtractProgress] = useState(0);
   const [isQuickSaving, setIsQuickSaving] = useState(false);
@@ -977,14 +979,16 @@ export function NotesView() {
     setQuickContent("");
     setQuickFiles([]);
 
+    const canonicalCategory = normalizeCategory(quickCategory);
+
     const newItem: NoteItem = {
       id: noteId,
       user_id: "chief",
       title: finalSubject,
       content: contentTrimmed || finalSubject,
-      category: "Quick Notes",
+      category: canonicalCategory,
       target_date: null,
-      priority: "normal",
+      priority: quickPriority,
       is_completed: false,
       attachments: [],
       created_at: nowIso,
@@ -1508,16 +1512,6 @@ export function NotesView() {
             Store documents, screenshots, and track deadlines with 2–3 keyword auto-subjects.
           </p>
         </div>
-
-        {/* Create Note Button */}
-        <button
-          type="button"
-          onClick={handleOpenCreate}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Note</span>
-        </button>
       </div>
 
       {/* Quick Note Inline Composer (Replaces extra KPI cards for rapid note capture & OCR image extraction) */}
@@ -1548,21 +1542,55 @@ export function NotesView() {
       >
         {/* Composer Header Strip */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 mb-2.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
               <Sparkles className="w-3.5 h-3.5 text-blue-600" />
               <span>Quick Note</span>
             </span>
-            <span className="text-[11px] text-slate-400 hidden sm:inline-flex items-center gap-1.5">
-              <span>Category:</span>
-              <strong className="text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md font-semibold text-[11px]">
-                Quick Notes
-              </strong>
-              <span>• Priority:</span>
-              <strong className="text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md font-semibold text-[11px]">
-                Normal
-              </strong>
-            </span>
+
+            {/* Interactive Quick Category Selector */}
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200/70 border border-slate-200 transition-colors">
+              <span className="text-[11px] font-medium text-slate-500">Category:</span>
+              <select
+                value={quickCategory}
+                onChange={(e) => setQuickCategory(e.target.value)}
+                className="bg-transparent text-[11px] font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
+              >
+                {allCategories.map((c) => (
+                  <option key={c.id} value={c.label}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Interactive Quick Priority Selector */}
+            <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200">
+              <span className="text-[11px] font-medium text-slate-500 pl-1">Priority:</span>
+              <div className="inline-flex items-center gap-0.5">
+                {(["normal", "high", "urgent"] as const).map((p) => {
+                  const isSelected = quickPriority === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setQuickPriority(p)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? p === "urgent"
+                            ? "bg-rose-500 text-white shadow-xs"
+                            : p === "high"
+                            ? "bg-amber-500 text-white shadow-xs"
+                            : "bg-slate-900 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                      }`}
+                    >
+                      {p === "urgent" ? "Urgent 🔥" : p === "high" ? "High" : "Normal"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

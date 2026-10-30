@@ -33,22 +33,22 @@ interface VariationConfig {
 
 const VARIATIONS: VariationConfig[] = [
   {
-    id: "vault-island",
-    name: "Precision Vault (Recommended)",
-    tagline: "Top Crown Bar • Side Tactile Grips • Dual Bezel",
-    isCurrentInDrive: true,
-    topDescription: "Sleek top crown header with technical status indicators, micro-dots, and security registration code.",
-    sidesDescription: "Tactile engineered micro-grips inset on left and right flanks + luxury outer chassis bezel ring.",
-    designNotes: "Gives the modal physical depth like high-end luxury hardware or an engineered vault door. Balanced, clean, and unmistakable.",
-  },
-  {
     id: "dynamic-notch",
-    name: "Sculpted Dynamic Notch",
+    name: "Sculpted Dynamic Notch (Active on Drive)",
     tagline: "Recessed Central Top Island • Vertical Shadow Rails",
-    isCurrentInDrive: false,
+    isCurrentInDrive: true,
     topDescription: "Seamlessly inset dark dynamic island notch centered at the top with a live pulsing status beacon.",
     sidesDescription: "Soft-fade charcoal flank rails that taper smoothly into the rounded-3xl bottom geometry.",
     designNotes: "Inspired by modern smartphone dynamic islands and recessed automotive dashboard controls.",
+  },
+  {
+    id: "vault-island",
+    name: "Precision Vault",
+    tagline: "Top Crown Bar • Side Tactile Grips • Dual Bezel",
+    isCurrentInDrive: false,
+    topDescription: "Sleek top crown header with technical status indicators, micro-dots, and security registration code.",
+    sidesDescription: "Tactile engineered micro-grips inset on left and right flanks + luxury outer chassis bezel ring.",
+    designNotes: "Gives the modal physical depth like high-end luxury hardware or an engineered vault door. Balanced, clean, and unmistakable.",
   },
   {
     id: "architectural-chassis",
@@ -165,13 +165,23 @@ export function DesignLabView() {
             </div>
 
             {/* Storage Notice */}
-            <div className="p-3.5 rounded-2xl bg-zinc-100/90 border border-zinc-200 text-xs text-zinc-700 flex items-start gap-3 mb-6">
-              <div className="w-7 h-7 rounded-xl bg-zinc-900 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                <HardDrive className="w-4 h-4" />
+            <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-2xs">
+                    <HardDrive className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[11px] font-bold text-zinc-900 uppercase tracking-wider">
+                    Storage Reclaimed
+                  </span>
+                </div>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-black tracking-tight tabular-nums shadow-2xs">
+                  +{sampleFile.size}
+                </span>
               </div>
-              <div className="text-[12px] leading-relaxed text-zinc-600">
-                Immediately reclaims <strong className="font-bold text-zinc-950 font-mono">+{sampleFile.size}</strong> of Supabase cloud storage. This file will be permanently purged and cannot be recovered.
-              </div>
+              <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
+                Immediately reclaims Supabase cloud storage. This file will be permanently purged and cannot be recovered.
+              </p>
             </div>
 
             {/* Actions */}
@@ -266,13 +276,23 @@ export function DesignLabView() {
             </div>
 
             {/* Storage Notice */}
-            <div className="p-3.5 rounded-2xl bg-zinc-100/90 border border-zinc-200 text-xs text-zinc-700 flex items-start gap-3 mb-6">
-              <div className="w-7 h-7 rounded-xl bg-zinc-900 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                <HardDrive className="w-4 h-4" />
+            <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-2xs">
+                    <HardDrive className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[11px] font-bold text-zinc-900 uppercase tracking-wider">
+                    Storage Reclaimed
+                  </span>
+                </div>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-black tracking-tight tabular-nums shadow-2xs">
+                  +{sampleFile.size}
+                </span>
               </div>
-              <div className="text-[12px] leading-relaxed text-zinc-600">
-                Immediately reclaims <strong className="font-bold text-zinc-950 font-mono">+{sampleFile.size}</strong> of Supabase cloud storage. This file will be permanently purged and cannot be recovered.
-              </div>
+              <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
+                Immediately reclaims Supabase cloud storage. This file will be permanently purged and cannot be recovered.
+              </p>
             </div>
 
             {/* Actions */}
@@ -377,13 +397,23 @@ export function DesignLabView() {
           </div>
 
           {/* Storage Notice */}
-          <div className="p-3.5 rounded-2xl bg-zinc-100/90 border border-zinc-300/80 text-xs text-zinc-700 flex items-start gap-3 mb-6">
-            <div className="w-7 h-7 rounded-xl bg-zinc-900 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <HardDrive className="w-4 h-4" />
+          <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-2xs">
+                  <HardDrive className="w-3.5 h-3.5" />
+                </div>
+                <span className="text-[11px] font-bold text-zinc-900 uppercase tracking-wider">
+                  Storage Reclaimed
+                </span>
+              </div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-black tracking-tight tabular-nums shadow-2xs">
+                +{sampleFile.size}
+              </span>
             </div>
-            <div className="text-[12px] leading-relaxed text-zinc-600">
-              Immediately reclaims <strong className="font-bold text-zinc-950 font-mono">+{sampleFile.size}</strong> of Supabase cloud storage. This file will be permanently purged and cannot be recovered.
-            </div>
+            <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
+              Immediately reclaims Supabase cloud storage. This file will be permanently purged and cannot be recovered.
+            </p>
           </div>
 
           {/* Actions */}
