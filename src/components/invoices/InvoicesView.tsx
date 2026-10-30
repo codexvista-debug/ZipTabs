@@ -626,15 +626,30 @@ export function InvoicesView() {
         </div>
       )}
 
-      {/* Top Header Row */}
-      <div className="flex flex-row items-center justify-between gap-3 pb-3 sm:pb-6 border-b border-slate-200/60">
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate sm:whitespace-normal">
-            Overdue Invoices
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1 hidden xs:block">
-            Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-          </p>
+      {/* Top Header Row (Style 04: Frosted Glass Floating Dock) */}
+      <div className="relative bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/90 p-3.5 sm:p-5 shadow-xs overflow-hidden flex flex-row items-center justify-between gap-3 mb-4">
+        {/* Prismatic Top Gradient Accent Rail */}
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-transparent pointer-events-none" />
+
+        <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-50 border border-blue-200/80 shadow-2xs flex items-center justify-center shrink-0">
+            <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
+                Overdue Invoices
+              </h1>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Sync
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
+              Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
+            </p>
+          </div>
         </div>
 
         {/* Sole Action: Upload Button (Compact on mobile, rich dropzone on desktop) */}

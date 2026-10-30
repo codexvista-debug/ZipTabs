@@ -131,9 +131,9 @@ export function Sidebar({
           </nav>
         </div>
 
-        {/* Bottom User Profile & Sign Out (Pinned at bottom, never cut off) */}
-        <div className="p-3 sm:p-4 border-t border-[#15203b] bg-[#090e1a] shrink-0 pb-6 sm:pb-4">
-          <div className="flex items-center justify-between mb-2 sm:mb-2.5">
+        {/* Bottom User Profile & Sign Out Icon (Pinned at bottom, compact) */}
+        <div className="p-3 sm:p-4 border-t border-[#15203b] bg-[#090e1a] shrink-0">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-200 shrink-0 uppercase">
                 {user?.username ? user.username.charAt(0) : "C"}
@@ -145,25 +145,16 @@ export function Sidebar({
               </div>
             </div>
 
-            {/* Change Password / Settings Button */}
+            {/* Sign Out Icon Button */}
             <button
               type="button"
-              onClick={onOpenSettings}
-              title="Change Password & Security"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              onClick={() => logout()}
+              title="Sign Out"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
             >
-              <KeyRound className="w-4 h-4 text-slate-400 hover:text-white transition-colors" />
+              <LogOut className="w-4 h-4 text-slate-400 hover:text-rose-400 transition-colors" />
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 sm:py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
         </div>
       </aside>
     </>

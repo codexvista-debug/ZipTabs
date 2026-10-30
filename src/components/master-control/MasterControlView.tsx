@@ -35,6 +35,7 @@ import {
   X,
 } from "lucide-react";
 import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
+import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 
 interface AppUserRecord {
   id: string;
@@ -131,6 +132,7 @@ export function MasterControlView() {
   const isChief = user?.username?.toLowerCase() === "chief";
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [clientIp, setClientIp] = useState<string>("127.0.0.1");
   const [settings, setSettings] = useState<SystemSecuritySettings>({
     id: "global",
@@ -1263,9 +1265,20 @@ export function MasterControlView() {
 
                 <div>
                   {isChiefAccount ? (
-                    <span className="text-[11px] font-semibold text-slate-400 italic">
-                      Protected Account
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-[11px] font-semibold text-slate-400 italic hidden sm:inline">
+                        Protected Account
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsChangePasswordOpen(true)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                        title="Change Master Account Password"
+                      >
+                        <KeyRound className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Change Password</span>
+                      </button>
+                    </div>
                   ) : (
                     <button
                       onClick={() => handleDeleteUser(u.id, u.username)}
@@ -2032,6 +2045,12 @@ export function MasterControlView() {
           </div>
         </div>
       )}
+
+      {/* Change Password Dialog Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+      />
     </div>
   );
 }
