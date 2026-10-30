@@ -15,6 +15,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   X,
 } from "lucide-react";
 import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
@@ -455,6 +457,15 @@ export function InvoicesView() {
   const endIndex = Math.min(startIndex + pageSize, filteredInvoices.length);
   const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
 
+  // Generate page numbers array (with ellipsis for clean navigation like Image 3)
+  const getPageNumbers = (current: number, total: number): (number | string)[] => {
+    if (total <= 6) return Array.from({ length: total }, (_, i) => i + 1);
+    if (current <= 3) return [1, 2, 3, 4, "...", total];
+    if (current >= total - 2) return [1, "...", total - 3, total - 2, total - 1, total];
+    return [1, "...", current - 1, current, current + 1, "...", total];
+  };
+  const pageNumbers = getPageNumbers(currentPage, totalPages);
+
   // Selection handlers
   const toggleSelectRow = (id: string) => {
     const next = new Set(selectedIds);
@@ -687,8 +698,8 @@ export function InvoicesView() {
         </div>
       </div>
 
-      {/* Main Table Container */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+      {/* Main Table Container (Fixed-View Dashboard Architecture) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col overflow-hidden">
         {/* Table Filters & Search Toolbar */}
         <div className="p-4 border-b border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
           {/* Search Input */}
@@ -803,18 +814,19 @@ export function InvoicesView() {
             )}
           </div>
         ) : (
-          <>
+          /* Scrollable Table View (Internal scroll with fixed height: zero page scrolling down, zero content peeking above header) */
+          <div className="flex-1 overflow-y-auto max-h-[calc(100dvh-295px)] min-h-[350px] sm:min-h-[420px]">
             {/* Desktop Full Table View (>= md) */}
             <div className="hidden md:block">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="sticky top-0 z-20 py-3.5 px-5 bg-slate-50 border-b border-slate-200/80 shadow-2xs">Vendor</th>
-                    <th className="sticky top-0 z-20 py-3.5 px-4 bg-slate-50 border-b border-slate-200/80 shadow-2xs font-mono">Invoice</th>
-                    <th className="sticky top-0 z-20 py-3.5 px-4 text-right bg-slate-50 border-b border-slate-200/80 shadow-2xs">Amount Due</th>
-                    <th className="sticky top-0 z-20 py-3.5 px-4 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Due Date</th>
-                    <th className="sticky top-0 z-20 py-3.5 px-4 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Aging</th>
-                    <th className="sticky top-0 z-20 py-3.5 px-5 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Status</th>
+                    <th className="sticky top-0 z-10 py-3.5 px-5 bg-slate-50 border-b border-slate-200/80 shadow-2xs">Vendor</th>
+                    <th className="sticky top-0 z-10 py-3.5 px-4 bg-slate-50 border-b border-slate-200/80 shadow-2xs font-mono">Invoice</th>
+                    <th className="sticky top-0 z-10 py-3.5 px-4 text-right bg-slate-50 border-b border-slate-200/80 shadow-2xs">Amount Due</th>
+                    <th className="sticky top-0 z-10 py-3.5 px-4 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Due Date</th>
+                    <th className="sticky top-0 z-10 py-3.5 px-4 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Aging</th>
+                    <th className="sticky top-0 z-10 py-3.5 px-5 text-center bg-slate-50 border-b border-slate-200/80 shadow-2xs">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-medium">
@@ -897,7 +909,7 @@ export function InvoicesView() {
             {/* Mobile / Tablet Responsive View (< md) - Zero horizontal scroll, all details in one go */}
             <div className="block md:hidden">
               {/* Sticky Mobile Header Row */}
-              <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-xs px-4 py-2.5 border-b border-slate-200/80 shadow-2xs flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <div className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs px-4 py-2.5 border-b border-slate-200/80 shadow-2xs flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <span>Vendor & Invoice</span>
                 <span>Amount & Aging</span>
               </div>
@@ -973,15 +985,15 @@ export function InvoicesView() {
                 })}
               </div>
             </div>
-          </>
+          </div>
         )}
 
-        {/* Table Footer with 50-row Pagination Controls */}
+        {/* Table Footer with Pinned Pagination Controls (Always visible, exactly like Image 3) */}
         {filteredInvoices.length > 0 && (
-          <div className="p-4 border-t border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 rounded-b-2xl">
+          <div className="p-3 sm:p-4 border-t border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 rounded-b-2xl shrink-0">
             <div className="flex items-center gap-2">
               <span>
-                Showing <strong>{startIndex + 1}</strong>–<strong>{endIndex}</strong> of <strong>{filteredInvoices.length}</strong> records (up to 50 per page)
+                Showing <strong>{startIndex + 1}</strong>–<strong>{endIndex}</strong> of <strong>{filteredInvoices.length}</strong> records
                 {selectedIds.size > 0 && (
                   <span className="ml-2 font-semibold text-blue-600">
                     ({selectedIds.size} selected)
@@ -990,31 +1002,83 @@ export function InvoicesView() {
               </span>
             </div>
 
-            {/* Pagination Controls */}
+            {/* Image-3 Style Professional Numbered Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center gap-1.5 self-center sm:self-auto">
+              <div className="flex items-center gap-1 self-center sm:self-auto flex-wrap justify-center">
+                {/* First Page */}
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-semibold shadow-2xs transition-colors"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">First</span>
+                </button>
+
+                {/* Previous Page */}
                 <button
                   type="button"
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold shadow-2xs transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-semibold shadow-2xs transition-colors"
+                  title="Previous Page"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Prev</span>
+                  <span className="hidden sm:inline">Previous</span>
                 </button>
 
-                <div className="px-3 py-1 text-xs font-bold text-slate-700">
-                  Page {currentPage} of {totalPages}
+                {/* Numbered Page Buttons */}
+                <div className="flex items-center gap-1 mx-0.5">
+                  {pageNumbers.map((pageNum, pIdx) => {
+                    if (typeof pageNum !== "number") {
+                      return (
+                        <span key={`ellipsis-${pIdx}`} className="px-1.5 py-1 text-slate-400 font-bold select-none text-xs">
+                          ...
+                        </span>
+                      );
+                    }
+                    const isActive = currentPage === pageNum;
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`min-w-8 h-8 px-2 rounded-lg text-xs font-bold transition-all shadow-2xs ${
+                          isActive
+                            ? "bg-[#2563eb] text-white shadow-xs scale-105"
+                            : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200/80"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
                 </div>
 
+                {/* Next Page */}
                 <button
                   type="button"
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold shadow-2xs transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-semibold shadow-2xs transition-colors"
+                  title="Next Page"
                 >
-                  <span>Next</span>
+                  <span className="hidden sm:inline">Next</span>
                   <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Last Page */}
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-semibold shadow-2xs transition-colors"
+                  title="Last Page"
+                >
+                  <span className="hidden sm:inline">Last</span>
+                  <ChevronsRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
