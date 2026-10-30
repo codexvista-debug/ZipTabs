@@ -11,6 +11,7 @@ import {
   Lock,
   Clock,
   AlertTriangle,
+  X,
 } from "lucide-react";
 
 export function AuthScreen() {
@@ -20,6 +21,18 @@ export function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [inactivityNotice, setInactivityNotice] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        if (sessionStorage.getItem("ziptabs_inactivity_logged_out") === "true") {
+          setInactivityNotice(true);
+          sessionStorage.removeItem("ziptabs_inactivity_logged_out");
+        }
+      } catch {}
+    }
+  }, []);
 
   // Live countdown timer for 24-hour lockout
   const [timeLeft, setTimeLeft] = useState<{
@@ -179,6 +192,27 @@ export function AuthScreen() {
                   Enter your credentials to access the management suite
                 </p>
               </div>
+
+              {/* Inactivity Security Auto-Logout Banner */}
+              {inactivityNotice && (
+                <div className="mb-5 p-3.5 rounded-xl border bg-amber-500/10 border-amber-500/25 text-amber-200 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                  <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                  <div className="flex-1">
+                    <div className="font-bold text-amber-300">Signed Out for Inactivity</div>
+                    <div className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
+                      You were automatically signed out after 60 minutes of inactivity to protect your account credentials.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInactivityNotice(false)}
+                    className="text-zinc-400 hover:text-white p-0.5 rounded cursor-pointer transition-colors"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Attempts Counter & Warning Banner */}
               {failedAttempts > 0 && (

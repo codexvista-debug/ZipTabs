@@ -1142,7 +1142,7 @@ export function MasterControlView() {
             </p>
           </div>
           <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400">
-            <span>Server Firewall</span>
+            <span>Firewall & 60m Inactivity Logout</span>
             <span className="text-emerald-600 flex items-center gap-1 font-bold">
               <CheckCircle2 className="w-3 h-3" />
               <span>Active</span>

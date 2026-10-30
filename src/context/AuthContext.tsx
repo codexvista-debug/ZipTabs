@@ -32,13 +32,16 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string; locked?: boolean; attempts?: number }>;
   register: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: (isInactivityTimeout?: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = "ziptabs_logged_user";
 const SESSION_ID_KEY = "ziptabs_session_id";
 const SESSION_CREATED_KEY = "ziptabs_session_created";
+export const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+export const LAST_ACTIVITY_KEY = "ziptabs_last_activity";
+export const INACTIVITY_LOGOUT_FLAG = "ziptabs_inactivity_logged_out";
 
 export function getOrCreateSessionId(): { sessionId: string; sessionCreated: number } {
   if (typeof window === "undefined") {
@@ -117,7 +120,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
+          // Check if session has expired due to 60+ minutes of inactivity
+          const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
+          if (lastActivityStr) {
+            const lastActivity = parseInt(lastActivityStr, 10);
+            if (!isNaN(lastActivity) && Date.now() - lastActivity >= INACTIVITY_TIMEOUT_MS) {
+              // Expired during inactivity while tab/device was closed
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem(LAST_ACTIVITY_KEY);
+              if (typeof window !== "undefined") {
+                try {
+                  sessionStorage.setItem(INACTIVITY_LOGOUT_FLAG, "true");
+                } catch {}
+              }
+              setUser(null);
+              setIsLoading(false);
+              return;
+            }
+          }
+
           setUser(JSON.parse(stored));
+          // Refresh activity timestamp on confirmed active restore
+          try {
+            localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+          } catch {}
         }
       } catch {}
 
@@ -127,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         try {
           localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(LAST_ACTIVITY_KEY);
         } catch {}
         window.location.replace(info.vanishRedirectUrl || "https://www.wikipedia.org");
         return; // Never reveal UI, keep loading state while navigating away
@@ -155,8 +182,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event.data?.type === "LOGOUT") {
           setUser(null);
           localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(LAST_ACTIVITY_KEY);
+          if (event.data?.isInactivityTimeout) {
+            try {
+              sessionStorage.setItem(INACTIVITY_LOGOUT_FLAG, "true");
+            } catch {}
+          }
         } else if (event.data?.type === "LOGIN" && event.data?.user) {
           setUser(event.data.user);
+          try {
+            sessionStorage.removeItem(INACTIVITY_LOGOUT_FLAG);
+          } catch {}
         }
       };
     }
@@ -233,6 +269,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // 60-Minute Inactivity Auto-Logout Security Watchdog
+  useEffect(() => {
+    if (!user || typeof window === "undefined") return;
+
+    // Record activity timestamp (throttled to at most once every 5 seconds)
+    let lastThrottledRecord = Date.now();
+    const handleUserActivity = () => {
+      const now = Date.now();
+      if (now - lastThrottledRecord > 5000) {
+        lastThrottledRecord = now;
+        try {
+          localStorage.setItem(LAST_ACTIVITY_KEY, now.toString());
+        } catch {}
+      }
+    };
+
+    // Events that signify user activity: typing, clicking, dragging, scrolling, touching
+    const activityEvents: (keyof WindowEventMap)[] = [
+      "pointerdown",
+      "mousemove",
+      "keydown",
+      "wheel",
+      "touchstart",
+      "scroll",
+    ];
+
+    activityEvents.forEach((evt) => {
+      window.addEventListener(evt, handleUserActivity, { passive: true });
+    });
+
+    // Check if session has exceeded 60 minutes of inactivity
+    const checkSessionInactivity = () => {
+      try {
+        const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
+        if (!lastActivityStr) {
+          localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+          return;
+        }
+        const lastActivity = parseInt(lastActivityStr, 10);
+        if (isNaN(lastActivity)) {
+          localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+          return;
+        }
+
+        const idleTime = Date.now() - lastActivity;
+        if (idleTime >= INACTIVITY_TIMEOUT_MS) {
+          // Terminate active session immediately
+          logout(true);
+        }
+      } catch (err) {
+        console.error("Error evaluating inactivity status:", err);
+      }
+    };
+
+    // Check on focus or tab visibility change (e.g. user returns to inactive tab or wakes device)
+    const handleFocusOrVisible = () => {
+      checkSessionInactivity();
+    };
+
+    window.addEventListener("focus", handleFocusOrVisible);
+    document.addEventListener("visibilitychange", handleFocusOrVisible);
+
+    // Continuous 15-second background interval check
+    const inactivityInterval = setInterval(checkSessionInactivity, 15000);
+
+    return () => {
+      activityEvents.forEach((evt) => {
+        window.removeEventListener(evt, handleUserActivity);
+      });
+      window.removeEventListener("focus", handleFocusOrVisible);
+      document.removeEventListener("visibilitychange", handleFocusOrVisible);
+      clearInterval(inactivityInterval);
+    };
+  }, [user]);
+
   const login = async (username: string, password: string) => {
     const cleanUsername = username.trim().toLowerCase();
     const cleanPassword = password.trim();
@@ -286,6 +397,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const loggedUser: AppUser = data.user;
       setUser(loggedUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
+      localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+      try {
+        sessionStorage.removeItem(INACTIVITY_LOGOUT_FLAG);
+      } catch {}
       setLockoutInfo(null);
 
       // Notify other tabs on same device
@@ -367,6 +482,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         setUser(loggedUser);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
+        localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+        try {
+          sessionStorage.removeItem(INACTIVITY_LOGOUT_FLAG);
+        } catch {}
         return { success: true };
       } catch (err: any) {
         return { success: false, error: err.message || "Failed to register user." };
@@ -422,14 +541,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
-  const logout = () => {
+  const logout = (isInactivityTimeout: boolean | unknown = false) => {
+    const isTimeout = isInactivityTimeout === true;
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
     try {
       if (typeof window !== "undefined") {
+        if (isTimeout) {
+          try {
+            sessionStorage.setItem(INACTIVITY_LOGOUT_FLAG, "true");
+          } catch {}
+        } else {
+          try {
+            sessionStorage.removeItem(INACTIVITY_LOGOUT_FLAG);
+          } catch {}
+        }
         if ("BroadcastChannel" in window) {
           const bc = new BroadcastChannel("ziptabs_auth_sync");
-          bc.postMessage({ type: "LOGOUT" });
+          bc.postMessage({ type: "LOGOUT", isInactivityTimeout: isTimeout });
           bc.close();
         }
         localStorage.setItem("ziptabs_logout_trigger", Date.now().toString());
