@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -18,6 +18,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronDown,
+  Clock,
   X,
 } from "lucide-react";
 import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
@@ -90,6 +91,53 @@ export function calculateAgingDaysFromDueDate(dueDateStr?: string | number | nul
   return Math.max(0, diffDays);
 }
 
+/**
+ * Determines whether an invoice's due date falls within the Reminder window:
+ * Today (current calendar date) -4 days to +4 days (inclusive).
+ */
+export function isWithinReminderWindow(dueDateStr?: string | number | null): boolean {
+  if (!dueDateStr) return false;
+
+  let year: number, month: number, day: number;
+
+  if (typeof dueDateStr === "number" && dueDateStr > 25000 && dueDateStr < 60000) {
+    const jsDate = new Date((dueDateStr - 25569) * 86400 * 1000);
+    year = jsDate.getUTCFullYear();
+    month = jsDate.getUTCMonth();
+    day = jsDate.getUTCDate();
+  } else {
+    const str = String(dueDateStr).trim();
+    if (!str || str === "—") return false;
+
+    const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+      month = parseInt(slashMatch[1], 10) - 1;
+      day = parseInt(slashMatch[2], 10);
+      year = parseInt(slashMatch[3], 10);
+    } else {
+      const dashMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (dashMatch) {
+        year = parseInt(dashMatch[1], 10);
+        month = parseInt(dashMatch[2], 10) - 1;
+        day = parseInt(dashMatch[3], 10);
+      } else {
+        const parsed = new Date(str);
+        if (isNaN(parsed.getTime())) return false;
+        year = parsed.getFullYear();
+        month = parsed.getMonth();
+        day = parsed.getDate();
+      }
+    }
+  }
+
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueUtc = Date.UTC(year, month, day);
+
+  const diffDays = Math.round((dueUtc - todayUtc) / (1000 * 60 * 60 * 24));
+  return diffDays >= -4 && diffDays <= 4;
+}
+
 export function InvoicesView() {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -120,8 +168,12 @@ export function InvoicesView() {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
-  const [agingFilter, setAgingFilter] = useState<"all" | "30" | "60" | "90+">("all");
+  const [agingFilter, setAgingFilter] = useState<"all" | "reminder" | "30" | "60" | "90+">("all");
   const [sortBy, setSortBy] = useState<"days_desc" | "amount_desc" | "vendor_asc">("days_desc");
+
+  const reminderCount = useMemo(() => {
+    return invoices.filter((inv) => isWithinReminderWindow(inv.due_date)).length;
+  }, [invoices]);
 
   // Pagination State (50 rows per page)
   const [currentPage, setCurrentPage] = useState(1);
@@ -463,6 +515,7 @@ export function InvoicesView() {
 
       if (!matchesSearch) return false;
 
+      if (agingFilter === "reminder") return isWithinReminderWindow(inv.due_date);
       if (agingFilter === "30") return inv.days_overdue <= 30;
       if (agingFilter === "60") return inv.days_overdue > 30 && inv.days_overdue <= 60;
       if (agingFilter === "90+") return inv.days_overdue > 60;
@@ -618,7 +671,7 @@ export function InvoicesView() {
   );
 
   return (
-    <div className="space-y-6 relative pb-16">
+    <div className="flex-1 flex flex-col min-h-0 relative">
       {/* ==================================================== */}
       {/* FLOATING TOP-CENTER NOTIFICATIONS (STATUS & COPY)    */}
       {/* ==================================================== */}
@@ -856,7 +909,7 @@ export function InvoicesView() {
       })()}
 
       {/* Main Table Container (Fixed-View Dashboard Architecture) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Table Filters & Search Toolbar */}
         <div className="p-3 sm:p-4 border-b border-slate-200/70 flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
           {/* Search Input */}
@@ -883,6 +936,19 @@ export function InvoicesView() {
                 }`}
               >
                 All ({invoices.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAgingFilter("reminder")}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 flex items-center gap-1.5 ${
+                  agingFilter === "reminder"
+                    ? "bg-white text-blue-700 shadow-xs font-bold ring-1 ring-blue-500/20"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+                title="Due within ±4 days of current date (10/30/2026)"
+              >
+                <Clock className="w-3 h-3 text-blue-600" />
+                <span>Reminder ({reminderCount})</span>
               </button>
               <button
                 type="button"
@@ -978,8 +1044,8 @@ export function InvoicesView() {
             )}
           </div>
         ) : (
-          /* Scrollable Table View (Internal scroll with fixed height: zero page scrolling down, zero content peeking above header) */
-          <div className="flex-1 overflow-y-auto max-h-[calc(100dvh-295px)] min-h-[350px] sm:min-h-[420px]">
+          /* Scrollable Table View (Internal scroll with flex-1 height: zero page scrolling down, zero content peeking above header) */
+          <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
             {/* Desktop Full Table View (>= md) */}
             <div className="hidden md:block">
               <table className="w-full text-left border-collapse">

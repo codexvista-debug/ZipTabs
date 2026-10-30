@@ -146,8 +146,15 @@ export default function Home() {
         </header>
 
         {/* Content Canvas */}
-        <main ref={mainContentRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3.5 sm:px-6 md:px-8 lg:px-10 py-4 sm:py-8 overscroll-contain">
-          <div key={activeTab} className="animate-page-enter min-h-full">
+        <main
+          ref={mainContentRef}
+          className={`flex-1 overflow-x-hidden px-3.5 sm:px-6 md:px-8 lg:px-10 overscroll-contain ${
+            activeTab === "invoices"
+              ? "overflow-y-hidden py-3 sm:py-4 flex flex-col"
+              : "overflow-y-auto py-4 sm:py-8"
+          }`}
+        >
+          <div key={activeTab} className={`animate-page-enter ${activeTab === "invoices" ? "flex-1 flex flex-col min-h-0" : "min-h-full"}`}>
             {activeTab === "invoices" ? (
               <InvoicesView />
             ) : activeTab === "notes" ? (
