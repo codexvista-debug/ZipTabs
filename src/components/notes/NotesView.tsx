@@ -2920,115 +2920,117 @@ export function NotesView() {
           />
         )}
 
-      {/* Floating Bottom-Right Background Upload Progress Bar */}
+      {/* Floating Background Upload Progress Notification (Project Light Style, Compact) */}
       {backgroundUploads.length > 0 &&
         renderPortal(
-          <div className="fixed bottom-5 right-5 z-40 max-w-sm w-[92%] sm:w-96 animate-in slide-in-from-bottom-5 duration-300">
-          <div className="bg-[#0c1427]/95 border border-[#1b2b4d] rounded-2xl shadow-2xl p-4 text-white backdrop-blur-md">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2.5 min-w-0">
-                {backgroundUploads.some((u) => u.status === "uploading") ? (
-                  <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-white flex items-center gap-2">
-                    <span>Background Upload</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono font-semibold">
-                      {backgroundUploads.filter((u) => u.status === "completed").length}/{backgroundUploads.length}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                    {backgroundUploads.some((u) => u.status === "uploading")
-                      ? "Uploading attachments seamlessly in background..."
-                      : "All attachments uploaded successfully!"}
-                  </div>
+          <div className="fixed bottom-16 sm:bottom-5 right-3 sm:right-5 z-40 w-[calc(100vw-24px)] sm:w-80 max-w-sm animate-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
+            <div className="bg-white/98 border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-900/10 text-slate-900 backdrop-blur-md overflow-hidden ring-1 ring-slate-900/5">
+              {/* Executive Top Header Bar */}
+              <div className="bg-gradient-to-r from-slate-100/90 via-slate-50 to-slate-100/90 px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-200/80">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      backgroundUploads.some((u) => u.status === "uploading")
+                        ? "bg-blue-500 animate-pulse ring-2 ring-blue-200"
+                        : "bg-emerald-500 ring-2 ring-emerald-200"
+                    }`}
+                  />
+                  <span className="text-xs font-bold text-slate-900 tracking-tight truncate">
+                    Background Upload
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-white text-blue-700 border border-blue-200 shadow-2xs tabular-nums">
+                    {backgroundUploads.filter((u) => u.status === "completed").length}/{backgroundUploads.length}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsUploadsMinimized(!isUploadsMinimized)}
+                    className="w-5 h-5 rounded-full bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-700 border border-slate-200/80 shadow-2xs transition-colors flex items-center justify-center cursor-pointer"
+                    title={isUploadsMinimized ? "Expand" : "Minimize"}
+                  >
+                    <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isUploadsMinimized ? "rotate-180" : ""}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBackgroundUploads([])}
+                    className="w-5 h-5 rounded-full bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-700 border border-slate-200/80 shadow-2xs transition-colors flex items-center justify-center cursor-pointer"
+                    title="Dismiss"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 shrink-0 ml-2">
-                <button
-                  type="button"
-                  onClick={() => setIsUploadsMinimized(!isUploadsMinimized)}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
-                  title={isUploadsMinimized ? "Expand" : "Minimize"}
-                >
-                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isUploadsMinimized ? "rotate-180" : ""}`} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBackgroundUploads([])}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
-                  title="Dismiss"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* List of active upload jobs */}
-            {!isUploadsMinimized && (
-              <div className="mt-3 space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                {backgroundUploads.map((job) => (
-                  <div key={job.id} className="bg-[#121c33] rounded-xl p-2.5 border border-[#1b2b4d] text-xs">
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                        <span className="font-semibold text-slate-200 truncate max-w-[170px]" title={job.fileName}>
-                          {job.fileName}
-                        </span>
-                        <span className="text-[10px] text-slate-400 shrink-0">
-                          ({formatFileSize(job.fileSize)})
-                        </span>
-                      </div>
-
-                      {job.status === "uploading" && (
-                        <span className="text-[10px] text-blue-400 font-bold shrink-0 flex items-center gap-1 font-mono">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>{job.progress}%</span>
-                        </span>
-                      )}
-                      {job.status === "completed" && (
-                        <span className="text-[10px] text-emerald-400 font-bold shrink-0 flex items-center gap-1 font-mono">
-                          <Check className="w-3 h-3" />
-                          <span>Done</span>
-                        </span>
-                      )}
-                      {job.status === "error" && (
-                        <span className="text-[10px] text-rose-400 font-bold shrink-0">Failed</span>
-                      )}
-                    </div>
-
-                    <div className="text-[10px] text-slate-400 truncate mb-2">
-                      Saved to note: <span className="text-slate-200 font-medium">"{job.noteTitle}"</span>
-                    </div>
-
-                    {/* Animated Progress Bar */}
-                    <div className="w-full bg-[#1b2b4d] rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-300 rounded-full ${
-                          job.status === "error"
-                            ? "bg-rose-500"
-                            : job.status === "completed"
-                            ? "bg-emerald-500"
-                            : "bg-blue-500"
-                        }`}
-                        style={{ width: `${job.progress}%` }}
-                      />
-                    </div>
+              {/* Compact Body */}
+              {!isUploadsMinimized && (
+                <div className="p-2.5 space-y-2">
+                  <div className="text-[11px] text-slate-500 flex items-center justify-between px-0.5">
+                    <span className="truncate">
+                      {backgroundUploads.some((u) => u.status === "uploading")
+                        ? "Uploading in background..."
+                        : "All files attached successfully!"}
+                    </span>
+                    {backgroundUploads.every((u) => u.status === "completed") && (
+                      <span className="text-emerald-600 font-bold text-[10px] flex items-center gap-0.5 shrink-0">
+                        <Check className="w-3 h-3 stroke-[3]" /> Saved
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto no-scrollbar">
+                    {backgroundUploads.map((job) => (
+                      <div key={job.id} className="bg-slate-50 rounded-xl p-2 border border-slate-200/80 text-xs">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <FileUp className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="font-bold text-slate-800 truncate max-w-[150px] sm:max-w-[170px]" title={job.fileName}>
+                              {job.fileName}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                              ({formatFileSize(job.fileSize)})
+                            </span>
+                          </div>
+
+                          {job.status === "uploading" && (
+                            <span className="text-[10px] text-blue-600 font-bold shrink-0 flex items-center gap-1 font-mono">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>{job.progress}%</span>
+                            </span>
+                          )}
+                          {job.status === "completed" && (
+                            <span className="text-[10px] text-emerald-600 font-bold shrink-0 flex items-center gap-0.5 font-mono">
+                              <Check className="w-3 h-3 stroke-[3]" />
+                              <span>Done</span>
+                            </span>
+                          )}
+                          {job.status === "error" && (
+                            <span className="text-[10px] text-rose-600 font-bold shrink-0">Failed</span>
+                          )}
+                        </div>
+
+                        {/* Slim Progress Bar */}
+                        <div className="w-full bg-slate-200/80 rounded-full h-1 overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 rounded-full ${
+                              job.status === "error"
+                                ? "bg-rose-500"
+                                : job.status === "completed"
+                                ? "bg-emerald-500"
+                                : "bg-blue-600"
+                            }`}
+                            style={{ width: `${job.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }
