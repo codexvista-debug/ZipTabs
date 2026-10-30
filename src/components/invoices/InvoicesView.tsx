@@ -571,21 +571,33 @@ export function InvoicesView() {
 
   // ==========================================
   // ZOHO MAIL FORMATTED COPY GENERATOR
-  // Ordered: 1. Vendor, 2. Invoice, 3. Amount Due, 4. Due Date, 5. Aging (no "days")
+  // Ordered: 1. Consultant (extracted after "-"), 2. Invoice, 3. Amount Due, 4. Due Date, 5. Aging (no "days")
   // Vivid blue header #0070C0, bold white text, clean black 1px borders
   // ==========================================
   const copyFormattedForZoho = async (targetInvoices: InvoiceRecord[]) => {
     if (targetInvoices.length === 0) return;
 
-    const headers = ["Vendor", "Invoice", "Amount Due", "Due Date", "Aging"];
+    const headers = ["Consultant", "Invoice", "Amount Due", "Due Date", "Aging"];
 
-    const getRowValues = (inv: InvoiceRecord) => [
-      inv.vendor_name,
-      inv.invoice_number || "—",
-      `$${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      formatDateMMDDYYYY(inv.due_date),
-      inv.days_overdue ?? 0, // Clean number only, without "days"
-    ];
+    const getRowValues = (inv: InvoiceRecord) => {
+      // Extract consultant name: only the part after "-" if present, otherwise trimmed vendor name
+      let consultant = (inv.vendor_name || "—").trim();
+      if (consultant.includes("-")) {
+        const parts = consultant.split("-");
+        const afterHyphen = parts.slice(1).join("-").trim();
+        if (afterHyphen) {
+          consultant = afterHyphen;
+        }
+      }
+
+      return [
+        consultant,
+        inv.invoice_number || "—",
+        `$${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        formatDateMMDDYYYY(inv.due_date),
+        inv.days_overdue ?? 0, // Clean number only, without "days"
+      ];
+    };
 
     // Generate rich HTML table matching Zoho Mail specs
     const headerHtml = headers
