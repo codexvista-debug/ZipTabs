@@ -1321,9 +1321,14 @@ export function InvoicesView() {
                           </div>
                         </td>
 
-                        {/* 2. Invoice */}
-                        <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap">
-                          {inv.invoice_number || "—"}
+                        {/* 2. Invoice (Selectable & standard browser copyable) */}
+                        <td
+                          className="py-3.5 px-4 font-mono text-slate-700 whitespace-nowrap select-text cursor-text"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span className="select-text selection:bg-blue-100 selection:text-blue-900 font-medium">
+                            {inv.invoice_number || "—"}
+                          </span>
                         </td>
 
                         {/* 3. Amount Due */}
@@ -1406,7 +1411,10 @@ export function InvoicesView() {
                           {inv.vendor_name}
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-slate-500 font-medium">
-                          <span className="font-mono text-slate-700 bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded text-[10px] font-semibold">
+                          <span
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-mono text-slate-700 bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded text-[10px] font-semibold select-text cursor-text selection:bg-blue-100"
+                          >
                             #{inv.invoice_number || "—"}
                           </span>
                           <span className="text-slate-300">•</span>
