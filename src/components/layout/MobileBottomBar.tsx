@@ -17,6 +17,8 @@ interface MobileBottomBarProps {
   activeTab: string;
   onSelectTab: (tab: any) => void;
   onOpenMenu: () => void;
+  onCloseMenu?: () => void;
+  isMenuOpen?: boolean;
   isSimulated?: boolean;
 }
 
@@ -25,10 +27,25 @@ export function MobileBottomBar({
   activeTab,
   onSelectTab,
   onOpenMenu,
+  onCloseMenu,
+  isMenuOpen = false,
   isSimulated = false,
 }: MobileBottomBarProps) {
   // Check for any urgent notes (via localStorage and dashboard cache)
   const [hasUrgentNotes, setHasUrgentNotes] = useState(false);
+
+  const handleSelectTab = (tab: any) => {
+    onSelectTab(tab);
+    if (onCloseMenu) onCloseMenu();
+  };
+
+  const handleMenuClick = () => {
+    if (isMenuOpen && onCloseMenu) {
+      onCloseMenu();
+    } else {
+      onOpenMenu();
+    }
+  };
 
   useEffect(() => {
     const checkUrgentNotes = () => {
@@ -73,11 +90,11 @@ export function MobileBottomBar({
   // Variation 01: Dynamic Island Floating Dock (Linear / Apple Modern Detached Pill)
   if (styleId === "bottom-style-01") {
     return (
-      <div className={`${isSimulated ? "relative w-full p-2" : "fixed bottom-3 left-3 right-3 z-40 lg:hidden"}`}>
+      <div className={`${isSimulated ? "relative w-full p-2" : "fixed bottom-3 left-3 right-3 z-50 lg:hidden"}`}>
         <div className="bg-[#09090b]/92 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl shadow-black/50 flex items-center justify-around text-slate-400">
           <button
             type="button"
-            onClick={() => onSelectTab("dashboard")}
+            onClick={() => handleSelectTab("dashboard")}
             className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
               activeTab === "dashboard"
                 ? "text-blue-400 bg-white/10 shadow-inner"
@@ -90,7 +107,7 @@ export function MobileBottomBar({
 
           <button
             type="button"
-            onClick={() => onSelectTab("invoices")}
+            onClick={() => handleSelectTab("invoices")}
             className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
               activeTab === "invoices"
                 ? "text-blue-400 bg-white/10 shadow-inner"
@@ -103,7 +120,7 @@ export function MobileBottomBar({
 
           <button
             type="button"
-            onClick={() => onSelectTab("notes")}
+            onClick={() => handleSelectTab("notes")}
             className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
               activeTab === "notes"
                 ? "text-blue-400 bg-white/10 shadow-inner"
@@ -119,7 +136,7 @@ export function MobileBottomBar({
 
           <button
             type="button"
-            onClick={() => onSelectTab("drive")}
+            onClick={() => handleSelectTab("drive")}
             className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
               activeTab === "drive"
                 ? "text-blue-400 bg-white/10 shadow-inner"
@@ -132,9 +149,13 @@ export function MobileBottomBar({
 
           <button
             type="button"
-            onClick={onOpenMenu}
-            className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
-            title="Open other destinations"
+            onClick={handleMenuClick}
+            className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold active:scale-95 transition-all cursor-pointer ${
+              isMenuOpen
+                ? "text-blue-400 bg-white/10 shadow-inner"
+                : "text-slate-300 hover:text-white"
+            }`}
+            title={isMenuOpen ? "Close menu" : "Open other destinations"}
           >
             <Menu className="w-4 h-4" />
             <span>More</span>
@@ -149,12 +170,12 @@ export function MobileBottomBar({
   return (
     <div
       className={`${
-        isSimulated ? "relative w-full" : "fixed bottom-0 left-0 right-0 z-40 lg:hidden"
+        isSimulated ? "relative w-full" : "fixed bottom-0 left-0 right-0 z-50 lg:hidden"
       } h-14 bg-[#0c1427]/98 backdrop-blur-md border-t border-[#1e293b] px-2 flex items-center justify-around text-slate-400 shadow-2xl safe-area-bottom`}
     >
       <button
         type="button"
-        onClick={() => onSelectTab("dashboard")}
+        onClick={() => handleSelectTab("dashboard")}
         className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
           activeTab === "dashboard"
             ? "text-white bg-blue-600/90 shadow-xs"
@@ -167,7 +188,7 @@ export function MobileBottomBar({
 
       <button
         type="button"
-        onClick={() => onSelectTab("invoices")}
+        onClick={() => handleSelectTab("invoices")}
         className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
           activeTab === "invoices"
             ? "text-white bg-blue-600/90 shadow-xs"
@@ -180,7 +201,7 @@ export function MobileBottomBar({
 
       <button
         type="button"
-        onClick={() => onSelectTab("notes")}
+        onClick={() => handleSelectTab("notes")}
         className={`relative flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
           activeTab === "notes"
             ? "text-white bg-blue-600/90 shadow-xs"
@@ -198,7 +219,7 @@ export function MobileBottomBar({
 
       <button
         type="button"
-        onClick={() => onSelectTab("calendar")}
+        onClick={() => handleSelectTab("calendar")}
         className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
           activeTab === "calendar"
             ? "text-white bg-blue-600/90 shadow-xs"
@@ -211,9 +232,13 @@ export function MobileBottomBar({
 
       <button
         type="button"
-        onClick={onOpenMenu}
-        className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
-        title="Open other destinations"
+        onClick={handleMenuClick}
+        className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold active:scale-95 transition-all cursor-pointer ${
+          isMenuOpen
+            ? "text-white bg-blue-600/90 shadow-xs"
+            : "text-slate-300 hover:text-white"
+        }`}
+        title={isMenuOpen ? "Close menu" : "Open other destinations"}
       >
         <Menu className="w-4 h-4" />
         <span>More</span>
