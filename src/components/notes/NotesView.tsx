@@ -568,19 +568,9 @@ export function NotesView() {
       if (pastedFiles.length > 0) {
         if (isModalOpen) {
           setNewFilesToUpload((prev) => [...prev, ...pastedFiles]);
-          showToast(
-            "Pasted File Attached",
-            `${pastedFiles.length} item(s) attached from clipboard.`,
-            "success"
-          );
         } else {
-          // Attached to Quick Note Composer on main page!
+          // Attached to Quick Note Composer on main page (visual thumbnail appears immediately)
           setQuickFiles((prev) => [...prev, ...pastedFiles]);
-          showToast(
-            "Screenshot Attached",
-            `${pastedFiles.length} item(s) attached from clipboard.`,
-            "success"
-          );
         }
       }
     };
@@ -1513,7 +1503,6 @@ export function NotesView() {
           if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             const droppedFiles = Array.from(e.dataTransfer.files);
             setQuickFiles((prev) => [...prev, ...droppedFiles]);
-            showToast("Files Attached", `${droppedFiles.length} item(s) attached to quick note.`, "info");
           }
         }}
         className={`bg-white rounded-2xl border p-4 sm:p-5 shadow-xs transition-all duration-200 ${
@@ -2131,7 +2120,6 @@ export function NotesView() {
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                   const droppedFiles = Array.from(e.dataTransfer.files);
                   setNewFilesToUpload((prev) => [...prev, ...droppedFiles]);
-                  showToast("Files Attached", `${droppedFiles.length} file(s) dropped.`, "success");
                 }
               }}
               className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200"
@@ -2340,11 +2328,6 @@ export function NotesView() {
                     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                       const droppedFiles = Array.from(e.dataTransfer.files);
                       setNewFilesToUpload((prev) => [...prev, ...droppedFiles]);
-                      showToast(
-                        "Files Attached",
-                        `${droppedFiles.length} file(s) added.`,
-                        "success"
-                      );
                     }
                   }}
                   className={`p-4 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 ${
