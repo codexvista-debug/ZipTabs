@@ -42,6 +42,8 @@ import {
   Clock,
   ArrowUpRight,
   Smartphone,
+  Calculator,
+  FlaskConical,
 } from "lucide-react";
 import { ExecutiveToast, ToastType } from "@/components/ui/ExecutiveToast";
 import { MobileBottomBar, MobileBottomBarStyle } from "@/components/layout/MobileBottomBar";
@@ -181,6 +183,7 @@ export function DesignLabView() {
   const [mobileBottomBarStyle, setMobileBottomBarStyle] = useState<MobileBottomBarStyle>("bottom-style-01");
   const [isLiveTestingTopHeaderDisabled, setIsLiveTestingTopHeaderDisabled] = useState(true);
   const [isPermanentlyAppliedMobileBar, setIsPermanentlyAppliedMobileBar] = useState(false);
+  const [isSimulatedDrawerOpen, setIsSimulatedDrawerOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -192,7 +195,7 @@ export function DesignLabView() {
       setIsPermanentlyAppliedMobileBar(savedMode);
 
       const savedStyle = localStorage.getItem("ziptabs_mobile_bottom_bar_style") as MobileBottomBarStyle;
-      if (savedStyle && ["bottom-style-01", "bottom-style-02", "bottom-style-03", "bottom-style-04"].includes(savedStyle)) {
+      if (savedStyle && ["bottom-style-01", "bottom-style-02"].includes(savedStyle)) {
         setMobileBottomBarStyle(savedStyle);
       }
     } catch {}
@@ -1247,13 +1250,85 @@ export function DesignLabView() {
                     </div>
                   </div>
 
+                  {/* Interactive Simulated Right Flyout Drawer */}
+                  {isSimulatedDrawerOpen && (
+                    <>
+                      <div
+                        onClick={() => setIsSimulatedDrawerOpen(false)}
+                        className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs z-40 transition-opacity"
+                      />
+                      <aside className="absolute inset-y-0 right-0 w-60 bg-[#0c1427]/98 backdrop-blur-xl border-l border-[#15203b] z-50 p-3 flex flex-col text-slate-300 shadow-2xl animate-in slide-in-from-right duration-200">
+                        <div className="flex items-center justify-between pb-2.5 border-b border-[#15203b]">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[11px] font-black text-white tracking-tight">MORE TABS</span>
+                            <span className="text-[9px] font-mono font-bold text-blue-400 bg-blue-950/80 border border-blue-800/60 px-1 py-0.2 rounded">
+                              RIGHT DRAWER
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsSimulatedDrawerOpen(false)}
+                            className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-2.5 mb-1 px-1">
+                          Other Destinations (Filtered)
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-1 py-1 scrollbar-none">
+                          {(mobileBottomBarStyle === "bottom-style-01"
+                            ? [
+                                { id: "calendar", label: "Calendar Schedules", icon: CalendarDays },
+                                { id: "resources", label: "Workspace Resources", icon: Compass },
+                                { id: "logins", label: "Encrypted Logins", icon: KeyRound },
+                                { id: "admin", label: "Master Control", icon: ShieldCheck },
+                                { id: "lab", label: "UI Design Lab", icon: FlaskConical },
+                                { id: "usage", label: "API & Storage Usage", icon: Activity },
+                              ]
+                            : [
+                                { id: "drive", label: "Supabase Vault Drive", icon: HardDrive },
+                                { id: "resources", label: "Workspace Resources", icon: Compass },
+                                { id: "logins", label: "Encrypted Logins", icon: KeyRound },
+                                { id: "admin", label: "Master Control", icon: ShieldCheck },
+                                { id: "lab", label: "UI Design Lab", icon: FlaskConical },
+                                { id: "usage", label: "API & Storage Usage", icon: Activity },
+                              ]
+                          ).map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => {
+                                  setToastFeedback(`Simulator: Navigated to ${item.label}`);
+                                  setIsSimulatedDrawerOpen(false);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all text-left cursor-pointer"
+                              >
+                                <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate">{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="pt-2 border-t border-[#15203b] text-[9px] text-slate-400 text-center">
+                          ✓ Zero duplicate tabs from bottom bar
+                        </div>
+                      </aside>
+                    </>
+                  )}
+
                   {/* Bottom Bar in Simulator */}
                   <div className="shrink-0 bg-transparent">
                     <MobileBottomBar
                       styleId={mobileBottomBarStyle}
                       activeTab="invoices"
                       onSelectTab={(tab) => setToastFeedback(`Simulator: Switched to ${tab}`)}
-                      onOpenMenu={() => setToastFeedback("Simulator: Slide-out Navigation Drawer Opened")}
+                      onOpenMenu={() => setIsSimulatedDrawerOpen(true)}
                       isSimulated={true}
                     />
                   </div>
@@ -1269,15 +1344,20 @@ export function DesignLabView() {
             {/* Variations Selection Cards */}
             <div className="lg:col-span-7 space-y-4">
               <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs">
-                <h3 className="text-base font-black text-slate-900 tracking-tight mb-1">
-                  Bottom Bar Variations Available
-                </h3>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Polished Mobile Bottom Bar Variations
+                  </h3>
+                  <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                    Right Flyout • No Duplicates
+                  </span>
+                </div>
                 <p className="text-xs text-slate-500 mb-4">
-                  Select a style to preview it inside the simulator and on your live mobile device immediately.
+                  Select either concept to test immediately inside the simulator and on your live mobile device.
                 </p>
 
                 <div className="space-y-4">
-                  {/* Variation 01 */}
+                  {/* Polished Concept 01: Dynamic Island Floating Dock */}
                   <div
                     className={`rounded-2xl border p-4 transition-all ${
                       mobileBottomBarStyle === "bottom-style-01"
@@ -1287,9 +1367,9 @@ export function DesignLabView() {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-slate-900">01 // Executive Command Bar</span>
-                        <span className="text-[10px] font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full">
-                          Direct 1:1 Relocation
+                        <span className="text-xs font-black text-slate-900">01 // Dynamic Island Floating Dock</span>
+                        <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-full">
+                          Modern iOS / Linear
                         </span>
                       </div>
                       <button
@@ -1305,20 +1385,20 @@ export function DesignLabView() {
                       </button>
                     </div>
                     <p className="text-xs text-slate-500 mb-3">
-                      Takes all elements of the current top header (Menu, Active Tab pill, Brand Identity) and anchors them cleanly to the bottom edge. Zero visual clutter, identical familiarity.
+                      Detached floating capsule hovering above the screen bottom with frosted dark glass blur. Direct tabs for Overview, Invoices (with overdue beacon), Notes, Vault, and More (☰). Tapping &quot;More&quot; opens the sleek right-side flyout drawer for remaining tabs only.
                     </p>
-                    <div className="rounded-xl overflow-hidden border border-slate-700/50">
+                    <div className="rounded-xl overflow-hidden bg-slate-100 p-2">
                       <MobileBottomBar
                         styleId="bottom-style-01"
                         activeTab="invoices"
-                        onSelectTab={() => {}}
-                        onOpenMenu={() => {}}
+                        onSelectTab={(tab) => setToastFeedback(`Preview: Tapped ${tab}`)}
+                        onOpenMenu={() => setIsSimulatedDrawerOpen(true)}
                         isSimulated={true}
                       />
                     </div>
                   </div>
 
-                  {/* Variation 02 */}
+                  {/* Polished Concept 02: Executive Multi-Tab Cockpit */}
                   <div
                     className={`rounded-2xl border p-4 transition-all ${
                       mobileBottomBarStyle === "bottom-style-02"
@@ -1328,9 +1408,9 @@ export function DesignLabView() {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-slate-900">02 // Dynamic Island Floating Dock</span>
-                        <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-full">
-                          Modern iOS / Linear
+                        <span className="text-xs font-black text-slate-900">02 // Executive Multi-Tab Cockpit</span>
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full">
+                          Direct 5-Tab Chassis
                         </span>
                       </div>
                       <button
@@ -1346,96 +1426,14 @@ export function DesignLabView() {
                       </button>
                     </div>
                     <p className="text-xs text-slate-500 mb-3">
-                      Detached floating capsule hovering 12px above the screen bottom with frosted dark glass blur. Quick 1-tap switching between Invoices, Notes, Vault, and Menu.
+                      Full-width pinned cockpit dock. The upload button has been eliminated and replaced with a direct Calendar tab (Dash, Invoices with overdue badge, Notes, Calendar, More). Tapping &quot;More&quot; opens the right-side flyout drawer with only remaining tabs (Vault, Resources, Logins, Admin, Lab, Usage).
                     </p>
-                    <div className="rounded-xl overflow-hidden bg-slate-100 p-2">
+                    <div className="rounded-xl overflow-hidden border border-slate-700/50">
                       <MobileBottomBar
                         styleId="bottom-style-02"
                         activeTab="invoices"
-                        onSelectTab={() => {}}
-                        onOpenMenu={() => {}}
-                        isSimulated={true}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Variation 03 */}
-                  <div
-                    className={`rounded-2xl border p-4 transition-all ${
-                      mobileBottomBarStyle === "bottom-style-03"
-                        ? "border-blue-600 bg-blue-50/20 shadow-xs ring-2 ring-blue-500/20"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-slate-900">03 // Action-First Cockpit</span>
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
-                          High-Speed Workflow
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setMobileBottomBarStyle("bottom-style-03")}
-                        className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          mobileBottomBarStyle === "bottom-style-03"
-                            ? "bg-blue-600 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        {mobileBottomBarStyle === "bottom-style-03" ? "Selected" : "Preview"}
-                      </button>
-                    </div>
-                    <p className="text-xs text-slate-500 mb-3">
-                      Features a prominent elevated central Action Launcher (Upload File / Add Note) directly under the thumb. Flanked by Invoices, Notes, and the full Menu.
-                    </p>
-                    <div className="rounded-xl overflow-hidden border border-slate-700/50 pt-3">
-                      <MobileBottomBar
-                        styleId="bottom-style-03"
-                        activeTab="invoices"
-                        onSelectTab={() => {}}
-                        onOpenMenu={() => {}}
-                        isSimulated={true}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Variation 04 */}
-                  <div
-                    className={`rounded-2xl border p-4 transition-all ${
-                      mobileBottomBarStyle === "bottom-style-04"
-                        ? "border-blue-600 bg-blue-50/20 shadow-xs ring-2 ring-blue-500/20"
-                        : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-slate-900">04 // Minimalist Tactile Rail</span>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                          Max Table Height
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setMobileBottomBarStyle("bottom-style-04")}
-                        className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          mobileBottomBarStyle === "bottom-style-04"
-                            ? "bg-blue-600 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        {mobileBottomBarStyle === "bottom-style-04" ? "Selected" : "Preview"}
-                      </button>
-                    </div>
-                    <p className="text-xs text-slate-500 mb-3">
-                      Ultra-slim 42px profile. Sacrifices extra labels to give you maximum vertical space for spreadsheets and table rows on mobile.
-                    </p>
-                    <div className="rounded-xl overflow-hidden border border-slate-800">
-                      <MobileBottomBar
-                        styleId="bottom-style-04"
-                        activeTab="invoices"
-                        onSelectTab={() => {}}
-                        onOpenMenu={() => {}}
+                        onSelectTab={(tab) => setToastFeedback(`Preview: Tapped ${tab}`)}
+                        onOpenMenu={() => setIsSimulatedDrawerOpen(true)}
                         isSimulated={true}
                       />
                     </div>

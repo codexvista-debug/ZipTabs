@@ -24,6 +24,8 @@ interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   onOpenSettings?: () => void;
+  drawerSide?: "left" | "right";
+  excludeTabs?: string[];
 }
 
 export function Sidebar({
@@ -32,6 +34,8 @@ export function Sidebar({
   isOpen = false,
   onClose,
   onOpenSettings,
+  drawerSide = "left",
+  excludeTabs = [],
 }: SidebarProps) {
   const { user, logout } = useAuth();
 
@@ -60,19 +64,32 @@ export function Sidebar({
       {isOpen && (
         <div
           onClick={onClose}
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+          className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-40 lg:hidden transition-opacity"
         />
       )}
 
-      {/* Sidebar Drawer */}
+      {/* Sidebar Drawer (Left on Desktop; Slide-in from Right or Left on Mobile) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 lg:static w-[260px] bg-[#0c1427] border-r border-[#15203b] flex flex-col h-[100dvh] max-h-[100dvh] select-none shrink-0 text-slate-300 transition-transform duration-300 ease-in-out ${
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 z-50 flex flex-col h-[100dvh] max-h-[100dvh] select-none shrink-0 text-slate-300 transition-transform duration-300 ease-in-out ${
+          drawerSide === "right"
+            ? `right-0 w-72 max-w-[82vw] bg-[#0c1427]/98 backdrop-blur-xl border-l border-[#15203b] shadow-2xl lg:static lg:left-0 lg:right-auto lg:w-[260px] lg:border-r lg:border-l-0 lg:shadow-none ${
+                isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
+              }`
+            : `left-0 w-[260px] bg-[#0c1427] border-r border-[#15203b] lg:static ${
+                isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+              }`
         }`}
       >
         {/* Brand Header */}
         <div className="h-14 sm:h-16 px-4 sm:px-5 flex items-center justify-between border-b border-[#15203b] shrink-0">
-          <ZipTabsLogo size="md" showText={true} />
+          <div className="flex items-center gap-2 min-w-0">
+            <ZipTabsLogo size="md" showText={true} />
+            {drawerSide === "right" && (
+              <span className="lg:hidden text-[10px] font-bold text-blue-400 bg-blue-950/80 border border-blue-800/60 px-1.5 py-0.5 rounded tracking-wider uppercase">
+                More Tabs
+              </span>
+            )}
+          </div>
           {/* Mobile Close Button */}
           <button
             type="button"
@@ -87,13 +104,16 @@ export function Sidebar({
         {/* Menu Items (Scrollable Middle Section) */}
         <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 sm:py-4 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
           <div className="px-3 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            WORKSPACE MENU
+            {drawerSide === "right" ? "OTHER DESTINATIONS" : "WORKSPACE MENU"}
           </div>
 
           <nav className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeItem === item.id;
+              const isExcludedOnMobile =
+                drawerSide === "right" && excludeTabs.includes(item.id);
+
               return (
                 <a
                   key={item.id}
@@ -114,6 +134,8 @@ export function Sidebar({
                     }
                   }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-all text-left cursor-pointer select-none no-underline ${
+                    isExcludedOnMobile ? "hidden lg:flex" : "flex"
+                  } ${
                     isActive
                       ? "bg-[#2563eb] text-white shadow-md shadow-[#2563eb]/30 font-semibold"
                       : "text-slate-300 hover:text-white hover:bg-slate-800/50"

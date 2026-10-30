@@ -145,13 +145,21 @@ export default function Home() {
   // 3. Authenticated Workspace
   return (
     <div className="flex h-screen h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
-      {/* Sidebar with Dashboard and Invoices tabs */}
+      {/* Sidebar (Desktop left sidebar, or Mobile right-flyout drawer when bottom bar is active) */}
       <Sidebar
         activeItem={activeTab}
         onSelect={(id) => handleTabChange(id as TabType)}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        drawerSide={isMobileTopHeaderHidden ? "right" : "left"}
+        excludeTabs={
+          isMobileTopHeaderHidden
+            ? mobileBottomBarStyle === "bottom-style-01"
+              ? ["dashboard", "invoices", "notes", "drive"]
+              : ["dashboard", "invoices", "notes", "calendar"]
+            : []
+        }
       />
 
       {/* Main Workspace Column */}
