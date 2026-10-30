@@ -18,6 +18,7 @@ import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
 import { WorkspaceLoadingScreen } from "@/components/ui/WorkspaceLoadingScreen";
 import { MobileBottomBar, MobileBottomBarStyle } from "@/components/layout/MobileBottomBar";
+import { PullToRefresh } from "@/components/ui/PullToRefresh";
 import { Menu, Loader2 } from "lucide-react";
 
 type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "resources" | "logins" | "master-control" | "lab" | "usage";
@@ -148,100 +149,102 @@ export default function Home() {
 
   // 3. Authenticated Workspace
   return (
-    <div className="flex h-screen h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
-      {/* Sidebar (Desktop left sidebar, or Mobile right-flyout drawer when bottom bar is active) */}
-      <Sidebar
-        activeItem={activeTab}
-        onSelect={(id) => handleTabChange(id as TabType)}
-        isOpen={isMobileMenuOpen}
-        onClose={() => setIsMobileMenuOpen(false)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        drawerSide={isMobileTopHeaderHidden ? "right" : "left"}
-        excludeTabs={
-          isMobileTopHeaderHidden
-            ? mobileBottomBarStyle === "bottom-style-01"
-              ? ["dashboard", "invoices", "notes", "drive"]
-              : ["dashboard", "invoices", "notes", "calendar"]
-            : []
-        }
-      />
+    <PullToRefresh>
+      <div className="flex h-screen h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
+        {/* Sidebar (Desktop left sidebar, or Mobile right-flyout drawer when bottom bar is active) */}
+        <Sidebar
+          activeItem={activeTab}
+          onSelect={(id) => handleTabChange(id as TabType)}
+          isOpen={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          drawerSide={isMobileTopHeaderHidden ? "right" : "left"}
+          excludeTabs={
+            isMobileTopHeaderHidden
+              ? mobileBottomBarStyle === "bottom-style-01"
+                ? ["dashboard", "invoices", "notes", "drive"]
+                : ["dashboard", "invoices", "notes", "calendar"]
+              : []
+          }
+        />
 
-      {/* Main Workspace Column */}
-      <div className="flex-1 flex flex-col min-w-0 h-full h-[100dvh] overflow-hidden relative">
-        {/* Mobile / Tablet Top Navigation Bar (Hidden when testing or active bottom bar mode) */}
-        {!isMobileTopHeaderHidden && (
-          <header className="sticky top-0 z-30 lg:hidden h-14 bg-[#0c1427]/95 backdrop-blur-md border-b border-[#15203b] px-4 flex items-center justify-between shrink-0 text-white shadow-xs">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-                aria-label="Open navigation menu"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-              <span className="text-xs font-bold text-slate-200 capitalize">
-                {activeTab === "dashboard" ? "Dashboard" : activeTab.replace("-", " ")}
-              </span>
+        {/* Main Workspace Column */}
+        <div className="flex-1 flex flex-col min-w-0 h-full h-[100dvh] overflow-hidden relative">
+          {/* Mobile / Tablet Top Navigation Bar (Hidden when testing or active bottom bar mode) */}
+          {!isMobileTopHeaderHidden && (
+            <header className="sticky top-0 z-30 lg:hidden h-14 bg-[#0c1427]/95 backdrop-blur-md border-b border-[#15203b] px-4 flex items-center justify-between shrink-0 text-white shadow-xs">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="p-1.5 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                  aria-label="Open navigation menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+                <span className="text-xs font-bold text-slate-200 capitalize">
+                  {activeTab === "dashboard" ? "Dashboard" : activeTab.replace("-", " ")}
+                </span>
+              </div>
+              <div className="scale-90 origin-right">
+                <ZipTabsLogo size="sm" showText={true} />
+              </div>
+            </header>
+          )}
+
+          {/* Content Canvas */}
+          <main
+            ref={mainContentRef}
+            className={`flex-1 overflow-x-hidden px-3.5 sm:px-6 md:px-8 lg:px-10 overscroll-y-auto ${
+              isMobileTopHeaderHidden ? "pb-20 lg:pb-0" : ""
+            } ${
+              activeTab === "invoices"
+                ? "overflow-y-hidden py-3 sm:py-4 flex flex-col"
+                : "overflow-y-auto py-4 sm:py-8"
+            }`}
+          >
+            <div key={activeTab} className={`animate-page-enter ${activeTab === "invoices" ? "flex-1 flex flex-col min-h-0" : "min-h-full"}`}>
+              {activeTab === "invoices" ? (
+                <InvoicesView />
+              ) : activeTab === "notes" ? (
+                <NotesView />
+              ) : activeTab === "calendar" ? (
+                <USCalendarView />
+              ) : activeTab === "drive" ? (
+                <DriveView onNavigateUsage={() => handleTabChange("usage")} />
+              ) : activeTab === "resources" ? (
+                <ResourcesView />
+              ) : activeTab === "logins" ? (
+                <LoginsView />
+              ) : activeTab === "master-control" ? (
+                <MasterControlView />
+              ) : activeTab === "lab" ? (
+                <DesignLabView />
+              ) : activeTab === "usage" ? (
+                <UsageView />
+              ) : (
+                <DashboardView onNavigate={(tab) => handleTabChange(tab)} />
+              )}
             </div>
-            <div className="scale-90 origin-right">
-              <ZipTabsLogo size="sm" showText={true} />
-            </div>
-          </header>
-        )}
+          </main>
 
-        {/* Content Canvas */}
-        <main
-          ref={mainContentRef}
-          className={`flex-1 overflow-x-hidden px-3.5 sm:px-6 md:px-8 lg:px-10 overscroll-contain ${
-            isMobileTopHeaderHidden ? "pb-20 lg:pb-0" : ""
-          } ${
-            activeTab === "invoices"
-              ? "overflow-y-hidden py-3 sm:py-4 flex flex-col"
-              : "overflow-y-auto py-4 sm:py-8"
-          }`}
-        >
-          <div key={activeTab} className={`animate-page-enter ${activeTab === "invoices" ? "flex-1 flex flex-col min-h-0" : "min-h-full"}`}>
-            {activeTab === "invoices" ? (
-              <InvoicesView />
-            ) : activeTab === "notes" ? (
-              <NotesView />
-            ) : activeTab === "calendar" ? (
-              <USCalendarView />
-            ) : activeTab === "drive" ? (
-              <DriveView onNavigateUsage={() => handleTabChange("usage")} />
-            ) : activeTab === "resources" ? (
-              <ResourcesView />
-            ) : activeTab === "logins" ? (
-              <LoginsView />
-            ) : activeTab === "master-control" ? (
-              <MasterControlView />
-            ) : activeTab === "lab" ? (
-              <DesignLabView />
-            ) : activeTab === "usage" ? (
-              <UsageView />
-            ) : (
-              <DashboardView onNavigate={(tab) => handleTabChange(tab)} />
-            )}
-          </div>
-        </main>
+          {/* Mobile Live Bottom Navigation Bar (Active when top header is disabled) */}
+          {isMobileTopHeaderHidden && (
+            <MobileBottomBar
+              styleId={mobileBottomBarStyle}
+              activeTab={activeTab}
+              onSelectTab={(tab) => handleTabChange(tab)}
+              onOpenMenu={() => setIsMobileMenuOpen(true)}
+            />
+          )}
+        </div>
 
-        {/* Mobile Live Bottom Navigation Bar (Active when top header is disabled) */}
-        {isMobileTopHeaderHidden && (
-          <MobileBottomBar
-            styleId={mobileBottomBarStyle}
-            activeTab={activeTab}
-            onSelectTab={(tab) => handleTabChange(tab)}
-            onOpenMenu={() => setIsMobileMenuOpen(true)}
-          />
-        )}
+        {/* Change Password Dialog Modal */}
+        <ChangePasswordModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
       </div>
-
-      {/* Change Password Dialog Modal */}
-      <ChangePasswordModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
-    </div>
+    </PullToRefresh>
   );
 }
