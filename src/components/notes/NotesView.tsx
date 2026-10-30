@@ -487,6 +487,15 @@ export function NotesView() {
     description?: string;
   } | null>(null);
 
+  // Quick Note Inline Composer State
+  const [quickContent, setQuickContent] = useState("");
+  const [quickFiles, setQuickFiles] = useState<File[]>([]);
+  const [isQuickExtracting, setIsQuickExtracting] = useState(false);
+  const [quickExtractProgress, setQuickExtractProgress] = useState(0);
+  const [isQuickSaving, setIsQuickSaving] = useState(false);
+  const [isQuickDragging, setIsQuickDragging] = useState(false);
+  const quickFileInputRef = useRef<HTMLInputElement>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -517,8 +526,6 @@ export function NotesView() {
 
   // Clipboard Paste support (Ctrl+V / Cmd+V) to paste screenshots or copied documents
   useEffect(() => {
-    if (!isModalOpen) return;
-
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
@@ -544,12 +551,26 @@ export function NotesView() {
       }
 
       if (pastedFiles.length > 0) {
-        setNewFilesToUpload((prev) => [...prev, ...pastedFiles]);
-        showToast(
-          "Pasted File Attached",
-          `${pastedFiles.length} item(s) attached from clipboard.`,
-          "success"
-        );
+        if (isModalOpen) {
+          setNewFilesToUpload((prev) => [...prev, ...pastedFiles]);
+          showToast(
+            "Pasted File Attached",
+            `${pastedFiles.length} item(s) attached from clipboard.`,
+            "success"
+          );
+        } else {
+          // Attached to Quick Note Composer on main page!
+          setQuickFiles((prev) => [...prev, ...pastedFiles]);
+          showToast(
+            "Screenshot Attached",
+            `${pastedFiles.length} item(s) pasted. Scanning image text...`,
+            "info"
+          );
+          const firstImage = pastedFiles.find((f) => f.type.startsWith("image/"));
+          if (firstImage) {
+            handleQuickExtractFromImage(firstImage);
+          }
+        }
       }
     };
 
@@ -891,6 +912,122 @@ export function NotesView() {
   // Remove pending file before upload
   const handleRemoveNewFile = (index: number) => {
     setNewFilesToUpload((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Extract text from image for Quick Note composer
+  const handleQuickExtractFromImage = async (file: File) => {
+    try {
+      setIsQuickExtracting(true);
+      setQuickExtractProgress(0);
+      const extracted = await extractTextFromImageFile(file, (pct) => {
+        setQuickExtractProgress(pct);
+      });
+
+      if (!extracted) {
+        showToast(
+          "No Readable Text Found",
+          "Could not detect clear text in this image.",
+          "info"
+        );
+        return;
+      }
+
+      setQuickContent((prev) => {
+        const cleanPrev = prev.trim();
+        if (!cleanPrev) return extracted;
+        return `${cleanPrev}\n\n${extracted}`;
+      });
+
+      showToast(
+        "Text Extracted",
+        "Image text extracted into Quick Note details.",
+        "success"
+      );
+    } catch (err: any) {
+      console.error("Quick OCR extraction failed:", err);
+      showToast(
+        "Extraction Failed",
+        err.message || "An error occurred while scanning the image.",
+        "error"
+      );
+    } finally {
+      setIsQuickExtracting(false);
+      setQuickExtractProgress(0);
+    }
+  };
+
+  // Fast 1-click Quick Note Saver (Category: "Quick Notes", Priority: "normal")
+  const handleQuickAddNote = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const contentTrimmed = quickContent.trim();
+    if (!contentTrimmed && quickFiles.length === 0) {
+      showToast("Cannot Create Note", "Please type note details or attach an image.", "error");
+      return;
+    }
+
+    setIsQuickSaving(true);
+    const nowIso = new Date().toISOString();
+    const noteId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+    unrecordDeletedNoteId(noteId);
+
+    const finalSubject = extractKeywordsSubject(contentTrimmed || "Quick Note");
+    const pendingUploadFiles = [...quickFiles];
+
+    // Reset composer input immediately for instant feel
+    setQuickContent("");
+    setQuickFiles([]);
+
+    const newItem: NoteItem = {
+      id: noteId,
+      user_id: "chief",
+      title: finalSubject,
+      content: contentTrimmed || finalSubject,
+      category: "Quick Notes",
+      target_date: null,
+      priority: "normal",
+      is_completed: false,
+      attachments: [],
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+
+    const updatedList = [newItem, ...notes];
+    saveNotesList(updatedList);
+
+    if (supabase) {
+      supabase
+        .from("app_notes")
+        .insert([
+          {
+            id: newItem.id,
+            user_id: "chief",
+            title: newItem.title,
+            content: newItem.content,
+            category: "Quick Notes",
+            target_date: null,
+            priority: "normal",
+            is_completed: false,
+            attachments: [],
+          },
+        ])
+        .then(({ error }) => {
+          if (error) console.error("Supabase quick note insert error:", error);
+        });
+    }
+
+    showToast(
+      "Quick Note Added",
+      pendingUploadFiles.length > 0
+        ? `"${finalSubject}" saved! Uploading ${pendingUploadFiles.length} file(s) in background...`
+        : `"${finalSubject}" added to Quick Notes.`,
+      "success"
+    );
+
+    if (pendingUploadFiles.length > 0) {
+      queueBackgroundUploads(noteId, finalSubject, pendingUploadFiles);
+    }
+
+    setIsQuickSaving(false);
   };
 
   // Extract text from image attachment via client-side OCR (direct in-browser, no server timeout)
@@ -1383,79 +1520,200 @@ export function NotesView() {
         </button>
       </div>
 
-      {/* Summary KPI Cards (2x2 on mobile, 4 columns on desktop) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        <div
-          onClick={() => {
-            setStatusTab("active");
-            setActiveCategory("all");
-            setUrgencyFilter("all");
-          }}
-          className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs cursor-pointer hover:border-blue-300 transition-colors flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className="truncate">Active Notes</span>
-            <NotebookPen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
-            {activeNotesCount}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
-            {completedNotesCount} completed • {totalNotesCount} total
-          </div>
-        </div>
-
-        <div
-          onClick={() => setUrgencyFilter(urgencyFilter === "attention" ? "all" : "attention")}
-          className={`cursor-pointer rounded-xl p-3.5 sm:p-5 border transition-all shadow-xs flex flex-col justify-between ${
-            urgentCount > 0
-              ? "bg-amber-50/50 border-amber-300 hover:border-amber-400"
-              : "bg-white border-slate-200/80"
-          }`}
-        >
-          <div className="flex items-center justify-between text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className={`truncate ${urgentCount > 0 ? "text-amber-800 font-bold" : "text-slate-400"}`}>
-              High & Urgent
+      {/* Quick Note Inline Composer (Replaces extra KPI cards for rapid note capture & OCR image extraction) */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsQuickDragging(true);
+        }}
+        onDragLeave={() => setIsQuickDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsQuickDragging(false);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            setQuickFiles((prev) => [...prev, ...droppedFiles]);
+            showToast("Files Attached", `${droppedFiles.length} item(s) attached to quick note.`, "info");
+            const firstImg = droppedFiles.find((f) => f.type.startsWith("image/"));
+            if (firstImg) {
+              handleQuickExtractFromImage(firstImg);
+            }
+          }
+        }}
+        className={`bg-white rounded-2xl border p-4 sm:p-5 shadow-xs transition-all duration-200 ${
+          isQuickDragging
+            ? "border-blue-500 ring-4 ring-blue-500/10 bg-blue-50/20"
+            : "border-slate-200/90 hover:border-slate-300"
+        }`}
+      >
+        {/* Composer Header Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 mb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              <span>Quick Note</span>
             </span>
-            <Flame className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${urgentCount > 0 ? "text-rose-500 fill-rose-500" : "text-slate-400"}`} />
+            <span className="text-[11px] text-slate-400 hidden sm:inline-flex items-center gap-1.5">
+              <span>Category:</span>
+              <strong className="text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                Quick Notes
+              </strong>
+              <span>• Priority:</span>
+              <strong className="text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md font-semibold text-[11px]">
+                Normal
+              </strong>
+            </span>
           </div>
-          <div className={`text-xl sm:text-2xl font-black tracking-tight mt-1 sm:mt-2 ${urgentCount > 0 ? "text-amber-700" : "text-slate-900"}`}>
-            {urgentCount}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 sm:mt-1 truncate">
-            {urgentCount > 0 ? "🔥 Priority action items" : "No high priority items"}
+
+          <div className="flex items-center gap-2">
+            {isQuickExtracting ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-blue-700 font-bold bg-blue-50 border border-blue-200 px-3 py-1 rounded-full animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                <span>{quickExtractProgress > 0 ? `Scanning OCR (${quickExtractProgress}%)...` : "Extracting Text..."}</span>
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400 hidden md:inline-flex items-center gap-1">
+                Auto-extracts text from images • Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px]">Ctrl+Enter</kbd> to add
+              </span>
+            )}
           </div>
         </div>
 
-        <div
-          onClick={() => setActiveCategory(activeCategory === "Invoices" ? "all" : "Invoices")}
-          className="cursor-pointer bg-white hover:border-blue-300 rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs transition-colors flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className="truncate">Invoices</span>
-            <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
-            {invoiceNotesCount}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
-            Vendor & collection logs
-          </div>
+        {/* Text Input Area */}
+        <div className="relative">
+          <textarea
+            rows={2}
+            value={quickContent}
+            onChange={(e) => setQuickContent(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                handleQuickAddNote();
+              }
+            }}
+            placeholder="Type note details or paste a screenshot with Ctrl+V (text will auto-extract from images)..."
+            className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 font-medium transition-all resize-y min-h-[64px]"
+          />
         </div>
 
-        <div
-          onClick={() => setActiveCategory(activeCategory === "Payroll" ? "all" : "Payroll")}
-          className="cursor-pointer bg-white hover:border-indigo-300 rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs transition-colors flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between text-slate-400 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-            <span className="truncate">Payroll</span>
-            <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 shrink-0" />
+        {/* Attached Files & Screenshots Strip */}
+        {quickFiles.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {quickFiles.map((file, idx) => {
+              const isImg = file.type.startsWith("image/");
+              return (
+                <div
+                  key={`${file.name}-${idx}`}
+                  className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700"
+                >
+                  {isImg ? (
+                    <ImageIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  ) : (
+                    <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  )}
+                  <span className="max-w-[140px] truncate font-medium text-[11px] text-slate-800" title={file.name}>
+                    {file.name}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    ({(file.size / 1024).toFixed(0)} KB)
+                  </span>
+
+                  {isImg && (
+                    <button
+                      type="button"
+                      disabled={isQuickExtracting}
+                      onClick={() => handleQuickExtractFromImage(file)}
+                      className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold cursor-pointer transition-colors"
+                      title="Scan/Re-extract text from this image"
+                    >
+                      <ScanText className="w-3 h-3" />
+                      <span>Extract</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setQuickFiles((prev) => prev.filter((_, i) => i !== idx))}
+                    className="p-0.5 text-slate-400 hover:text-rose-600 hover:bg-slate-200 rounded transition-colors cursor-pointer"
+                    title="Remove attachment"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1 sm:mt-2">
-            {payrollNotesCount}
+        )}
+
+        {/* Bottom Actions Bar */}
+        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+          {/* Left: Attach Image & Paste Hint */}
+          <div className="flex items-center gap-2">
+            <input
+              ref={quickFileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  const selected = Array.from(e.target.files);
+                  setQuickFiles((prev) => [...prev, ...selected]);
+                  const firstImg = selected.find((f) => f.type.startsWith("image/"));
+                  if (firstImg) {
+                    handleQuickExtractFromImage(firstImg);
+                  }
+                  e.target.value = "";
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => quickFileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+              title="Attach an image to extract text or store with this note"
+            >
+              <ScanText className="w-3.5 h-3.5 text-blue-600" />
+              <span>Attach / Scan Image</span>
+            </button>
+            <span className="text-[11px] text-slate-400 hidden sm:inline">
+              or paste screenshot <kbd className="font-mono text-[10px] bg-slate-100 border border-slate-200 px-1 py-0.5 rounded">Ctrl+V</kbd>
+            </span>
           </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 sm:mt-1 truncate">
-            Salary & contractor items
+
+          {/* Right: Auto-subject preview, Clear, and Submit Button */}
+          <div className="flex items-center gap-2">
+            {quickContent.trim() && (
+              <>
+                <span className="text-[11px] text-slate-400 hidden lg:inline-flex items-center gap-1 mr-1">
+                  Subject: <strong className="text-slate-800 font-bold">{extractKeywordsSubject(quickContent)}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickContent("");
+                    setQuickFiles([]);
+                  }}
+                  className="px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer font-medium"
+                >
+                  Clear
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              disabled={isQuickSaving || (!quickContent.trim() && quickFiles.length === 0)}
+              onClick={() => handleQuickAddNote()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+            >
+              {isQuickSaving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Plus className="w-3.5 h-3.5" />
+              )}
+              <span>Add Note</span>
+            </button>
           </div>
         </div>
       </div>
