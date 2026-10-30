@@ -671,7 +671,7 @@ export function InvoicesView() {
         (h, i) =>
           `<th style="background-color: #0070C0; color: #FFFFFF; font-weight: bold; font-family: Calibri, Arial, sans-serif; font-size: 13px; border: 1px solid #000000; padding: 7px 14px; text-align: ${
             i === 0 ? "left" : i === 2 ? "right" : "center"
-          };">${h}</th>`
+          }; vertical-align: middle; white-space: nowrap;">${h}</th>`
       )
       .join("");
 
@@ -683,14 +683,16 @@ export function InvoicesView() {
             (val, i) =>
               `<td style="background-color: #FFFFFF; color: #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; border: 1px solid #000000; padding: 6px 14px; text-align: ${
                 i === 0 ? "left" : i === 2 ? "right" : "center"
-              }; font-weight: ${i === 2 || i === 4 ? "bold" : "normal"};">${val}</td>`
+              }; font-weight: ${i === 2 || i === 4 ? "bold" : "normal"}; vertical-align: middle; white-space: nowrap;">${val}</td>`
           )
           .join("");
         return `<tr>${cellsHtml}</tr>`;
       })
       .join("");
 
-    const fullHtml = `<table style="border-collapse: collapse; border: 1px solid #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 8px 0;"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    // Self-contained block container with zero phantom margin and a safe trailing break
+    // This prevents Zoho Mail from injecting massive empty paragraphs, and prevents Backspace from merging text into the last <td>
+    const fullHtml = `<div style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" style="border-collapse: collapse; border: 1px solid #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 0; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table></div><div style="font-family: Calibri, Arial, sans-serif; font-size: 13px; line-height: 1.2; margin: 2px 0 0 0; padding: 0;"><br></div>`;
 
     // Plain text TSV fallback for Excel/Notepad
     const plainTsv = [
