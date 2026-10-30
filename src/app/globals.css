@@ -131,3 +131,27 @@ body {
 .slide-in-from-bottom-5 {
   animation-name: slideInFromBottom;
 }
+
+/* Hide scrollbar for Chrome, Safari, Firefox, and Edge */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Micro Laser Shimmer Animation */
+@keyframes shimmerLaser {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.animate-shimmer-laser {
+  animation: shimmerLaser 1.8s ease-in-out infinite;
+}
+

@@ -16,6 +16,7 @@ import { UsageView } from "@/components/usage/UsageView";
 import { DesignLabView } from "@/components/lab/DesignLabView";
 import { ChangePasswordModal } from "@/components/settings/ChangePasswordModal";
 import { ZipTabsLogo } from "@/components/ui/ZipTabsLogo";
+import { WorkspaceLoadingScreen } from "@/components/ui/WorkspaceLoadingScreen";
 import { Menu, Loader2 } from "lucide-react";
 
 type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "resources" | "logins" | "master-control" | "lab" | "usage";
@@ -102,14 +103,7 @@ export default function Home() {
 
   // 1. Loading Session State (Guards against any flash of website or login UI before security verification)
   if (isLoading || lockoutInfo === null) {
-    return (
-      <div className="min-h-screen bg-[#000000] flex flex-col items-center justify-center text-zinc-400 gap-3">
-        <Loader2 className="w-6 h-6 animate-spin text-white" />
-        <span className="text-xs font-bold tracking-widest uppercase text-zinc-500">
-          VERIFYING CREDENTIALS...
-        </span>
-      </div>
-    );
+    return <WorkspaceLoadingScreen />;
   }
 
   // 2. Unauthenticated State OR IP Locked Out / Lockdown Active -> Show Gate Screen

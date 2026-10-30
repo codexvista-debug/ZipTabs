@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ChevronDown,
   X,
 } from "lucide-react";
 import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
@@ -701,27 +702,28 @@ export function InvoicesView() {
       {/* Main Table Container (Fixed-View Dashboard Architecture) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col overflow-hidden">
         {/* Table Filters & Search Toolbar */}
-        <div className="p-4 border-b border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
+        <div className="p-3 sm:p-4 border-b border-slate-200/70 flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
           {/* Search Input */}
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <div className="relative w-full xl:max-w-sm">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search vendor or invoice number..."
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
             />
           </div>
 
-          {/* Filter Pills & Select Page Action */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg bg-slate-100 p-1 border border-slate-200/70 text-xs font-semibold">
+          {/* Filter Pills & Secondary Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full xl:w-auto">
+            {/* Filter Pills - Horizontally Scrollable on Mobile with Zero Line Breaking */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-xl bg-slate-100 p-1 border border-slate-200/80 text-xs font-semibold shrink-0">
               <button
                 type="button"
                 onClick={() => setAgingFilter("all")}
-                className={`px-3 py-1 rounded-md transition-all ${
-                  agingFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
+                  agingFilter === "all" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
                 }`}
               >
                 All ({invoices.length})
@@ -729,8 +731,8 @@ export function InvoicesView() {
               <button
                 type="button"
                 onClick={() => setAgingFilter("30")}
-                className={`px-3 py-1 rounded-md transition-all ${
-                  agingFilter === "30" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
+                  agingFilter === "30" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
                 }`}
               >
                 1-30 Days
@@ -738,8 +740,8 @@ export function InvoicesView() {
               <button
                 type="button"
                 onClick={() => setAgingFilter("60")}
-                className={`px-3 py-1 rounded-md transition-all ${
-                  agingFilter === "60" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
+                  agingFilter === "60" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
                 }`}
               >
                 31-60 Days
@@ -747,39 +749,45 @@ export function InvoicesView() {
               <button
                 type="button"
                 onClick={() => setAgingFilter("90+")}
-                className={`px-3 py-1 rounded-md transition-all ${
-                  agingFilter === "90+" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-900"
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
+                  agingFilter === "90+" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
                 }`}
               >
                 60+ Days
               </button>
             </div>
 
-            {/* Sort Dropdown */}
-            <select
-              value={sortBy}
-              onChange={(e: any) => setSortBy(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-600 transition-colors"
-            >
-              <option value="days_desc">Sort: Most Overdue</option>
-              <option value="amount_desc">Sort: Highest Amount</option>
-              <option value="vendor_asc">Sort: Vendor (A-Z)</option>
-            </select>
+            {/* Paired Sort & Select Page Actions - 50/50 side-by-side on mobile, natural on desktop */}
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              {/* Sort Dropdown */}
+              <div className="relative flex-1 sm:flex-initial">
+                <select
+                  value={sortBy}
+                  onChange={(e: any) => setSortBy(e.target.value)}
+                  className="w-full sm:w-auto h-9 pl-3 pr-8 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-600 transition-colors shadow-2xs appearance-none cursor-pointer"
+                >
+                  <option value="days_desc">Sort: Most Overdue</option>
+                  <option value="amount_desc">Sort: Highest Amount</option>
+                  <option value="vendor_asc">Sort: Vendor (A-Z)</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
-            {/* Optional Select Page Toggle */}
-            {paginatedInvoices.length > 0 && (
-              <button
-                type="button"
-                onClick={toggleSelectCurrentPage}
-                className="px-3 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-              >
-                {paginatedInvoices.every((inv) =>
-                  selectedIds.has(inv.id || inv.invoice_number || inv.vendor_name)
-                )
-                  ? "Deselect Page"
-                  : `Select Page (${paginatedInvoices.length})`}
-              </button>
-            )}
+              {/* Select Page Toggle */}
+              {paginatedInvoices.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleSelectCurrentPage}
+                  className="flex-1 sm:flex-initial h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors shadow-2xs flex items-center justify-center whitespace-nowrap"
+                >
+                  {paginatedInvoices.every((inv) =>
+                    selectedIds.has(inv.id || inv.invoice_number || inv.vendor_name)
+                  )
+                    ? "Deselect Page"
+                    : `Select Page (${paginatedInvoices.length})`}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1088,29 +1096,29 @@ export function InvoicesView() {
 
       {/* Floating Bottom Action Bar when Rows are Selected */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-3 sm:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-200 max-w-[calc(100vw-24px)] w-auto">
-          <div className="flex items-center gap-2 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-            <span>
-              <strong>{selectedIds.size}</strong> {selectedIds.size === 1 ? "row" : "rows"} selected
-            </span>
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-24px)] max-w-md sm:w-auto bg-[#0c1427]/95 backdrop-blur-md text-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center justify-between sm:justify-start gap-2 sm:gap-3.5 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/60 text-xs font-semibold shrink-0">
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse ring-2 ring-blue-400/20"></span>
+            <span className="text-white font-bold">{selectedIds.size}</span>
+            <span className="text-slate-300 text-[11px] hidden xs:inline">{selectedIds.size === 1 ? "row" : "rows"}</span>
           </div>
 
-          <div className="h-4 w-px bg-slate-700"></div>
+          <div className="hidden sm:block h-4 w-px bg-slate-700/80"></div>
 
           <button
             type="button"
             onClick={() => copyFormattedForZoho(selectedRowsList)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0070C0] hover:bg-blue-600 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-bold text-xs shadow-md shadow-blue-900/30 transition-all cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Copy className="w-3.5 h-3.5" />
+            <Copy className="w-3.5 h-3.5 shrink-0" />
             <span>Copy for Zoho Mail</span>
           </button>
 
           <button
             type="button"
             onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-slate-400 hover:text-white transition-colors"
+            className="px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            title="Clear selection"
           >
             Clear
           </button>
