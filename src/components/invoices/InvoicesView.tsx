@@ -942,7 +942,7 @@ export function InvoicesView() {
                     fileInputRef.current.click();
                   }
                 }}
-                className={`sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50 ${
+                className={`sm:hidden inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50 shrink-0 ${
                   isDark ? "bg-slate-900 hover:bg-black" : "bg-[#2563eb] hover:bg-blue-600"
                 }`}
               >
@@ -960,11 +960,11 @@ export function InvoicesView() {
         // Style 01: Architectural Minimal
         if (activeHeaderStyle === "style-01") {
           return (
-            <div className="flex flex-row items-center justify-between gap-3 pb-3 sm:pb-5 border-b border-slate-200/60 mb-4">
+            <div className="flex flex-row items-center justify-between gap-2.5 sm:gap-3 pb-2 sm:pb-5 border-b border-slate-200/60 mb-2 sm:mb-4">
               <div className="min-w-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-                  <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate sm:whitespace-normal">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-5 sm:h-6 bg-blue-600 rounded-full shrink-0" />
+                  <h1 className="text-sm sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
                     Overdue Invoices
                   </h1>
                   <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
@@ -983,20 +983,21 @@ export function InvoicesView() {
         // Style 02: Executive Slate Chassis (Requested Active Style)
         if (activeHeaderStyle === "style-02") {
           return (
-            <div className="bg-gradient-to-r from-slate-100/90 via-slate-50/70 to-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-5 flex flex-row items-center justify-between gap-3 mb-4 shadow-2xs">
-              <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-white border border-slate-200/90 flex items-center justify-center shadow-xs shrink-0">
-                  <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+            <div className="bg-gradient-to-r from-slate-100/90 via-slate-50/70 to-white border border-slate-200/90 rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-row items-center justify-between gap-2 sm:gap-3 mb-2 sm:mb-4 shadow-2xs">
+              <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+                <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-white border border-slate-200/90 flex items-center justify-center shadow-xs shrink-0">
+                  <FileSpreadsheet className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-600" />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
+                  <div className="hidden sm:flex items-center gap-2 mb-0.5">
                     <span className="text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase">
                       WORKSPACE // AR LEDGER
                     </span>
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   </div>
-                  <h1 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
-                    Overdue Invoices
+                  <h1 className="text-sm sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate flex items-center gap-1.5">
+                    <span>Overdue Invoices</span>
+                    <span className="sm:hidden w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                   </h1>
                   <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
                     Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
@@ -1011,13 +1012,13 @@ export function InvoicesView() {
         // Style 03: Cockpit Flight Deck (Inline Metric Ribbons)
         if (activeHeaderStyle === "style-03") {
           return (
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 sm:pb-5 border-b border-slate-200/60 mb-4">
-              <div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <div className="flex flex-row items-center justify-between gap-2.5 sm:gap-3 pb-2 sm:pb-5 border-b border-slate-200/60 mb-2 sm:mb-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-sm sm:text-2xl font-black text-slate-900 tracking-tight truncate">
                     Overdue Invoices
                   </h1>
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="hidden sm:flex flex-wrap items-center gap-1.5">
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-rose-600 bg-rose-50 border-rose-200 shadow-2xs">
                       <span className="text-[10px] font-medium opacity-80">Total Overdue:</span>
                       <span>$3,500,238</span>
@@ -1043,21 +1044,22 @@ export function InvoicesView() {
 
         // Style 04: Frosted Glass Floating Dock
         return (
-          <div className="relative bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/90 p-3.5 sm:p-5 shadow-xs overflow-hidden flex flex-row items-center justify-between gap-3 mb-4">
+          <div className="relative bg-white/90 backdrop-blur-md rounded-xl sm:rounded-2xl border border-slate-200/90 p-2 sm:p-5 shadow-xs overflow-hidden flex flex-row items-center justify-between gap-2.5 sm:gap-3 mb-2 sm:mb-4">
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-transparent pointer-events-none" />
-            <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-50 border border-blue-200/80 shadow-2xs flex items-center justify-center shrink-0">
-                <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+            <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+              <div className="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200/80 shadow-2xs flex items-center justify-center shrink-0">
+                <FileSpreadsheet className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-600" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-sm sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
                     Overdue Invoices
                   </h1>
                   <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 shrink-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Live Sync
                   </span>
+                  <span className="sm:hidden w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
                   Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
@@ -1538,23 +1540,73 @@ export function InvoicesView() {
           </div>
         )}
 
-        {/* Table Footer with Pinned Pagination Controls (Always visible, exactly like Image 3) */}
+        {/* Table Footer with Pinned Pagination Controls (Single clean line on mobile with padding) */}
         {filteredInvoices.length > 0 && (
-          <div className="p-3 sm:p-4 border-t border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 rounded-b-2xl shrink-0">
-            <div className="flex items-center gap-2">
-              <span>
-                Showing <strong>{startIndex + 1}</strong>–<strong>{endIndex}</strong> of <strong>{filteredInvoices.length}</strong> records
+          <div className="px-3 py-2 sm:px-4 sm:py-3.5 border-t border-slate-200/70 bg-slate-50/50 flex flex-row items-center justify-between gap-2 text-xs text-slate-500 rounded-b-2xl shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate">
+                <span className="sm:hidden font-medium">
+                  <strong>{startIndex + 1}</strong>–<strong>{endIndex}</strong> of <strong>{filteredInvoices.length}</strong>
+                </span>
+                <span className="hidden sm:inline">
+                  Showing <strong>{startIndex + 1}</strong>–<strong>{endIndex}</strong> of <strong>{filteredInvoices.length}</strong> records
+                </span>
                 {selectedIds.size > 0 && (
-                  <span className="ml-2 font-semibold text-blue-600">
-                    ({selectedIds.size} selected)
+                  <span className="ml-1.5 font-semibold text-blue-600">
+                    ({selectedIds.size})
                   </span>
                 )}
               </span>
             </div>
 
-            {/* Image-3 Style Professional Numbered Pagination Controls */}
+            {/* Mobile Compact 1-Line Pagination (< 1 / 8 >) */}
             {totalPages > 1 && (
-              <div className="flex items-center gap-1 self-center sm:self-auto flex-wrap justify-center">
+              <div className="flex sm:hidden items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs transition-colors cursor-pointer"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs transition-colors cursor-pointer"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="px-2 py-1 text-xs font-bold text-slate-800 bg-white border border-slate-200/80 rounded-lg shadow-2xs">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs transition-colors cursor-pointer"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs transition-colors cursor-pointer"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Desktop Image-3 Style Numbered Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="hidden sm:flex items-center gap-1 self-center sm:self-auto flex-wrap justify-center">
                 {/* First Page */}
                 <button
                   type="button"

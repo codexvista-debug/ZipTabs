@@ -1215,13 +1215,23 @@ export function DesignLabView() {
 
                   {/* Simulated Invoices App Body */}
                   <div className="flex-1 overflow-y-auto p-3 space-y-2.5 text-xs text-slate-800">
-                    <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">AR LEDGER</span>
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">438 Invoices</span>
+                    {/* Compact 1-Line Header in Simulator */}
+                    <div className="bg-white rounded-xl p-2.5 px-3 border border-slate-200 shadow-2xs flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center shrink-0">
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
+                        </div>
+                        <h4 className="font-black text-slate-900 text-xs truncate">Overdue Invoices</h4>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                       </div>
-                      <h4 className="font-black text-slate-900 text-sm">Overdue Invoices</h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Top header is hidden. Bottom dock controls navigation.</p>
+                      <button
+                        type="button"
+                        onClick={() => setToastFeedback("Simulator: Upload triggered")}
+                        className="px-2 py-1 rounded-lg bg-slate-900 text-white font-bold text-[10px] flex items-center gap-1 shrink-0"
+                      >
+                        <Upload className="w-2.5 h-2.5" />
+                        <span>Upload</span>
+                      </button>
                     </div>
 
                     {/* Sample Table Rows */}
@@ -1246,6 +1256,16 @@ export function DesignLabView() {
                           <div className="text-[10px] text-slate-400">Inv #34282 • Current</div>
                         </div>
                         <span className="font-black text-slate-900">$2,976.00</span>
+                      </div>
+                    </div>
+
+                    {/* Compact 1-Line Pagination in Simulator */}
+                    <div className="p-2 px-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between text-[11px] text-slate-500">
+                      <span><strong>1–50</strong> of <strong>438</strong></span>
+                      <div className="flex items-center gap-1">
+                        <span className="w-5 h-5 flex items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] font-bold">‹</span>
+                        <span className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-800">1 / 9</span>
+                        <span className="w-5 h-5 flex items-center justify-center rounded border border-slate-200 bg-slate-50 text-[10px] font-bold">›</span>
                       </div>
                     </div>
                   </div>
