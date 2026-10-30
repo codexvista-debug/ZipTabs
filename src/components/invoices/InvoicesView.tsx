@@ -20,6 +20,8 @@ import {
   ChevronDown,
   Clock,
   X,
+  User,
+  Sparkles,
 } from "lucide-react";
 import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
 
@@ -168,8 +170,22 @@ export function InvoicesView() {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeVendorFilter, setActiveVendorFilter] = useState<string | null>(null);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [agingFilter, setAgingFilter] = useState<"all" | "reminder" | "30" | "60" | "90+">("all");
   const [sortBy, setSortBy] = useState<"days_desc" | "amount_desc" | "vendor_asc">("days_desc");
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close search suggestions on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const reminderCount = useMemo(() => {
     return invoices.filter((inv) => isWithinReminderWindow(inv.due_date)).length;
@@ -260,7 +276,7 @@ export function InvoicesView() {
   // Reset to first page when search, filter, or sorting changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, agingFilter, sortBy]);
+  }, [searchQuery, activeVendorFilter, agingFilter, sortBy]);
 
   // Helper to extract clean numeric amount
   const parseAmount = (val: any): number => {
@@ -504,29 +520,79 @@ export function InvoicesView() {
     }
   };
 
-  // Filter & Sort Logic
-  const filteredInvoices = invoices
-    .filter((inv) => {
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        inv.vendor_name.toLowerCase().includes(q) ||
-        (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q));
-
-      if (!matchesSearch) return false;
-
+  // Base invoices matching current aging bucket
+  const invoicesMatchingAging = useMemo(() => {
+    return invoices.filter((inv) => {
       if (agingFilter === "reminder") return isWithinReminderWindow(inv.due_date);
       if (agingFilter === "30") return inv.days_overdue <= 30;
       if (agingFilter === "60") return inv.days_overdue > 30 && inv.days_overdue <= 60;
       if (agingFilter === "90+") return inv.days_overdue > 60;
       return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === "days_desc") return b.days_overdue - a.days_overdue;
-      if (sortBy === "amount_desc") return b.amount - a.amount;
-      if (sortBy === "vendor_asc") return a.vendor_name.localeCompare(b.vendor_name);
-      return 0;
     });
+  }, [invoices, agingFilter]);
+
+  // Compute unique vendor suggestions based on the active search query
+  const vendorSuggestions = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return [];
+
+    const map = new Map<string, { count: number; totalAmount: number }>();
+    for (const inv of invoicesMatchingAging) {
+      const vName = (inv.vendor_name || "").trim();
+      if (!vName) continue;
+
+      const matches =
+        vName.toLowerCase().includes(q) ||
+        (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q));
+
+      if (matches) {
+        const existing = map.get(vName);
+        if (existing) {
+          existing.count += 1;
+          existing.totalAmount += inv.amount || 0;
+        } else {
+          map.set(vName, { count: 1, totalAmount: inv.amount || 0 });
+        }
+      }
+    }
+
+    return Array.from(map.entries())
+      .map(([name, data]) => ({
+        name,
+        count: data.count,
+        totalAmount: data.totalAmount,
+      }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [invoicesMatchingAging, searchQuery]);
+
+  // Invoices matching search query before activeVendorFilter is applied
+  const invoicesMatchingSearch = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return invoicesMatchingAging;
+    return invoicesMatchingAging.filter((inv) => {
+      return (
+        inv.vendor_name.toLowerCase().includes(q) ||
+        (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q))
+      );
+    });
+  }, [invoicesMatchingAging, searchQuery]);
+
+  // Final filtered invoices (applying activeVendorFilter if selected, and sorting)
+  const filteredInvoices = useMemo(() => {
+    return invoicesMatchingSearch
+      .filter((inv) => {
+        if (activeVendorFilter && inv.vendor_name.trim() !== activeVendorFilter.trim()) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "days_desc") return b.days_overdue - a.days_overdue;
+        if (sortBy === "amount_desc") return b.amount - a.amount;
+        if (sortBy === "vendor_asc") return a.vendor_name.localeCompare(b.vendor_name);
+        return 0;
+      });
+  }, [invoicesMatchingSearch, activeVendorFilter, sortBy]);
 
   // Pagination Calculations (50 rows per page)
   const totalPages = Math.ceil(filteredInvoices.length / pageSize) || 1;
@@ -923,106 +989,256 @@ export function InvoicesView() {
       {/* Main Table Container (Fixed-View Dashboard Architecture) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Table Filters & Search Toolbar */}
-        <div className="p-3 sm:p-4 border-b border-slate-200/70 flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-slate-50/50 rounded-t-2xl">
-          {/* Search Input */}
-          <div className="relative w-full xl:max-w-sm">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search vendor or invoice number..."
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
-            />
-          </div>
+        <div className="p-3 sm:p-4 border-b border-slate-200/70 flex flex-col gap-2.5 bg-slate-50/50 rounded-t-2xl">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+            {/* Search Input Container with Dropdown Suggestions */}
+            <div className="relative w-full xl:max-w-sm" ref={searchContainerRef}>
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onFocus={() => setIsSearchFocused(true)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setActiveVendorFilter(null);
+                  setIsSearchFocused(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setIsSearchFocused(false);
+                  }
+                }}
+                placeholder="Search vendor or invoice number..."
+                className="w-full pl-10 pr-9 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
+              />
 
-          {/* Filter Pills & Secondary Actions */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full xl:w-auto">
-            {/* Filter Pills - Horizontally Scrollable on Mobile with Zero Line Breaking */}
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-xl bg-slate-100 p-1 border border-slate-200/80 text-xs font-semibold shrink-0">
-              <button
-                type="button"
-                onClick={() => setAgingFilter("all")}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
-                  agingFilter === "all" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                All ({invoices.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setAgingFilter("reminder")}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 flex items-center gap-1.5 ${
-                  agingFilter === "reminder"
-                    ? "bg-white text-blue-700 shadow-xs font-bold ring-1 ring-blue-500/20"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-                title="Due within ±4 days of current date (10/30/2026)"
-              >
-                <Clock className="w-3 h-3 text-blue-600" />
-                <span>Reminder ({reminderCount})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAgingFilter("30")}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
-                  agingFilter === "30" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                1-30 Days
-              </button>
-              <button
-                type="button"
-                onClick={() => setAgingFilter("60")}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
-                  agingFilter === "60" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                31-60 Days
-              </button>
-              <button
-                type="button"
-                onClick={() => setAgingFilter("90+")}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
-                  agingFilter === "90+" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                60+ Days
-              </button>
-            </div>
-
-            {/* Paired Sort & Select Page Actions - 50/50 side-by-side on mobile, natural on desktop */}
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-              {/* Sort Dropdown */}
-              <div className="relative flex-1 sm:flex-initial">
-                <select
-                  value={sortBy}
-                  onChange={(e: any) => setSortBy(e.target.value)}
-                  className="w-full sm:w-auto h-9 pl-3 pr-8 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-600 transition-colors shadow-2xs appearance-none cursor-pointer"
-                >
-                  <option value="days_desc">Sort: Most Overdue</option>
-                  <option value="amount_desc">Sort: Highest Amount</option>
-                  <option value="vendor_asc">Sort: Vendor (A-Z)</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              {/* Select Page Toggle */}
-              {paginatedInvoices.length > 0 && (
+              {/* Clear search button */}
+              {searchQuery && (
                 <button
                   type="button"
-                  onClick={toggleSelectCurrentPage}
-                  className="flex-1 sm:flex-initial h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors shadow-2xs flex items-center justify-center whitespace-nowrap"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setActiveVendorFilter(null);
+                    setIsSearchFocused(false);
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-md hover:bg-slate-100 transition-colors"
+                  title="Clear search"
                 >
-                  {paginatedInvoices.every((inv) =>
-                    selectedIds.has(inv.id || inv.invoice_number || inv.vendor_name)
-                  )
-                    ? "Deselect Page"
-                    : `Select Page (${paginatedInvoices.length})`}
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
+
+              {/* Floating Autocomplete Dropdown */}
+              {isSearchFocused && vendorSuggestions.length > 0 && (
+                <div
+                  onMouseDown={(e) => e.preventDefault()}
+                  className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden py-1 max-h-72 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-150"
+                >
+                  <div className="px-3 py-1.5 flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/80 border-b border-slate-100">
+                    <span>Suggested Vendors ({vendorSuggestions.length})</span>
+                    <span className="text-[10px] text-blue-600 font-semibold lowercase">click to filter</span>
+                  </div>
+                  {vendorSuggestions.map((v) => {
+                    const isSelected = activeVendorFilter === v.name;
+                    return (
+                      <button
+                        key={v.name}
+                        type="button"
+                        onClick={() => {
+                          setActiveVendorFilter(isSelected ? null : v.name);
+                          setIsSearchFocused(false);
+                          setCurrentPage(1);
+                        }}
+                        className={`w-full px-3 py-2 text-left flex items-center justify-between gap-2 transition-colors ${
+                          isSelected
+                            ? "bg-blue-50 text-blue-700 font-bold"
+                            : "hover:bg-slate-50 text-slate-800"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                              isSelected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {isSelected ? <Check className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                          </div>
+                          <span className="text-xs truncate">{v.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {v.count} inv
+                          </span>
+                          <span className="text-[11px] font-mono font-bold text-slate-700 hidden sm:inline">
+                            ${v.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Filter Pills & Secondary Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full xl:w-auto">
+              {/* Filter Pills - Horizontally Scrollable on Mobile with Zero Line Breaking */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-xl bg-slate-100 p-1 border border-slate-200/80 text-xs font-semibold shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgingFilter("all");
+                    setActiveVendorFilter(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
+                    agingFilter === "all" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  All ({invoices.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgingFilter("reminder");
+                    setActiveVendorFilter(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 flex items-center gap-1.5 ${
+                    agingFilter === "reminder"
+                      ? "bg-white text-blue-700 shadow-xs font-bold ring-1 ring-blue-500/20"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                  title="Due within ±4 days of current date (10/30/2026)"
+                >
+                  <Clock className="w-3 h-3 text-blue-600" />
+                  <span>Reminder ({reminderCount})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgingFilter("30");
+                    setActiveVendorFilter(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
+                    agingFilter === "30" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  1-30 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgingFilter("60");
+                    setActiveVendorFilter(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
+                    agingFilter === "60" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  31-60 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgingFilter("90+");
+                    setActiveVendorFilter(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs transition-all shrink-0 ${
+                    agingFilter === "90+" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  60+ Days
+                </button>
+              </div>
+
+              {/* Paired Sort & Select Page Actions - 50/50 side-by-side on mobile, natural on desktop */}
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                {/* Sort Dropdown */}
+                <div className="relative flex-1 sm:flex-initial">
+                  <select
+                    value={sortBy}
+                    onChange={(e: any) => setSortBy(e.target.value)}
+                    className="w-full sm:w-auto h-9 pl-3 pr-8 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-600 transition-colors shadow-2xs appearance-none cursor-pointer"
+                  >
+                    <option value="days_desc">Sort: Most Overdue</option>
+                    <option value="amount_desc">Sort: Highest Amount</option>
+                    <option value="vendor_asc">Sort: Vendor (A-Z)</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+
+                {/* Select Page Toggle */}
+                {paginatedInvoices.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={toggleSelectCurrentPage}
+                    className="flex-1 sm:flex-initial h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 transition-colors shadow-2xs flex items-center justify-center whitespace-nowrap"
+                  >
+                    {paginatedInvoices.every((inv) =>
+                      selectedIds.has(inv.id || inv.invoice_number || inv.vendor_name)
+                    )
+                      ? "Deselect Page"
+                      : `Select Page (${paginatedInvoices.length})`}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Suggested Vendor Filter Chips Strip (Below Search Row) */}
+          {vendorSuggestions.length > 1 && searchQuery.trim().length > 0 && (
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 overflow-x-auto no-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+                <Sparkles className="w-3 h-3 text-blue-600 shrink-0" />
+                <span>Suggested Vendors ({vendorSuggestions.length}):</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveVendorFilter(null);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
+                    activeVendorFilter === null
+                      ? "bg-slate-900 text-white shadow-2xs font-bold"
+                      : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80 shadow-2xs"
+                  }`}
+                >
+                  All ({invoicesMatchingSearch.length})
+                </button>
+
+                {vendorSuggestions.map((v) => {
+                  const isSelected = activeVendorFilter === v.name;
+                  return (
+                    <button
+                      key={v.name}
+                      type="button"
+                      onClick={() => {
+                        setActiveVendorFilter(isSelected ? null : v.name);
+                        setCurrentPage(1);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+                        isSelected
+                          ? "bg-blue-600 text-white shadow-xs font-bold ring-2 ring-blue-500/25"
+                          : "bg-white hover:bg-blue-50/70 text-slate-700 hover:text-blue-700 border border-slate-200/80 shadow-2xs"
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      <span>{v.name}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {v.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Table Content */}
