@@ -1028,16 +1028,15 @@ export function NotesView() {
         });
     }
 
-    showToast(
-      "Quick Note Added",
-      pendingUploadFiles.length > 0
-        ? `"${finalSubject}" saved! Uploading ${pendingUploadFiles.length} file(s) in background...`
-        : `"${finalSubject}" added to Quick Notes.`,
-      "success"
-    );
-
+    // If there are attachments, the background upload notification handles the entire lifecycle (prevents double toasts)
     if (pendingUploadFiles.length > 0) {
       queueBackgroundUploads(noteId, finalSubject, pendingUploadFiles);
+    } else {
+      showToast(
+        "Quick Note Added",
+        `"${finalSubject}" added to Quick Notes.`,
+        "success"
+      );
     }
 
     setIsQuickSaving(false);
@@ -1265,13 +1264,13 @@ export function NotesView() {
           });
       }
 
-      showToast(
-        "Note Updated",
-        pendingUploadFiles.length > 0
-          ? `"${finalSubject}" updated! Uploading ${pendingUploadFiles.length} file(s) in background...`
-          : `"${finalSubject}" saved under ${canonicalCategory}.`,
-        "success"
-      );
+      if (pendingUploadFiles.length === 0) {
+        showToast(
+          "Note Updated",
+          `"${finalSubject}" saved under ${canonicalCategory}.`,
+          "success"
+        );
+      }
     } else {
       // Create
       const newItem: NoteItem = {
@@ -1312,16 +1311,16 @@ export function NotesView() {
           });
       }
 
-      showToast(
-        "Note Created",
-        pendingUploadFiles.length > 0
-          ? `"${finalSubject}" created! Uploading ${pendingUploadFiles.length} file(s) in background...`
-          : `"${finalSubject}" added under ${canonicalCategory}.`,
-        "success"
-      );
+      if (pendingUploadFiles.length === 0) {
+        showToast(
+          "Note Created",
+          `"${finalSubject}" added under ${canonicalCategory}.`,
+          "success"
+        );
+      }
     }
 
-    // Trigger background upload if files are present
+    // Trigger background upload if files are present (handles its own notification seamlessly)
     if (pendingUploadFiles.length > 0) {
       queueBackgroundUploads(noteId, finalSubject, pendingUploadFiles);
     }
@@ -1578,9 +1577,13 @@ export function NotesView() {
 
           <div className="flex items-center gap-2">
             {isQuickExtracting ? (
-              <span className="inline-flex items-center gap-1.5 text-xs text-blue-700 font-bold bg-blue-50 border border-blue-200 px-3 py-1 rounded-full animate-pulse">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                <span>{quickExtractProgress > 0 ? `Scanning OCR (${quickExtractProgress}%)...` : "Extracting Text..."}</span>
+              <span className="inline-flex items-center gap-2 text-xs text-emerald-800 font-bold bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full shadow-2xs">
+                <div className="flex items-center gap-0.5 h-3.5">
+                  <span className="w-1 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDuration: "0.6s" }} />
+                  <span className="w-1 h-3.5 bg-emerald-400 rounded-full animate-pulse" style={{ animationDuration: "0.8s", animationDelay: "0.2s" }} />
+                  <span className="w-1 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDuration: "0.5s", animationDelay: "0.4s" }} />
+                </div>
+                <span>Extracting Text via AI...</span>
               </span>
             ) : (
               <span className="text-[11px] text-slate-400 hidden md:inline-flex items-center gap-1">
@@ -1648,8 +1651,8 @@ export function NotesView() {
                       </div>
                     )}
 
-                    <div className="min-w-0">
-                      <span className="max-w-[140px] sm:max-w-[180px] truncate font-bold text-xs text-slate-800 block" title={file.name}>
+                    <div className="min-w-0 flex-1 pr-1">
+                      <span className="max-w-[100px] xs:max-w-[130px] sm:max-w-[180px] truncate font-bold text-xs text-slate-800 block" title={file.name}>
                         {file.name}
                       </span>
                       <span className="text-[10px] text-slate-500 font-semibold mt-0.5 block">
@@ -1664,18 +1667,26 @@ export function NotesView() {
                         type="button"
                         disabled={isQuickExtracting}
                         onClick={() => handleQuickExtractFromImage(file)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                        className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50 shrink-0 ${
+                          isQuickExtracting
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-emerald-500/10"
+                            : "text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200"
+                        }`}
                         title="Extract text from this image to note details"
                       >
                         {isQuickExtracting ? (
                           <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                            <span>{quickExtractProgress > 0 ? `${quickExtractProgress}%` : "Scanning..."}</span>
+                            <div className="flex items-center gap-0.5 h-3">
+                              <span className="w-0.5 sm:w-1 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDuration: "0.6s" }} />
+                              <span className="w-0.5 sm:w-1 h-3.5 bg-emerald-400 rounded-full animate-pulse" style={{ animationDuration: "0.8s", animationDelay: "0.2s" }} />
+                              <span className="w-0.5 sm:w-1 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDuration: "0.5s", animationDelay: "0.4s" }} />
+                            </div>
+                            <span className="hidden sm:inline text-emerald-800">Extracting...</span>
                           </>
                         ) : (
                           <>
-                            <ScanText className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Extract Text</span>
+                            <ScanText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="hidden sm:inline">Extract Text</span>
                           </>
                         )}
                       </button>
@@ -2411,17 +2422,25 @@ export function NotesView() {
                                 onClick={() => handleExtractTextFromImage(att, `existing-${att.id}`)}
                                 disabled={extractingId !== null}
                                 title="Extract text from this image to Note Details"
-                                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                                className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50 shrink-0 ${
+                                  extractingId === `existing-${att.id}`
+                                    ? "bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-emerald-500/10"
+                                    : "text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200"
+                                }`}
                               >
                                 {extractingId === `existing-${att.id}` ? (
                                   <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                                    <span>{extractProgress > 0 ? `Extracting (${extractProgress}%)...` : "Extracting..."}</span>
+                                    <div className="flex items-center gap-0.5 h-3">
+                                      <span className="w-0.5 sm:w-1 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDuration: "0.6s" }} />
+                                      <span className="w-0.5 sm:w-1 h-3.5 bg-emerald-400 rounded-full animate-pulse" style={{ animationDuration: "0.8s", animationDelay: "0.2s" }} />
+                                      <span className="w-0.5 sm:w-1 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDuration: "0.5s", animationDelay: "0.4s" }} />
+                                    </div>
+                                    <span className="hidden sm:inline text-emerald-800">Extracting...</span>
                                   </>
                                 ) : (
                                   <>
-                                    <ScanText className="w-3.5 h-3.5 text-blue-600" />
-                                    <span>Extract Text</span>
+                                    <ScanText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    <span className="hidden sm:inline">Extract Text</span>
                                   </>
                                 )}
                               </button>
@@ -2490,17 +2509,25 @@ export function NotesView() {
                                 onClick={() => handleExtractTextFromImage(file, `new-${idx}`)}
                                 disabled={extractingId !== null}
                                 title="Extract text from this image to Note Details"
-                                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                                className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-bold rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50 shrink-0 ${
+                                  extractingId === `new-${idx}`
+                                    ? "bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-emerald-500/10"
+                                    : "text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 border border-blue-200"
+                                }`}
                               >
                                 {extractingId === `new-${idx}` ? (
                                   <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                                    <span>{extractProgress > 0 ? `Extracting (${extractProgress}%)...` : "Extracting..."}</span>
+                                    <div className="flex items-center gap-0.5 h-3">
+                                      <span className="w-0.5 sm:w-1 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDuration: "0.6s" }} />
+                                      <span className="w-0.5 sm:w-1 h-3.5 bg-emerald-400 rounded-full animate-pulse" style={{ animationDuration: "0.8s", animationDelay: "0.2s" }} />
+                                      <span className="w-0.5 sm:w-1 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDuration: "0.5s", animationDelay: "0.4s" }} />
+                                    </div>
+                                    <span className="hidden sm:inline text-emerald-800">Extracting...</span>
                                   </>
                                 ) : (
                                   <>
-                                    <ScanText className="w-3.5 h-3.5 text-blue-600" />
-                                    <span>Extract Text</span>
+                                    <ScanText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    <span className="hidden sm:inline">Extract Text</span>
                                   </>
                                 )}
                               </button>
@@ -2948,7 +2975,9 @@ export function NotesView() {
                     }`}
                   />
                   <span className="text-xs font-bold text-slate-900 tracking-tight truncate">
-                    Background Upload
+                    {backgroundUploads.some((u) => u.status === "uploading")
+                      ? "Note Saved · Syncing Files"
+                      : "Note & Attachments Saved"}
                   </span>
                   <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-white text-blue-700 border border-blue-200 shadow-2xs tabular-nums">
                     {backgroundUploads.filter((u) => u.status === "completed").length}/{backgroundUploads.length}
@@ -2978,11 +3007,11 @@ export function NotesView() {
               {/* Compact Body */}
               {!isUploadsMinimized && (
                 <div className="p-2.5 space-y-2">
-                  <div className="text-[11px] text-slate-500 flex items-center justify-between px-0.5">
-                    <span className="truncate">
+                  <div className="text-[11px] text-slate-600 flex items-center justify-between px-0.5">
+                    <span className="truncate font-medium">
                       {backgroundUploads.some((u) => u.status === "uploading")
-                        ? "Uploading in background..."
-                        : "All files attached successfully!"}
+                        ? `Saved to "${backgroundUploads[0]?.noteTitle || "Note"}" · Uploading files...`
+                        : `All files saved to "${backgroundUploads[0]?.noteTitle || "Note"}"!`}
                     </span>
                     {backgroundUploads.every((u) => u.status === "completed") && (
                       <span className="text-emerald-600 font-bold text-[10px] flex items-center gap-0.5 shrink-0">
