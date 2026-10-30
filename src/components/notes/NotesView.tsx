@@ -27,7 +27,6 @@ import {
   FileUp,
   FileText,
   Image as ImageIcon,
-  ExternalLink,
   Download,
   AlertCircle,
   Wallet,
@@ -1622,17 +1621,14 @@ export function NotesView() {
                             type: file.type,
                           })
                         }
-                        className="relative w-9 h-9 rounded-lg border border-slate-300 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
+                        className="relative w-9 h-9 rounded-lg border border-slate-300 overflow-hidden bg-slate-100 shrink-0 cursor-pointer shadow-2xs select-none"
                         title="Click to preview image"
                       >
                         <img
                           src={previewUrl}
                           alt={file.name}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                         />
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity text-white">
-                          <ExternalLink className="w-3 h-3" />
-                        </div>
                       </div>
                     ) : (
                       <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-2xs">
@@ -2361,17 +2357,14 @@ export function NotesView() {
                             {isImage ? (
                               <div
                                 onClick={() => setPreviewAttachment(att)}
-                                className="relative w-11 h-11 rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
+                                className="relative w-11 h-11 rounded-lg border border-slate-200 overflow-hidden bg-slate-100 shrink-0 cursor-pointer shadow-2xs select-none"
                                 title="Click to view attachment"
                               >
                                 <img
                                   src={att.url}
                                   alt={att.name}
-                                  className="w-full h-full object-cover"
+                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                                 />
-                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity text-white">
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </div>
                               </div>
                             ) : (
                               <div
@@ -2455,17 +2448,14 @@ export function NotesView() {
                             {isImage && previewUrl ? (
                               <div
                                 onClick={() => setPreviewAttachment({ url: previewUrl, name: file.name, size: file.size, type: file.type })}
-                                className="relative w-11 h-11 rounded-lg border border-blue-300 overflow-hidden bg-slate-900 shrink-0 cursor-pointer group/img hover:opacity-90 shadow-2xs"
+                                className="relative w-11 h-11 rounded-lg border border-blue-300 overflow-hidden bg-slate-100 shrink-0 cursor-pointer shadow-2xs select-none"
                                 title="Click to view attachment"
                               >
                                 <img
                                   src={previewUrl}
                                   alt={file.name}
-                                  className="w-full h-full object-cover"
+                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                                 />
-                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity text-white">
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </div>
                               </div>
                             ) : (
                               <div className="w-11 h-11 rounded-lg bg-white border border-blue-200 flex items-center justify-center shrink-0 shadow-2xs">
