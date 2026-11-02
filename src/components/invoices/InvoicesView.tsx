@@ -212,27 +212,6 @@ export function InvoicesView() {
   const [isDragHover, setIsDragHover] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Active Header Style (Persisted in localStorage; defaults to style-02)
-  const [activeHeaderStyle, setActiveHeaderStyle] = useState<HeaderStyleId>("style-02");
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("ziptabs_active_header_style") as HeaderStyleId;
-      if (saved && ["style-01", "style-02", "style-03", "style-04"].includes(saved)) {
-        setActiveHeaderStyle(saved);
-      }
-    } catch {}
-
-    const handleStyleChange = (e: any) => {
-      if (e.detail && ["style-01", "style-02", "style-03", "style-04"].includes(e.detail)) {
-        setActiveHeaderStyle(e.detail);
-      }
-    };
-
-    window.addEventListener("ziptabs-header-style-changed", handleStyleChange);
-    return () => window.removeEventListener("ziptabs-header-style-changed", handleStyleChange);
-  }, []);
-
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
   const [activeVendorFilter, setActiveVendorFilter] = useState<string | null>(null);
@@ -260,8 +239,10 @@ export function InvoicesView() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
-  // Selection State (click rows to select & copy formatted for Zoho Mail)
+  // Selection State (Shift-click range select, single-click default, copy for Zoho Mail)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  const [isCopiedRecently, setIsCopiedRecently] = useState(false);
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -695,14 +676,42 @@ export function InvoicesView() {
   const pageNumbers = getPageNumbers(currentPage, totalPages);
 
   // Selection handlers
-  const toggleSelectRow = (id: string) => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
+  const handleRowSelect = (rowId: string, idx: number, e: React.MouseEvent) => {
+    // If Shift key is held: range multi-select
+    if (e.shiftKey && lastSelectedIndex !== null && paginatedInvoices.length > 0) {
+      const start = Math.min(lastSelectedIndex, idx);
+      const end = Math.max(lastSelectedIndex, idx);
+      const rangeIds = paginatedInvoices.slice(start, end + 1).map(
+        (inv) => inv.id || inv.invoice_number || inv.vendor_name
+      );
+      const next = new Set(selectedIds);
+      rangeIds.forEach((id) => next.add(id));
+      setSelectedIds(next);
+      return;
     }
-    setSelectedIds(next);
+
+    // If Ctrl/Cmd key is held: toggle this individual row
+    if (e.ctrlKey || e.metaKey) {
+      const next = new Set(selectedIds);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      setSelectedIds(next);
+      setLastSelectedIndex(idx);
+      return;
+    }
+
+    // DEFAULT (Normal click without Shift/Ctrl):
+    // Select ONLY the clicked row. If already the only selected row, deselect it.
+    if (selectedIds.size === 1 && selectedIds.has(rowId)) {
+      setSelectedIds(new Set());
+      setLastSelectedIndex(null);
+    } else {
+      setSelectedIds(new Set([rowId]));
+      setLastSelectedIndex(idx);
+    }
   };
 
   const toggleSelectCurrentPage = () => {
@@ -714,8 +723,10 @@ export function InvoicesView() {
     const next = new Set(selectedIds);
     if (allCurrentSelected) {
       currentPageRowIds.forEach((id) => next.delete(id));
+      setLastSelectedIndex(null);
     } else {
       currentPageRowIds.forEach((id) => next.add(id));
+      setLastSelectedIndex(0);
     }
     setSelectedIds(next);
   };
@@ -776,7 +787,6 @@ export function InvoicesView() {
       .join("");
 
     // Self-contained block container with zero phantom margin and a safe trailing break
-    // This prevents Zoho Mail from injecting massive empty paragraphs, and prevents Backspace from merging text into the last <td>
     const fullHtml = `<div style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" style="border-collapse: collapse; border: 1px solid #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 0; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table></div><div style="font-family: Calibri, Arial, sans-serif; font-size: 13px; line-height: 1.2; margin: 2px 0 0 0; padding: 0;"><br></div>`;
 
     // Plain text TSV fallback for Excel/Notepad
@@ -799,19 +809,24 @@ export function InvoicesView() {
         await navigator.clipboard.writeText(plainTsv);
       }
 
+      setIsCopiedRecently(true);
+      setTimeout(() => setIsCopiedRecently(false), 2000);
+
       setCopiedNotification(
-        `✓ Copied ${targetInvoices.length} row${targetInvoices.length > 1 ? "s" : ""} formatted for Zoho Mail!`
+        `${targetInvoices.length} row${targetInvoices.length > 1 ? "s" : ""} copied to clipboard formatted for Zoho Mail.`
       );
-      setTimeout(() => setCopiedNotification(null), 3500);
+      setTimeout(() => setCopiedNotification(null), 3000);
     } catch (err) {
       console.error("Clipboard copy error:", err);
       navigator.clipboard.writeText(plainTsv);
-      setCopiedNotification("✓ Copied data to clipboard!");
+      setIsCopiedRecently(true);
+      setTimeout(() => setIsCopiedRecently(false), 2000);
+      setCopiedNotification("Data copied to clipboard!");
       setTimeout(() => setCopiedNotification(null), 2500);
     }
   };
 
-  // Keyboard shortcut Ctrl+C / Cmd+C when rows are selected
+  // Keyboard shortcut Ctrl+C / Cmd+C when rows are selected, Escape to clear
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
@@ -824,6 +839,9 @@ export function InvoicesView() {
             copyFormattedForZoho(selectedInvoices);
           }
         }
+      } else if (e.key === "Escape" && selectedIds.size > 0) {
+        setSelectedIds(new Set());
+        setLastSelectedIndex(null);
       }
     };
 
@@ -856,13 +874,13 @@ export function InvoicesView() {
       {copiedNotification && (
         <div className={TOAST_POSITION_CLASSES["top-right"]}>
           <ExecutiveToast
-            type="info"
+            type="success"
             title={copiedNotification}
-            description="Formatted for Zoho Mail with blue table headers and cell borders."
+            description="Formatted HTML table ready to paste directly into Zoho Mail."
             headerMeta="Zoho Mail Clipboard"
             metric="Copied HTML"
             onClose={() => setCopiedNotification(null)}
-            durationMs={3500}
+            durationMs={3000}
           />
         </div>
       )}
@@ -887,259 +905,99 @@ export function InvoicesView() {
         </div>
       )}
 
-      {/* Dynamic Header Row (Supports Style 01, 02, 03, 04 live from Design Lab; defaults to Style 01) */}
-      {(() => {
-        const renderUploadButton = (theme: "blue" | "dark" | "gradient-blue" = "blue") => {
-          let desktopBtnStyle = "";
-          let mobileBtnStyle = "";
-          let iconBoxStyle = "";
-          let subtitleStyle = "";
-          let titleStyle = "";
+      {/* Top Header Row (Standard clean unboxed layout matching Dashboard) */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-4 pb-2 sm:pb-4 border-b border-slate-200/60 mb-2 sm:mb-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+            Overdue Invoices
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 hidden sm:block">
+            Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
+          </p>
+        </div>
 
-          if (theme === "dark") {
-            desktopBtnStyle = isDragHover
-              ? "bg-black text-white shadow-lg ring-4 ring-slate-700/30 scale-[1.02]"
-              : "bg-slate-900 hover:bg-black active:scale-98 text-white font-bold shadow-xs border border-slate-700/40";
-            mobileBtnStyle = "bg-slate-900 hover:bg-black text-white font-bold shadow-xs border border-slate-700/40";
-            iconBoxStyle = "bg-white/10 border border-white/20 text-white";
-            titleStyle = "text-white font-bold";
-            subtitleStyle = "text-slate-300 font-medium";
-          } else if (theme === "gradient-blue") {
-            desktopBtnStyle = isDragHover
-              ? "bg-indigo-600 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
-              : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-98 text-white font-bold shadow-xs";
-            mobileBtnStyle = "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 text-white font-bold shadow-xs";
-            iconBoxStyle = "bg-white/20 border border-white/25 text-white";
-            titleStyle = "text-white font-bold";
-            subtitleStyle = "text-blue-100 font-medium";
-          } else {
-            // "blue"
-            desktopBtnStyle = isDragHover
-              ? "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
-              : "bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-bold shadow-xs";
-            mobileBtnStyle = "bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-xs";
-            iconBoxStyle = "bg-white/20 border border-white/25 text-white";
-            titleStyle = "text-white font-bold";
-            subtitleStyle = "text-blue-100 font-medium";
-          }
+        {/* Sole Action: Upload Button (Compact on mobile, rich dropzone on desktop) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".csv, .xlsx, .xls"
+            className="hidden"
+            onClick={(e) => {
+              (e.target as HTMLInputElement).value = "";
+            }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileUpload(file);
+            }}
+          />
 
-          return (
-            <div className="flex items-center gap-2 shrink-0">
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept=".csv, .xlsx, .xls"
-                className="hidden"
-                onClick={(e) => {
-                  (e.target as HTMLInputElement).value = "";
-                }}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file);
-                }}
-              />
-
-              {/* Desktop Rich Button */}
-              <button
-                type="button"
-                disabled={isProcessing}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragHover(true);
-                }}
-                onDragLeave={() => setIsDragHover(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragHover(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) handleFileUpload(file);
-                }}
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
-                    fileInputRef.current.click();
-                  }
-                }}
-                className={`hidden sm:inline-flex group relative items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${desktopBtnStyle}`}
-              >
-                <div className={`w-8 h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform ${iconBoxStyle}`}>
-                  {isProcessing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Upload className="w-4 h-4" />
-                  )}
-                </div>
-
-                <div className="text-left pr-1">
-                  <div className={`text-xs sm:text-[13px] leading-tight tracking-tight flex items-center gap-1.5 ${titleStyle}`}>
-                    <span>{isProcessing ? "Processing File..." : "Upload File"}</span>
-                  </div>
-                  <div className={`text-[10px] leading-tight mt-0.5 ${subtitleStyle}`}>
-                    Drop or select .csv / .xlsx
-                  </div>
-                </div>
-              </button>
-
-              {/* Mobile Compact Button: Saves massive vertical space on phones */}
-              <button
-                type="button"
-                disabled={isProcessing}
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
-                    fileInputRef.current.click();
-                  }
-                }}
-                className={`sm:hidden inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg active:scale-95 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shrink-0 ${mobileBtnStyle}`}
-              >
-                {isProcessing ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Upload className="w-3.5 h-3.5" />
-                )}
-                <span>Upload</span>
-              </button>
+          {/* Desktop Rich Button */}
+          <button
+            type="button"
+            disabled={isProcessing}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragHover(true);
+            }}
+            onDragLeave={() => setIsDragHover(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragHover(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) handleFileUpload(file);
+            }}
+            onClick={() => {
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+                fileInputRef.current.click();
+              }
+            }}
+            className={`hidden sm:inline-flex group relative items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${
+              isDragHover
+                ? "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
+                : "bg-[#2563eb] hover:bg-blue-600 active:scale-98 text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35"
+            }`}
+          >
+            <div className="w-8 h-8 rounded-lg sm:rounded-xl bg-white/20 border border-white/25 flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform">
+              {isProcessing ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <Upload className="w-4 h-4 text-white" />
+              )}
             </div>
-          );
-        };
 
-        // Style 01: Architectural Minimal Rail
-        if (activeHeaderStyle === "style-01") {
-          return (
-            <div className="relative bg-white border border-slate-200/90 rounded-xl sm:rounded-2xl p-2.5 sm:p-4.5 shadow-2xs hover:shadow-xs flex items-center justify-between gap-2.5 sm:gap-3 mb-2 sm:mb-4 overflow-hidden">
-              <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-                {/* Precision Blue Vertical Rail */}
-                <div className="w-1 sm:w-1.5 self-stretch min-h-[32px] sm:min-h-[44px] bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.35)] shrink-0" />
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-50/80 border border-blue-200/70 flex items-center justify-center text-blue-600 shrink-0 shadow-2xs">
-                  <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="hidden sm:flex items-center gap-2 mb-0.5">
-                    <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
-                      WORKSPACE // AR AGING LEDGER
-                    </span>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-700">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Active Ledger
-                    </span>
-                  </div>
-                  <h1 className="text-sm sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate flex items-center gap-1.5">
-                    <span>Overdue Invoices</span>
-                    <span className="sm:hidden w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                  </h1>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
-                    Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-                  </p>
-                </div>
+            <div className="text-left pr-1">
+              <div className="text-xs sm:text-[13px] font-bold leading-tight tracking-tight text-white flex items-center gap-1.5">
+                <span>{isProcessing ? "Processing File..." : "Upload File"}</span>
               </div>
-              {renderUploadButton("blue")}
-            </div>
-          );
-        }
-
-        // Style 02: Aero Frost Capsule
-        if (activeHeaderStyle === "style-02") {
-          return (
-            <div className="relative bg-gradient-to-r from-white/95 via-blue-50/30 to-slate-50/70 backdrop-blur-xl border border-slate-200/90 rounded-xl sm:rounded-2xl p-2.5 sm:p-4.5 shadow-xs flex items-center justify-between gap-2.5 sm:gap-3 mb-2 sm:mb-4 overflow-hidden ring-1 ring-blue-500/5">
-              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 via-sky-400 to-indigo-500 pointer-events-none" />
-              <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-white border border-slate-200/90 text-blue-600 flex items-center justify-center shrink-0 shadow-xs">
-                  <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-sm sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
-                      Overdue Invoices
-                    </h1>
-                    <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 shadow-2xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Live Sync • 99.8%
-                    </span>
-                    <span className="sm:hidden w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
-                    Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-                  </p>
-                </div>
-              </div>
-              {renderUploadButton("dark")}
-            </div>
-          );
-        }
-
-        // Style 03: Metric Ribbons Horizon
-        if (activeHeaderStyle === "style-03") {
-          return (
-            <div className="relative bg-slate-50/90 border border-slate-200/90 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-2xs flex flex-col gap-2 mb-2 sm:mb-4 overflow-hidden">
-              <div className="flex flex-row items-center justify-between gap-2.5 sm:gap-3">
-                <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-white border border-slate-200/90 text-blue-600 flex items-center justify-center shrink-0 shadow-xs">
-                    <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <h1 className="text-sm sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
-                      Overdue Invoices
-                    </h1>
-                    <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
-                      Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-                    </p>
-                  </div>
-                </div>
-                {renderUploadButton("gradient-blue")}
-              </div>
-
-              {/* Integrated Light KPI Ribbons */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold border text-rose-700 bg-rose-50 border-rose-200/90 shadow-2xs">
-                  <span className="text-[9px] sm:text-[10px] font-medium opacity-80">Total Overdue:</span>
-                  <span>$3,500,238</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold border text-amber-800 bg-amber-50 border-amber-200/90 shadow-2xs">
-                  <span className="text-[9px] sm:text-[10px] font-medium opacity-80">Past Due:</span>
-                  <span>261 Invoices</span>
-                </div>
-                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border text-blue-700 bg-blue-50 border-blue-200/90 shadow-2xs">
-                  <span className="text-[10px] font-medium opacity-80">Active Vendors:</span>
-                  <span>155 Accounts</span>
-                </div>
+              <div className="text-[10px] text-blue-100 font-medium leading-tight mt-0.5">
+                Drop or select .csv / .xlsx
               </div>
             </div>
-          );
-        }
+          </button>
 
-        // Style 04: Fintech Clean Slate
-        return (
-          <div className="relative bg-gradient-to-b from-blue-50/30 via-white to-white border border-slate-200/90 rounded-xl sm:rounded-2xl p-2.5 sm:p-4.5 shadow-xs flex items-center justify-between gap-2.5 sm:gap-3 mb-2 sm:mb-4 overflow-hidden">
-            <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-50 to-sky-100 border border-blue-200/80 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs">
-                <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="hidden sm:flex items-center gap-2 mb-0.5">
-                  <span className="text-[10px] font-mono font-bold tracking-wider text-blue-600 uppercase">
-                    ACCOUNTS RECEIVABLE
-                  </span>
-                  <span className="text-slate-300">•</span>
-                  <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-400" />
-                    438 Records · Real-time Sync
-                  </span>
-                </div>
-                <h1 className="text-sm sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate flex items-center gap-1.5">
-                  <span>Overdue Invoices</span>
-                  <span className="sm:hidden text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                    AR
-                  </span>
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5 truncate hidden sm:block">
-                  Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-                </p>
-              </div>
-            </div>
-            {renderUploadButton("dark")}
-          </div>
-        );
-      })()}
+          {/* Mobile Compact Button: Saves vertical space on phones */}
+          <button
+            type="button"
+            disabled={isProcessing}
+            onClick={() => {
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+                fileInputRef.current.click();
+              }
+            }}
+            className="sm:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2563eb] hover:bg-blue-600 active:scale-95 text-xs font-bold text-white shadow-sm transition-all cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            {isProcessing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Upload className="w-3.5 h-3.5" />
+            )}
+            <span>Upload</span>
+          </button>
+        </div>
+      </div>
 
       {/* Main Table Container (Fixed-View Dashboard Architecture) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -1453,16 +1311,23 @@ export function InvoicesView() {
                     return (
                       <tr
                         key={rowId || idx}
-                        onClick={() => toggleSelectRow(rowId)}
-                        className={`cursor-pointer transition-colors select-none ${
+                        onClick={(e) => handleRowSelect(rowId, idx, e)}
+                        className={`cursor-pointer transition-colors select-none relative ${
                           isSelected
-                            ? "bg-blue-50/90 hover:bg-blue-100/70"
+                            ? "bg-blue-50/95 hover:bg-blue-100/80 shadow-2xs"
                             : "hover:bg-slate-50/80"
                         }`}
                       >
                         {/* 1. Vendor */}
-                        <td className="py-3.5 px-5">
-                          <div className="font-bold text-slate-900 break-words max-w-sm">
+                        <td className="py-3.5 px-5 relative">
+                          {isSelected && (
+                            <div className="absolute left-0 top-1.5 bottom-1.5 w-1.5 bg-blue-600 rounded-r-full shadow-[0_0_8px_rgba(37,99,235,0.4)]" />
+                          )}
+                          <div
+                            className={`break-words max-w-sm ${
+                              isSelected ? "font-black text-blue-950" : "font-bold text-slate-900"
+                            }`}
+                          >
                             {inv.vendor_name}
                           </div>
                         </td>
@@ -1472,13 +1337,21 @@ export function InvoicesView() {
                           className="py-3.5 px-4 font-mono text-slate-700 whitespace-nowrap select-text cursor-text"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <span className="select-text selection:bg-blue-100 selection:text-blue-900 font-medium">
+                          <span
+                            className={`select-text selection:bg-blue-100 selection:text-blue-900 ${
+                              isSelected ? "font-bold text-blue-950" : "font-medium text-slate-700"
+                            }`}
+                          >
                             {inv.invoice_number || "—"}
                           </span>
                         </td>
 
                         {/* 3. Amount Due */}
-                        <td className="py-3.5 px-4 text-right font-black text-slate-900 whitespace-nowrap">
+                        <td
+                          className={`py-3.5 px-4 text-right font-black whitespace-nowrap ${
+                            isSelected ? "text-blue-950" : "text-slate-900"
+                          }`}
+                        >
                           ${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
 
@@ -1544,10 +1417,10 @@ export function InvoicesView() {
                   return (
                     <div
                       key={rowId || idx}
-                      onClick={() => toggleSelectRow(rowId)}
+                      onClick={(e) => handleRowSelect(rowId, idx, e)}
                       className={`p-3.5 transition-colors cursor-pointer select-none flex items-start justify-between gap-3 ${
                         isSelected
-                          ? "bg-blue-50/90 border-l-4 border-l-blue-600"
+                          ? "bg-blue-50/95 border-l-4 border-l-blue-600 shadow-2xs"
                           : "hover:bg-slate-50/80 bg-white border-l-4 border-l-transparent"
                       }`}
                     >
@@ -1758,33 +1631,48 @@ export function InvoicesView() {
         )}
       </div>
 
-      {/* Floating Bottom Action Bar when Rows are Selected */}
+      {/* Floating Bottom Action Bar when Rows are Selected (Icon-only compact pill) */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-24px)] max-w-md sm:w-auto bg-[#0c1427]/95 backdrop-blur-md text-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center justify-between sm:justify-start gap-2 sm:gap-3.5 animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/60 text-xs font-semibold shrink-0">
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse ring-2 ring-blue-400/20"></span>
-            <span className="text-white font-bold">{selectedIds.size}</span>
-            <span className="text-slate-300 text-[11px] hidden xs:inline">{selectedIds.size === 1 ? "row" : "rows"}</span>
+        <div className="fixed bottom-18 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#0c1427]/95 backdrop-blur-md text-white p-1.5 pl-3 rounded-full shadow-2xl border border-slate-700/80 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
+          {/* Row Count Badge */}
+          <div className="flex items-center gap-1.5 pr-1 text-xs font-bold text-slate-200 select-none">
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse ring-2 ring-blue-400/20" />
+            <span>{selectedIds.size}</span>
           </div>
 
-          <div className="hidden sm:block h-4 w-px bg-slate-700/80"></div>
+          <div className="h-4 w-px bg-slate-700/80" />
 
+          {/* Copy Icon Button */}
           <button
             type="button"
             onClick={() => copyFormattedForZoho(selectedRowsList)}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-bold text-xs shadow-md shadow-blue-900/30 transition-all cursor-pointer whitespace-nowrap shrink-0"
+            className={`p-2 rounded-full transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
+              isCopiedRecently
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-900/40"
+                : "bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-900/30"
+            }`}
+            title="Copy for Zoho Mail (Ctrl+C)"
+            aria-label="Copy for Zoho Mail"
           >
-            <Copy className="w-3.5 h-3.5 shrink-0" />
-            <span>Copy for Zoho Mail</span>
+            {isCopiedRecently ? (
+              <Check className="w-4 h-4 stroke-[2.5]" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
           </button>
 
+          {/* Clear Selection Icon Button */}
           <button
             type="button"
-            onClick={() => setSelectedIds(new Set())}
-            className="px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            title="Clear selection"
+            onClick={() => {
+              setSelectedIds(new Set());
+              setLastSelectedIndex(null);
+            }}
+            className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
+            title="Clear selection (Esc)"
+            aria-label="Clear selection"
           >
-            Clear
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
