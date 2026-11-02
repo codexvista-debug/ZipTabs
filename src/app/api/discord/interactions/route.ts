@@ -3,6 +3,9 @@ import crypto from "crypto";
 import { supabase } from "@/lib/supabase";
 
 const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN || "7416";
+const DISCORD_PUBLIC_KEY =
+  process.env.DISCORD_PUBLIC_KEY ||
+  "248d01d8cb8c15e8515032863b14b1eaa3faf6c2a0d3eb20ab9ca3a1808fb832";
 
 // Discord Interaction Types
 const InteractionType = {
@@ -64,14 +67,10 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-signature-ed25519");
   const timestamp = req.headers.get("x-signature-timestamp");
-  const publicKey = process.env.DISCORD_PUBLIC_KEY;
-
-  // If DISCORD_PUBLIC_KEY is configured in env, strictly enforce cryptographic signature
-  if (publicKey) {
-    const isValid = verifyDiscordSignature(rawBody, signature, timestamp, publicKey);
-    if (!isValid) {
-      return new NextResponse("Invalid request signature", { status: 401 });
-    }
+  // Enforce cryptographic signature verification using Discord application public key
+  const isValid = verifyDiscordSignature(rawBody, signature, timestamp, DISCORD_PUBLIC_KEY);
+  if (!isValid) {
+    return new NextResponse("Invalid request signature", { status: 401 });
   }
 
   let body: any;
