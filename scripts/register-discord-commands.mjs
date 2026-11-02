@@ -39,7 +39,7 @@ const commands = [
       },
       {
         name: "pin",
-        description: "Security PIN (Required: 7416)",
+        description: "Enter your secret authorization PIN",
         type: 3, // STRING
         required: true,
       },
@@ -57,7 +57,7 @@ const commands = [
       },
       {
         name: "pin",
-        description: "Security PIN (Required: 7416)",
+        description: "Enter your secret authorization PIN",
         type: 3, // STRING
         required: true,
       },
@@ -69,7 +69,7 @@ const commands = [
     options: [
       {
         name: "pin",
-        description: "Security PIN (Required: 7416)",
+        description: "Enter your secret authorization PIN",
         type: 3, // STRING
         required: true,
       },

@@ -72,11 +72,10 @@ async function getSecuritySettings(): Promise<{ isVanishMode: boolean; allowedIp
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Always allow Next.js internal static assets, public icons, and secure remote control webhooks
+  // Always allow Next.js internal static assets, public icons, and secure Discord slash commands
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/discord") ||
-    pathname.startsWith("/api/webhook") ||
     pathname === "/icon.svg" ||
     pathname === "/favicon.ico"
   ) {

@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
                   fields: [
                     { name: "State", value: "🔒 ON (Cloaked)", inline: true },
                     { name: "Authorized By", value: `@${callerUser}`, inline: true },
-                    { name: "PIN Verification", value: "✅ PIN 7416 Verified", inline: true },
+                    { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
                   ],
                   footer: { text: "ZipTabs Remote Controller • Command Executed" },
                   timestamp: new Date().toISOString(),
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
                   fields: [
                     { name: "State", value: "🔓 OFF (Open)", inline: true },
                     { name: "Authorized By", value: `@${callerUser}`, inline: true },
-                    { name: "PIN Verification", value: "✅ PIN 7416 Verified", inline: true },
+                    { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
                   ],
                   footer: { text: "ZipTabs Remote Controller • Command Executed" },
                   timestamp: new Date().toISOString(),
@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
             flags: 64,
-            content: "⚠️ Please specify an IP address to whitelist (e.g. `/whitelist ip:49.43.232.217 pin:7416`).",
+            content: "⚠️ Please specify an IP address to whitelist (e.g. `/whitelist ip:49.43.232.217 pin:<your_pin>`).",
           },
         });
       }
