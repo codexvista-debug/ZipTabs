@@ -200,10 +200,16 @@ export function MasterControlView() {
     }, 2000);
   };
 
-  // Fetch Master Control Data
+  // Fetch Master Control Data (Strict zero-cache to reflect external Discord bot updates in real time)
   const loadMasterData = useCallback(async (isSilent = false) => {
     try {
-      const res = await fetch("/api/master-control");
+      const res = await fetch(`/api/master-control?_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+        },
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -271,21 +277,49 @@ export function MasterControlView() {
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "system_security_settings" },
-          () => loadMasterData(true)
+          (payload: any) => {
+            // Instant zero-latency state sync from external updates (Discord bot / other tabs)
+            if (payload?.new?.id === "vanish_mode") {
+              setSettings((prev) => ({
+                ...prev,
+                vanish_mode_enabled: Boolean(payload.new.ip_lockdown_enabled),
+                updated_at: payload.new.updated_at,
+                updated_by: payload.new.updated_by,
+              }));
+            } else if (payload?.new?.id === "global") {
+              setSettings((prev) => ({
+                ...prev,
+                allowed_ips: payload.new.allowed_ips || prev.allowed_ips,
+                ip_lockdown_enabled: Boolean(payload.new.ip_lockdown_enabled),
+                registrations_allowed: Boolean(payload.new.registrations_allowed),
+                blacklisted_ips: payload.new.blacklisted_ips || prev.blacklisted_ips,
+              }));
+            }
+            loadMasterData(true);
+          }
         )
         .subscribe();
     }
 
-    // 2. High-frequency 3.5s background polling fallback
+    // 2. High-frequency 2.5s background polling fallback
     const pollInterval = setInterval(() => {
       loadMasterData(true);
-    }, 3500);
+    }, 2500);
+
+    // 3. Instant sync on window focus / switching back from Discord app
+    const handleFocusSync = () => {
+      loadMasterData(true);
+    };
+    window.addEventListener("focus", handleFocusSync);
+    document.addEventListener("visibilitychange", handleFocusSync);
 
     return () => {
       if (channel && supabase) {
         supabase.removeChannel(channel);
       }
       clearInterval(pollInterval);
+      window.removeEventListener("focus", handleFocusSync);
+      document.removeEventListener("visibilitychange", handleFocusSync);
     };
   }, [isChief, loadMasterData]);
 

@@ -31,8 +31,8 @@ const TOTAL_TICKS = Math.round((MAX_PERCENT - MIN_PERCENT) / STEP_PERCENT) + 1; 
 const TICK_WIDTH = 12; // 12px per 0.1% step
 
 export function ResourcesView() {
-  // Navigation: "hub" for Resources directory, "discount-calculator" for the active tool
-  const [currentView, setCurrentView] = useState<"hub" | "discount-calculator">("discount-calculator");
+  // Navigation: "hub" for Resources directory, "discount-calculator" for discount tool, "remittance-breakdown" for remittance tool
+  const [currentView, setCurrentView] = useState<"hub" | "discount-calculator" | "remittance-breakdown">("hub");
 
   // Calculator State (Default $14,080.00 invoice, 4.0% discount)
   const [invoiceInput, setInvoiceInput] = useState<string>("14,080.00");
@@ -237,6 +237,18 @@ export function ResourcesView() {
             <Percent className="w-3.5 h-3.5" />
             <span>Discount Calculator</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setCurrentView("remittance-breakdown")}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              currentView === "remittance-breakdown"
+                ? "bg-blue-600 text-white shadow-xs shadow-blue-500/20"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Receipt className="w-3.5 h-3.5" />
+            <span>Remittance Breakdown</span>
+          </button>
         </div>
       </div>
 
@@ -254,7 +266,7 @@ export function ResourcesView() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-5xl">
             {/* Tool Card 1: Discount Calculator (Active & Ready) */}
             <div
               onClick={() => setCurrentView("discount-calculator")}
@@ -291,65 +303,39 @@ export function ResourcesView() {
               </div>
             </div>
 
-            {/* Tool Card 2: Margin & Markup Estimator (Planned) */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all opacity-85">
+            {/* Tool Card 2: Remittance Breakdown */}
+            <div
+              onClick={() => setCurrentView("remittance-breakdown")}
+              className="bg-white rounded-2xl border-2 border-slate-200/90 hover:border-blue-500/80 p-6 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between group"
+            >
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-                    <Layers className="w-6 h-6" />
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform shadow-xs">
+                    <Receipt className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
-                    Planned
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/80 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <span>Workspace Tool</span>
                   </span>
                 </div>
 
-                <h3 className="text-base font-bold text-slate-800">
-                  Margin & Markup Estimator
+                <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                  Remittance Breakdown
                 </h3>
                 <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                  Model gross vs. net payroll margins across C2C, W2, and 1099 contracts with standard tax and fee deductions.
+                  Vendor remittance calculations, deduction schedules, and payment allocation breakdowns.
                 </p>
-              </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-400">
-                <span className="flex items-center gap-1.5 text-[11px]">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Coming Soon</span>
-                </span>
-                <span className="text-slate-300">
-                  <ArrowRight className="w-4 h-4" />
-                </span>
-              </div>
-            </div>
-
-            {/* Tool Card 3: Reserve Limit Calculator (Planned) */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all opacity-85">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
-                    <FileSpreadsheet className="w-6 h-6" />
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
-                    In Development
-                  </span>
+                {/* Placeholder Calculation Badge */}
+                <div className="mt-4 bg-slate-50 rounded-xl p-2.5 border border-slate-200/70 text-[11px] font-mono text-slate-700 flex items-center justify-between">
+                  <span className="text-slate-500">Gross Remittance - Deductions =</span>
+                  <span className="font-bold text-blue-600">Net Payable</span>
                 </div>
-
-                <h3 className="text-base font-bold text-slate-800">
-                  Reserve Limit Calculator
-                </h3>
-                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                  Calculate safe reserve thresholds, required buffer funds per consultant, and monthly deduction schedules.
-                </p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-400">
-                <span className="flex items-center gap-1.5 text-[11px]">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Coming Soon</span>
-                </span>
-                <span className="text-slate-300">
-                  <ArrowRight className="w-4 h-4" />
-                </span>
+              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-blue-600">
+                <span>Launch Breakdown</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
           </div>
@@ -357,10 +343,48 @@ export function ResourcesView() {
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 2: DISCOUNT CALCULATOR (Executive Precision View)     */}
+      {/* VIEW 2: REMITTANCE BREAKDOWN (Placeholder & Setup View)   */}
+      {/* ======================================================== */}
+      {currentView === "remittance-breakdown" && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setCurrentView("hub")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>← Back to All Resources</span>
+            </button>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-8 sm:p-14 shadow-xs flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
+              <Receipt className="w-8 h-8 stroke-[2.2]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Remittance Breakdown</h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-2 max-w-md leading-relaxed">
+                This space is ready for your Remittance Breakdown tool. Specify what calculations, deduction line items, or settlement models you need here, and they will be built.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* VIEW 3: DISCOUNT CALCULATOR (Executive Precision View)     */}
       {/* ======================================================== */}
       {currentView === "discount-calculator" && (
         <div className="space-y-6 animate-in fade-in duration-150">
+          <div className="flex items-center justify-between pb-1">
+            <button
+              type="button"
+              onClick={() => setCurrentView("hub")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>← Back to All Resources</span>
+            </button>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left Column (Inputs: Gross Invoice + Precision Caliper Dial) - 7 cols */}
             <div className="lg:col-span-7 space-y-5">

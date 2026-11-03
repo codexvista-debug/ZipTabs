@@ -66,14 +66,23 @@ export async function GET(req: NextRequest) {
       vanish_mode_enabled: Boolean(vanishRes.data?.ip_lockdown_enabled),
     };
 
-    return NextResponse.json({
-      success: true,
-      clientIp,
-      settings,
-      users: usersRes.data || [],
-      ipLocks: ipLocksRes.data || [],
-      visitors: visitorsRes.data || [],
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        clientIp,
+        settings,
+        users: usersRes.data || [],
+        ipLocks: ipLocksRes.data || [],
+        visitors: visitorsRes.data || [],
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (err: any) {
     console.error("Master Control GET error:", err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

@@ -137,9 +137,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers["x-auth-user"] = currentUsername;
       }
 
-      const res = await fetch("/api/auth/lockout-status", {
-        headers,
-        signal: typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(1800) : undefined,
+      const res = await fetch(`/api/auth/lockout-status?_t=${Date.now()}`, {
+        headers: {
+          ...headers,
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+        },
+        cache: "no-store",
+        signal: typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(2500) : undefined,
       });
       if (res.ok) {
         const data: LockoutInfo = await res.json();
