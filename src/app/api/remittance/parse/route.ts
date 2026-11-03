@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractText } from "unpdf";
+import * as XLSX from "xlsx";
 
 // 1. GET: Fetch active remittances for a vendor (Auto-prunes expired >30 days)
 export async function GET(req: NextRequest) {
@@ -64,18 +65,24 @@ export async function DELETE(req: NextRequest) {
 }
 
 export interface RemittanceLinePart {
-  part_id: string; // e.g. "33990-1"
-  voucher_number?: string; // e.g. "00325494"
-  date?: string; // e.g. "6/16/2026"
-  gross_amount: number; // Amount
-  amount_paid: number; // Amount Paid
-  discount_amount: number; // Discount
-  writeoff_amount: number; // Writeoff / Deductions
-  net_paid: number; // Net
+  part_id: string; // e.g. "33990-1" or "Date Worked 2026-08-24 (8 hrs @ $75/hr)"
+  voucher_number?: string; // e.g. "00325494" or "Order #31046162"
+  date?: string; // e.g. "6/16/2026" or "2026-08-24"
+  gross_amount: number;
+  amount_paid: number;
+  discount_amount: number;
+  writeoff_amount: number;
+  net_paid: number;
+  hours?: number;
+  rate?: number;
 }
 
 export interface ParsedInvoiceItem {
-  invoice_number: string; // Base invoice, e.g. "33990"
+  invoice_number: string; // Base invoice or consultant label, e.g. "33990" or "Majithia, Akash"
+  consultant_name?: string;
+  client_name?: string;
+  order_id?: string;
+  payment_reference?: string;
   invoice_date?: string;
   gross_amount: number;
   discount_amount: number;
@@ -87,8 +94,8 @@ export interface ParsedInvoiceItem {
 }
 
 // 3. POST:
-// - Multipart: Parse PDF only (returns draft data to user for validation - NOT stored in DB)
-// - JSON: Save validated data to Supabase (stores data only, not PDF file)
+// - Multipart: Parse file (PDF or Excel/CSV), returns draft data for validation - NOT stored in DB
+// - JSON: Save validated data to Supabase (stores data only, not original file binary)
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
 
@@ -112,8 +119,8 @@ export async function POST(req: NextRequest) {
 
       const recordToInsert = {
         vendor_id: remittance.vendor_id || "pyramid",
-        vendor_name: remittance.vendor_name || "Pyramid Inc",
-        file_name: remittance.file_name || "Remittance_Statement.pdf",
+        vendor_name: remittance.vendor_name || (remittance.vendor_id === "teksystems" ? "TEKsystems" : "Pyramid Inc"),
+        file_name: remittance.file_name || "Remittance_Statement",
         file_size: remittance.file_size || 0,
         total_paid: Number(remittance.total_paid) || 0,
         total_gross: Number(remittance.total_gross) || 0,
@@ -148,20 +155,69 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // CASE B: User uploaded a PDF file to parse and extract draft data
+  // CASE B: User uploaded a file (PDF or Excel/CSV) to parse and extract draft data
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const vendorId = (formData.get("vendorId") as string) || "pyramid";
-    const vendorName = (formData.get("vendorName") as string) || "Pyramid Inc";
+    let vendorId = (formData.get("vendorId") as string) || "pyramid";
+    let vendorName = (formData.get("vendorName") as string) || (vendorId === "teksystems" ? "TEKsystems" : "Pyramid Inc");
 
     if (!file) {
-      return NextResponse.json({ success: false, error: "No PDF file received" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "No statement file received" }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    const fileNameLower = file.name.toLowerCase();
+    const isExcelOrCsv =
+      fileNameLower.endsWith(".xlsx") ||
+      fileNameLower.endsWith(".xls") ||
+      fileNameLower.endsWith(".csv") ||
+      vendorId === "teksystems";
 
+    const arrayBuffer = await file.arrayBuffer();
+
+    // -------------------------------------------------------------
+    // BRANCH 1: TEKsystems / Excel / CSV spreadsheet parsing
+    // -------------------------------------------------------------
+    if (isExcelOrCsv && !fileNameLower.endsWith(".pdf")) {
+      try {
+        const { items, totals, rawPreview } = parseTeksystemsExcel(Buffer.from(arrayBuffer));
+
+        const draftRecord = {
+          vendor_id: "teksystems",
+          vendor_name: "TEKsystems",
+          file_name: file.name,
+          file_size: file.size,
+          total_paid: totals.net,
+          total_gross: totals.gross,
+          total_discount: totals.discount,
+          total_deductions: totals.writeoff,
+          invoice_count: items.length,
+          items: items,
+          raw_text: rawPreview.slice(0, 5000),
+          is_draft: true,
+        };
+
+        return NextResponse.json({
+          success: true,
+          draft: draftRecord,
+          message: `Extracted ${items.length} consultant settlements from ${file.name}. Review and confirm to save to Supabase.`,
+        });
+      } catch (excelErr: any) {
+        console.error("TEKsystems Excel parsing error:", excelErr);
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Failed to parse TEKsystems Excel file: ${excelErr.message || "Invalid sheet format"}`,
+          },
+          { status: 422 }
+        );
+      }
+    }
+
+    // -------------------------------------------------------------
+    // BRANCH 2: Pyramid Inc / PDF Document parsing
+    // -------------------------------------------------------------
+    const uint8Array = new Uint8Array(arrayBuffer);
     let rawText = "";
 
     // Step 1: Extract text using serverless-native unpdf
@@ -215,7 +271,6 @@ export async function POST(req: NextRequest) {
     // Step 4: Parse lines into structured and grouped items
     const { items: invoiceGroups, totals: parsedTotals } = parseRemittanceText(rawText);
 
-    // Calculate totals
     const totalGross = parsedTotals.gross > 0
       ? parsedTotals.gross
       : invoiceGroups.reduce((acc, it) => acc + (it.gross_amount || 0), 0);
@@ -245,7 +300,7 @@ export async function POST(req: NextRequest) {
       invoice_count: invoiceGroups.length,
       items: invoiceGroups,
       raw_text: rawText.slice(0, 5000),
-      is_draft: true, // Marked as draft until confirmed
+      is_draft: true,
     };
 
     return NextResponse.json({
@@ -254,14 +309,316 @@ export async function POST(req: NextRequest) {
       message: `Extracted ${invoiceGroups.length} invoices from ${file.name}. Review and confirm to save to Supabase.`,
     });
   } catch (err: any) {
-    console.error("PDF Remittance processing error:", err);
+    console.error("Remittance processing error:", err);
     return NextResponse.json(
-      { success: false, error: err.message || "Failed to parse PDF statement" },
+      { success: false, error: err.message || "Failed to parse statement" },
       { status: 500 }
     );
   }
 }
 
+// =========================================================================
+// TEKSYSTEMS EXCEL / SPREADSHEET PARSER
+// =========================================================================
+interface TeksystemsParsedResult {
+  items: ParsedInvoiceItem[];
+  totals: {
+    gross: number;
+    discount: number;
+    writeoff: number;
+    net: number;
+  };
+  rawPreview: string;
+}
+
+function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
+  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  const firstSheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[firstSheetName];
+
+  if (!sheet) {
+    throw new Error("Spreadsheet contains no readable sheets.");
+  }
+
+  // Parse as 2D array to withstand top title lines (e.g. Payments@teksystems.com)
+  const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+  if (!rawRows || rawRows.length === 0) {
+    throw new Error("Spreadsheet is empty.");
+  }
+
+  // 1. Locate Header Row: find the row containing "amount" and ("payment" or "discount" or "paid" or "message" or "terms")
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(rawRows.length, 20); i++) {
+    const rowStr = rawRows[i]
+      .map((cell) => String(cell || "").toLowerCase().trim())
+      .join(" ");
+
+    if (
+      rowStr.includes("amount") &&
+      (rowStr.includes("payment") ||
+        rowStr.includes("mexxage") ||
+        rowStr.includes("message") ||
+        rowStr.includes("di") ||
+        rowStr.includes("paid") ||
+        rowStr.includes("terms"))
+    ) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    // Fallback: look for row with "amount" or "paid"
+    for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+      const rowStr = rawRows[i].map((cell) => String(cell || "").toLowerCase().trim()).join(" ");
+      if (rowStr.includes("amount") || rowStr.includes("paid")) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    headerRowIndex = 0;
+  }
+
+  const headerRow = rawRows[headerRowIndex].map((h) => String(h || "").trim());
+
+  // 2. Identify Column Indices with typo tolerance (e.g., "Dixcount Amount", "Payment Mexxage")
+  let amountCol = -1;
+  let discountCol = -1;
+  let paidCol = -1;
+  let messageCol = -1;
+  let refCol = -1;
+  let invoiceNumCol = -1;
+  let invoiceDateCol = -1;
+  let processDateCol = -1;
+  let termsCol = -1;
+
+  headerRow.forEach((h, idx) => {
+    const clean = h.toLowerCase().replace(/[\r\n\s]+/g, " ");
+
+    if (/di[sx]count/i.test(clean)) {
+      discountCol = idx;
+    } else if (/paid\s*amount|amount\s*paid|^paid$/i.test(clean)) {
+      paidCol = idx;
+    } else if (/^amount$|gross\s*amount|^gross$/i.test(clean)) {
+      amountCol = idx;
+    } else if (/payment\s*m[esx]+age|mexxage|message/i.test(clean)) {
+      messageCol = idx;
+    } else if (/payment\s*ref|check\s*num|^ref$/i.test(clean)) {
+      refCol = idx;
+    } else if (/invoice\s*num/i.test(clean)) {
+      invoiceNumCol = idx;
+    } else if (/invoice\s*date/i.test(clean)) {
+      invoiceDateCol = idx;
+    } else if (/process\s*date/i.test(clean)) {
+      processDateCol = idx;
+    } else if (/terms/i.test(clean)) {
+      termsCol = idx;
+    }
+  });
+
+  // Secondary fallback for amountCol if not explicitly named "^amount$"
+  if (amountCol === -1) {
+    headerRow.forEach((h, idx) => {
+      const clean = h.toLowerCase().trim();
+      if (clean.includes("amount") && idx !== discountCol && idx !== paidCol && !clean.includes("tax")) {
+        amountCol = idx;
+      }
+    });
+  }
+
+  const parseNum = (val: any): number => {
+    if (typeof val === "number") return val;
+    const s = String(val || "").replace(/[^0-9.-]/g, "");
+    const parsed = parseFloat(s);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const parseDateStr = (val: any): string => {
+    if (!val) return "";
+    if (val instanceof Date) {
+      return val.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
+    }
+    if (typeof val === "number" && val > 20000 && val < 60000) {
+      const date = new Date((val - 25569) * 86400 * 1000);
+      return date.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
+    }
+    return String(val).trim();
+  };
+
+  const items: ParsedInvoiceItem[] = [];
+  const dataRows = rawRows.slice(headerRowIndex + 1);
+
+  dataRows.forEach((row, rowIdx) => {
+    const rawGross = amountCol >= 0 ? parseNum(row[amountCol]) : 0;
+    const rawDiscount = discountCol >= 0 ? parseNum(row[discountCol]) : 0;
+    let rawPaid = paidCol >= 0 ? parseNum(row[paidCol]) : 0;
+    if (rawPaid === 0 && rawGross > 0) {
+      rawPaid = rawGross - rawDiscount;
+    }
+
+    const paymentMessage = messageCol >= 0 ? String(row[messageCol] || "").trim() : "";
+    const paymentRef = refCol >= 0 ? String(row[refCol] || "").trim() : "";
+    const invoiceNum = invoiceNumCol >= 0 ? String(row[invoiceNumCol] || "").trim() : "";
+    const invDate =
+      (invoiceDateCol >= 0 ? parseDateStr(row[invoiceDateCol]) : "") ||
+      (processDateCol >= 0 ? parseDateStr(row[processDateCol]) : "");
+
+    // Ignore completely empty rows or footer notes
+    if (rawGross === 0 && rawPaid === 0 && !paymentMessage) {
+      return;
+    }
+
+    // 3. Parse Payment Message:
+    // Format: "08045118|Majithia, Akash|Date Worked 2026-08-24|Hours 8|REG-Regular|Pay Rate @ 75|Lowe's Companies, Inc.|Order ID 31046162"
+    const messageLines = paymentMessage
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    let consultantName = "";
+    let clientName = "";
+    let orderId = "";
+    const parts: RemittanceLinePart[] = [];
+
+    messageLines.forEach((mLine, lIdx) => {
+      const tokens = mLine.split("|").map((t) => t.trim());
+
+      let dateWorked = "";
+      let hours = 0;
+      let payRate = 0;
+
+      for (let tIdx = 0; tIdx < tokens.length; tIdx++) {
+        const tok = tokens[tIdx];
+
+        // 1. Consultant Name candidate (e.g. "Majithia, Akash" or "Meghana Karanm")
+        if (!consultantName) {
+          if (tok.includes(",") && !tok.toLowerCase().includes("inc") && !tok.toLowerCase().includes("corp")) {
+            consultantName = tok;
+          } else if (
+            tIdx === 1 &&
+            !/date|hour|rate|order|reg|pay/i.test(tok) &&
+            !/inc|corp|llc|co\b/i.test(tok)
+          ) {
+            consultantName = tok;
+          }
+        }
+
+        // 2. Date Worked: "Date Worked 2026-08-24"
+        const dateMatch = tok.match(/Date Worked\s+([\d-]+)/i) || tok.match(/(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})/);
+        if (dateMatch && !dateWorked) {
+          dateWorked = dateMatch[1];
+        }
+
+        // 3. Hours: "Hours 8"
+        const hoursMatch = tok.match(/Hours\s+([\d.]+)/i);
+        if (hoursMatch) {
+          hours = parseFloat(hoursMatch[1]) || 0;
+        }
+
+        // 4. Pay Rate: "Pay Rate @ 75"
+        const rateMatch = tok.match(/Pay Rate\s*@?\s*([\d.]+)/i);
+        if (rateMatch) {
+          payRate = parseFloat(rateMatch[1]) || 0;
+        }
+
+        // 5. Client candidate: "Lowe's Companies, Inc." or "Federal Home Loan Mortgage Corporation"
+        if (!clientName) {
+          if (/inc\b|corp\b|llc\b|companies\b|corporation\b|mortgage\b|bank\b/i.test(tok)) {
+            clientName = tok;
+          } else if (tIdx === 6 && !tok.toLowerCase().includes("order")) {
+            clientName = tok;
+          }
+        }
+
+        // 6. Order ID candidate: "Order ID 31046162"
+        const orderMatch = tok.match(/Order\s*(?:ID)?\s*[:#]?\s*([A-Za-z0-9_-]+)/i);
+        if (orderMatch && !orderId) {
+          orderId = orderMatch[1];
+        }
+      }
+
+      // Calculate part amounts
+      const lineGross = hours && payRate ? hours * payRate : (messageLines.length > 0 ? rawGross / messageLines.length : rawGross);
+      const discountRatio = rawGross > 0 ? lineGross / rawGross : (1 / Math.max(1, messageLines.length));
+      const lineDiscount = rawDiscount * discountRatio;
+      const lineNet = lineGross - lineDiscount;
+
+      parts.push({
+        part_id: dateWorked
+          ? `Date Worked ${dateWorked} (${hours || 8} hrs @ $${payRate || "—"}/hr)`
+          : `Entry ${lIdx + 1}`,
+        voucher_number: orderId ? `Order #${orderId}` : (paymentRef ? `Ref #${paymentRef}` : undefined),
+        date: dateWorked || invDate,
+        gross_amount: Math.round(lineGross * 100) / 100,
+        amount_paid: Math.round(lineNet * 100) / 100,
+        discount_amount: Math.round(lineDiscount * 100) / 100,
+        writeoff_amount: 0,
+        net_paid: Math.round(lineNet * 100) / 100,
+        hours: hours || undefined,
+        rate: payRate || undefined,
+      });
+    });
+
+    // Fallback if no parts extracted
+    if (parts.length === 0) {
+      parts.push({
+        part_id: invoiceNum || `Row ${rowIdx + 1}`,
+        voucher_number: paymentRef || undefined,
+        date: invDate,
+        gross_amount: rawGross,
+        amount_paid: rawPaid,
+        discount_amount: rawDiscount,
+        writeoff_amount: 0,
+        net_paid: rawPaid,
+      });
+    }
+
+    // Friendly display name for the settlement row
+    const displayConsultant = consultantName
+      ? (consultantName.includes(",")
+          ? consultantName.split(",").reverse().map((s) => s.trim()).join(" ")
+          : consultantName)
+      : (orderId ? `Order #${orderId}` : (invoiceNum || `Settlement #${rowIdx + 1}`));
+
+    items.push({
+      invoice_number: displayConsultant,
+      consultant_name: consultantName || displayConsultant,
+      client_name: clientName || "Client Account",
+      order_id: orderId || invoiceNum || paymentRef,
+      payment_reference: paymentRef || undefined,
+      invoice_date: invDate,
+      gross_amount: rawGross,
+      discount_amount: rawDiscount,
+      deductions_amount: 0,
+      net_paid: rawPaid,
+      part_count: parts.length,
+      parts: parts,
+      notes: paymentMessage || (orderId ? `Order ID: ${orderId}` : undefined),
+    });
+  });
+
+  const totals = {
+    gross: items.reduce((acc, it) => acc + (it.gross_amount || 0), 0),
+    discount: items.reduce((acc, it) => acc + (it.discount_amount || 0), 0),
+    writeoff: 0,
+    net: items.reduce((acc, it) => acc + (it.net_paid || 0), 0),
+  };
+
+  const rawPreview = dataRows
+    .slice(0, 10)
+    .map((r) => r.join(" | "))
+    .join("\n");
+
+  return { items, totals, rawPreview };
+}
+
+// =========================================================================
+// PYRAMID INC / VENDOR PDF STATEMENT PARSER
+// =========================================================================
 interface ParsedResult {
   items: ParsedInvoiceItem[];
   totals: {
@@ -273,12 +630,6 @@ interface ParsedResult {
   };
 }
 
-/**
- * Intelligent parser for remittance lines
- * Specifically recognizes vendor layout:
- * [Our Voucher Number] [Your Voucher Number] [Date] [Amount] [Amount Paid] [Discount] [Writeoff] [Net]
- * Automatically groups split invoice parts (e.g. 33990-1 ... 33990-5) under parent invoice 33990.
- */
 function parseRemittanceText(text: string): ParsedResult {
   const invoiceGroups = new Map<string, ParsedInvoiceItem>();
   let explicitTotals = {

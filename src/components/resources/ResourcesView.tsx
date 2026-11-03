@@ -46,18 +46,24 @@ const TOTAL_TICKS = Math.round((MAX_PERCENT - MIN_PERCENT) / STEP_PERCENT) + 1; 
 const TICK_WIDTH = 12; // 12px per 0.1% step
 
 export interface RemittanceLinePart {
-  part_id: string; // e.g. "33990-1"
-  voucher_number?: string; // e.g. "00325494"
-  date?: string; // e.g. "6/16/2026"
+  part_id: string; // e.g. "33990-1" or "Date Worked 2026-08-24 (8 hrs @ $75/hr)"
+  voucher_number?: string; // e.g. "00325494" or "Order #31046162"
+  date?: string; // e.g. "6/16/2026" or "2026-08-24"
   gross_amount: number;
   amount_paid: number;
   discount_amount: number;
   writeoff_amount: number;
   net_paid: number;
+  hours?: number;
+  rate?: number;
 }
 
 export interface RemittanceItem {
-  invoice_number: string; // Base invoice, e.g. "33990"
+  invoice_number: string; // Base invoice or consultant label, e.g. "33990" or "Majithia, Akash"
+  consultant_name?: string;
+  client_name?: string;
+  order_id?: string;
+  payment_reference?: string;
   invoice_date?: string;
   gross_amount: number;
   discount_amount: number;
@@ -155,14 +161,39 @@ export function ResourcesView() {
     }
   }, [currentView, activeVendorTab, fetchRemittances]);
 
-  // Upload & parse remittance PDF (Parses draft only - does NOT store in database yet)
+  // Switch active vendor tab and fetch its statements
+  const handleVendorTabChange = (vendorId: string) => {
+    setActiveVendorTab(vendorId);
+    setSelectedRemittance(null);
+    setDraftRemittance(null);
+    setUploadError(null);
+    setSaveSuccessMessage(null);
+    fetchRemittances(vendorId);
+  };
+
+  // Upload & parse remittance statement (PDF for Pyramid, Excel/CSV for TEKsystems)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setUploadError("Please select a valid PDF remittance statement.");
-      return;
+    const fileNameLower = file.name.toLowerCase();
+    const isTek = activeVendorTab === "teksystems";
+
+    if (isTek) {
+      if (
+        !fileNameLower.endsWith(".xlsx") &&
+        !fileNameLower.endsWith(".xls") &&
+        !fileNameLower.endsWith(".csv") &&
+        !fileNameLower.endsWith(".pdf")
+      ) {
+        setUploadError("Please select a valid TEKsystems Excel file (.xlsx, .xls, .csv).");
+        return;
+      }
+    } else {
+      if (!fileNameLower.endsWith(".pdf")) {
+        setUploadError("Please select a valid PDF remittance statement.");
+        return;
+      }
     }
 
     setIsUploading(true);
@@ -172,7 +203,7 @@ export function ResourcesView() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("vendorId", activeVendorTab);
-    formData.append("vendorName", activeVendorTab === "pyramid" ? "Pyramid Inc" : activeVendorTab);
+    formData.append("vendorName", isTek ? "TEKsystems" : "Pyramid Inc");
 
     try {
       const res = await fetch("/api/remittance/parse", {
@@ -193,7 +224,7 @@ export function ResourcesView() {
         setDraftRemittance(json.draft);
         setSelectedRemittance(null); // Focus on validating the new draft
       } else {
-        setUploadError(json.error || "Unable to extract table from PDF. Please ensure the document is readable.");
+        setUploadError(json.error || "Unable to extract table from statement. Please verify file format.");
       }
     } catch (err: any) {
       setUploadError(err.message || "Network error uploading statement file.");
@@ -280,40 +311,70 @@ export function ResourcesView() {
 
   // Format remittance summary for Zoho Mail copy-paste
   const handleCopyZohoFormat = (remittance: RemittanceRecord) => {
+    const isTek = remittance.vendor_id === "teksystems";
     const totalParts = remittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0) || 0;
-    const lines = [
-      `REMITTANCE STATEMENT SUMMARY - ${remittance.vendor_name.toUpperCase()}`,
-      `File: ${remittance.file_name}`,
-      `Processed: ${new Date(remittance.created_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
-      `==================================================`,
-      `TOTAL NET PAID / CLEARED:  $${remittance.total_paid.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `TOTAL GROSS INVOICED:      $${remittance.total_gross.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `PROMPT DISCOUNTS DEDUCTED: -$${remittance.total_discount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      remittance.total_deductions > 0
-        ? `WRITEOFFS / DEDUCTIONS:    -$${remittance.total_deductions.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : `WRITEOFFS / DEDUCTIONS:    $0.00`,
-      `INVOICES ACCOUNTED:        ${remittance.invoice_count} Invoices (${totalParts} split line items)`,
-      `==================================================`,
-      `INVOICE BREAKDOWN:`,
-      ...(remittance.items && remittance.items.length > 0
-        ? remittance.items.flatMap((it, idx) => {
-            const hasMultipleParts = it.parts && it.parts.length > 1;
-            const mainLine = `${idx + 1}. Invoice #${it.invoice_number}${hasMultipleParts ? ` (${it.parts!.length} split parts)` : ""} | Gross: $${it.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Disc: -$${it.discount_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Net Paid: $${it.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}${it.invoice_date ? ` (${it.invoice_date})` : ""}`;
-            if (hasMultipleParts) {
-              const partLines = it.parts!.map(
-                (p) =>
-                  `   • Part ${p.part_id}${p.voucher_number ? ` (Voucher ${p.voucher_number})` : ""}: Gross $${p.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Paid $${p.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
-              );
-              return [mainLine, ...partLines];
-            }
-            return [mainLine];
-          })
-        : ["(See net cleared remittance total above)"]),
-    ]
-      .filter(Boolean)
-      .join("\n");
 
-    navigator.clipboard.writeText(lines);
+    let lines: string[] = [];
+
+    if (isTek) {
+      lines = [
+        `REMITTANCE STATEMENT SUMMARY - TEKSYSTEMS`,
+        `File: ${remittance.file_name}`,
+        `Processed: ${new Date(remittance.created_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+        `==================================================`,
+        `TOTAL NET REMITTED:        $${remittance.total_paid.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `TOTAL GROSS INVOICED:      $${remittance.total_gross.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `PROMPT DISCOUNTS (3.5%):  -$${remittance.total_discount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `RECORDS ACCOUNTED:         ${remittance.invoice_count} Consultants / Orders (${totalParts} work entries)`,
+        `==================================================`,
+        `CONSULTANT & ORDER SETTLEMENTS:`,
+        ...(remittance.items && remittance.items.length > 0
+          ? remittance.items.flatMap((it, idx) => {
+              const consultant = it.consultant_name || it.invoice_number;
+              const mainLine = `${idx + 1}. ${consultant} | Client: ${it.client_name || "Client"} | Order #${it.order_id || "—"} | Gross: $${it.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | 3.5% Disc: -$${it.discount_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Net Paid: $${it.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+              if (it.parts && it.parts.length > 1) {
+                const partLines = it.parts.map(
+                  (p) => `   • ${p.part_id}: Gross $${p.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Net $${p.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                );
+                return [mainLine, ...partLines];
+              }
+              return [mainLine];
+            })
+          : ["(See net cleared remittance total above)"]),
+      ];
+    } else {
+      lines = [
+        `REMITTANCE STATEMENT SUMMARY - ${remittance.vendor_name.toUpperCase()}`,
+        `File: ${remittance.file_name}`,
+        `Processed: ${new Date(remittance.created_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+        `==================================================`,
+        `TOTAL NET PAID / CLEARED:  $${remittance.total_paid.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `TOTAL GROSS INVOICED:      $${remittance.total_gross.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `PROMPT DISCOUNTS DEDUCTED: -$${remittance.total_discount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        remittance.total_deductions > 0
+          ? `WRITEOFFS / DEDUCTIONS:    -$${remittance.total_deductions.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : `WRITEOFFS / DEDUCTIONS:    $0.00`,
+        `INVOICES ACCOUNTED:        ${remittance.invoice_count} Invoices (${totalParts} split line items)`,
+        `==================================================`,
+        `INVOICE BREAKDOWN:`,
+        ...(remittance.items && remittance.items.length > 0
+          ? remittance.items.flatMap((it, idx) => {
+              const hasMultipleParts = it.parts && it.parts.length > 1;
+              const mainLine = `${idx + 1}. Invoice #${it.invoice_number}${hasMultipleParts ? ` (${it.parts!.length} split parts)` : ""} | Gross: $${it.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Disc: -$${it.discount_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Net Paid: $${it.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}${it.invoice_date ? ` (${it.invoice_date})` : ""}`;
+              if (hasMultipleParts) {
+                const partLines = it.parts!.map(
+                  (p) =>
+                    `   • Part ${p.part_id}${p.voucher_number ? ` (Voucher ${p.voucher_number})` : ""}: Gross $${p.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Paid $${p.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                );
+                return [mainLine, ...partLines];
+              }
+              return [mainLine];
+            })
+          : ["(See net cleared remittance total above)"]),
+      ];
+    }
+
+    navigator.clipboard.writeText(lines.filter(Boolean).join("\n"));
     setIsCopied("zoho");
     setTimeout(() => setIsCopied(null), 2500);
   };
@@ -609,15 +670,15 @@ export function ResourcesView() {
       {/* ======================================================== */}
       {currentView === "remittance-breakdown" && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Vendor Sub-Tabs Bar (Modular: Pyramid Inc now, expandable to other vendors later) */}
-          <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
+          {/* Vendor Sub-Tabs Bar & Cloud Storage Retention (Compact Sleek Toolbar) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
                 Vendor:
               </span>
               <button
                 type="button"
-                onClick={() => setActiveVendorTab("pyramid")}
+                onClick={() => handleVendorTabChange("pyramid")}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                   activeVendorTab === "pyramid"
                     ? "bg-blue-600 text-white shadow-blue-500/20"
@@ -630,6 +691,19 @@ export function ResourcesView() {
 
               <button
                 type="button"
+                onClick={() => handleVendorTabChange("teksystems")}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  activeVendorTab === "teksystems"
+                    ? "bg-blue-600 text-white shadow-blue-500/20"
+                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>TEKsystems</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => alert("Custom vendor tabs are modular and will be configured in the next update!")}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 border border-dashed border-slate-300 hover:text-slate-600 hover:border-slate-400 transition-colors cursor-pointer"
                 title="Add custom vendor tab"
@@ -638,135 +712,147 @@ export function ResourcesView() {
                 <span>Add Vendor</span>
               </button>
             </div>
+
+            {/* Compact 30-Day Retention Badge */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl px-3 py-1.5 text-xs text-emerald-800 flex items-center gap-2 shadow-2xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-bold text-[11px] text-emerald-900">
+                  30-Day Supabase Cloud Storage
+                </span>
+                <span className="text-[10px] text-emerald-700 hidden md:inline">
+                  (Auto-prunes • Data only)
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Hidden File Input for PDF Upload */}
+          {/* Hidden File Input for PDF / Excel Upload */}
           <input
             type="file"
             ref={fileInputRef}
-            accept=".pdf,application/pdf"
+            accept={
+              activeVendorTab === "teksystems"
+                ? ".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                : ".pdf,application/pdf"
+            }
             onChange={handleFileUpload}
             className="hidden"
           />
 
-          {/* Active Vendor Card: Pyramid Inc */}
-          {activeVendorTab === "pyramid" && (
-            <div className="space-y-6">
-              {/* Vendor Card Header */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs shrink-0">
-                    <Building2 className="w-6 h-6 stroke-[2.2]" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                        Pyramid Inc Remittance Statement
-                      </h2>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-blue-600" />
-                        <span>Interactive Validation</span>
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-                      Upload remittance advice statements from Pyramid Inc. Review and validate the extracted invoice table and discount totals before choosing to save to Supabase.
-                    </p>
-                  </div>
+          <div className="space-y-5">
+            {/* Success Notification Banner */}
+            {saveSuccessMessage && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 flex items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-semibold">{saveSuccessMessage}</span>
                 </div>
-
-                {/* 30-Day Retention Badge */}
-                <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-xl px-3.5 py-2.5 text-xs text-emerald-800 flex items-center gap-2.5 shrink-0">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <div>
-                    <p className="font-bold text-[11px] uppercase tracking-wide text-emerald-900">
-                      30-Day Supabase Cloud Storage
-                    </p>
-                    <p className="text-[10px] text-emerald-700">
-                      Data only is saved (never the PDF file) upon your confirmation.
-                    </p>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSaveSuccessMessage(null)}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
+            )}
 
-              {/* Success Notification Banner */}
-              {saveSuccessMessage && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-800 flex items-center justify-between gap-3 shadow-xs">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="font-semibold">{saveSuccessMessage}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSaveSuccessMessage(null)}
-                    className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Upload Dropzone */}
+            {/* Compact Uploader Area */}
+            {selectedRemittance || draftRemittance ? (
+              /* Slim 1-row Toolbar when a Statement is already loaded */
               <div
                 onClick={() => !isUploading && fileInputRef.current?.click()}
-                className={`bg-white rounded-2xl border-2 border-dashed p-8 sm:p-10 text-center transition-all cursor-pointer flex flex-col items-center justify-center space-y-3 ${
+                className="bg-white hover:bg-blue-50/40 border border-dashed border-slate-300 hover:border-blue-400 rounded-xl px-4 py-2.5 transition-all cursor-pointer flex items-center justify-between shadow-2xs group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    {isUploading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-800">
+                      {isUploading
+                        ? "Extracting remittance data..."
+                        : activeVendorTab === "teksystems"
+                        ? "Upload another TEKsystems remittance Excel (.xlsx / .csv)"
+                        : "Upload another Pyramid Inc remittance (.pdf)"}
+                    </span>
+                    <span className="text-[11px] text-slate-400 hidden sm:inline">
+                      • Review extracted settlements before saving to Supabase
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-bold transition-colors pointer-events-none"
+                >
+                  {isUploading ? "Reading..." : "Browse File"}
+                </button>
+              </div>
+            ) : (
+              /* Sleek Horizontal Strip when no statement is loaded yet */
+              <div
+                onClick={() => !isUploading && fileInputRef.current?.click()}
+                className={`bg-white rounded-2xl border-2 border-dashed p-4 sm:p-5 transition-all cursor-pointer flex items-center justify-between gap-4 ${
                   isUploading
                     ? "border-blue-400 bg-blue-50/30 cursor-wait"
                     : "border-slate-300 hover:border-blue-500 hover:bg-slate-50/60 shadow-xs"
                 }`}
               >
-                {isUploading ? (
-                  <>
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 animate-spin">
-                      <Loader2 className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">
-                        Extracting Pyramid Inc Remittance Data...
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Extracting invoice numbers, discount percentages, and net bank settlement totals.
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs group-hover:scale-105 transition-transform">
-                      <Upload className="w-6 h-6 stroke-[2.2]" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">
-                        Click or drag & drop Pyramid Inc remittance PDF here
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Extracts invoice line items for your review. The PDF file is not stored in Supabase.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="mt-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs hover:bg-blue-700 transition-colors pointer-events-none"
-                    >
-                      Browse PDF Document
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Upload Error Banner */}
-              {uploadError && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 text-xs text-rose-800 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span>{uploadError}</span>
+                <div className="flex items-center gap-3.5 text-left">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs shrink-0">
+                    {isUploading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : activeVendorTab === "teksystems" ? (
+                      <FileSpreadsheet className="w-5 h-5" />
+                    ) : (
+                      <Upload className="w-5 h-5" />
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setUploadError(null)}
-                    className="text-xs font-bold text-rose-600 hover:text-rose-900 cursor-pointer"
-                  >
-                    Dismiss
-                  </button>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">
+                      {isUploading
+                        ? `Extracting ${activeVendorTab === "teksystems" ? "TEKsystems Excel" : "Pyramid Inc"} Data...`
+                        : activeVendorTab === "teksystems"
+                        ? "Click or drag & drop TEKsystems remittance Excel (.xlsx / .csv) here"
+                        : "Click or drag & drop Pyramid Inc remittance PDF here"}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {activeVendorTab === "teksystems"
+                        ? "Parses consultant message lines, order IDs, gross amount, and 3.5% prompt discounts."
+                        : "Extracts invoice line items, prompt payment discounts, and net bank settlements."}
+                    </p>
+                  </div>
                 </div>
-              )}
+                <button
+                  type="button"
+                  className="px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs hover:bg-blue-700 transition-colors pointer-events-none shrink-0"
+                >
+                  {isUploading ? "Reading..." : activeVendorTab === "teksystems" ? "Browse Spreadsheet" : "Browse PDF"}
+                </button>
+              </div>
+            )}
+
+            {/* Upload Error Banner */}
+            {uploadError && (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{uploadError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUploadError(null)}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-900 cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
               {/* ======================================================== */}
               {/* STAGE 1: DRAFT VALIDATION VIEW (User confirms before saving) */}
@@ -890,20 +976,24 @@ export function ResourcesView() {
                       </div>
                     </div>
 
-                    {/* Draft Card 4: Invoices Count */}
+                    {/* Draft Card 4: Records Count */}
                     <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          Invoices Included
+                          {activeVendorTab === "teksystems" ? "Consultants Included" : "Invoices Included"}
                         </span>
                         <Layers className="w-4 h-4 text-slate-400" />
                       </div>
                       <div className="mt-3">
                         <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
-                          {draftRemittance.invoice_count} {draftRemittance.invoice_count === 1 ? "Invoice" : "Invoices"}
+                          {draftRemittance.invoice_count}{" "}
+                          {activeVendorTab === "teksystems"
+                            ? draftRemittance.invoice_count === 1 ? "Consultant" : "Consultants"
+                            : draftRemittance.invoice_count === 1 ? "Invoice" : "Invoices"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                          {draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} split line items reconciled
+                          {draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)}{" "}
+                          {activeVendorTab === "teksystems" ? "work entries reconciled" : "split line items reconciled"}
                         </p>
                       </div>
                     </div>
@@ -914,14 +1004,21 @@ export function ResourcesView() {
                     <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-bold text-slate-900">
-                          Extracted Invoice Line Items (Grouped by Invoice)
+                          {activeVendorTab === "teksystems"
+                            ? "Extracted Consultant Settlements (TEKsystems Breakdown)"
+                            : "Extracted Invoice Line Items (Grouped by Invoice)"}
                         </h4>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          Invoices grouped with their split parts and voucher details
+                          {activeVendorTab === "teksystems"
+                            ? "Consultant message lines, client orders, gross, 3.5% prompt discount, and net remittance"
+                            : "Invoices grouped with their split parts and voucher details"}
                         </p>
                       </div>
                       <span className="text-xs font-mono font-bold text-slate-500">
-                        {draftRemittance.items?.length || 0} Invoices ({draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} Parts)
+                        {draftRemittance.items?.length || 0}{" "}
+                        {activeVendorTab === "teksystems" ? "Consultants" : "Invoices"} (
+                        {draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)}{" "}
+                        {activeVendorTab === "teksystems" ? "Entries" : "Parts"})
                       </span>
                     </div>
 
@@ -930,12 +1027,27 @@ export function ResourcesView() {
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
                             <tr>
-                              <th className="py-3 px-4">Invoice #</th>
-                              <th className="py-3 px-4">Date</th>
-                              <th className="py-3 px-4 text-right">Gross Amount</th>
-                              <th className="py-3 px-4 text-right">Prompt Discount</th>
-                              <th className="py-3 px-4 text-right">Deductions</th>
-                              <th className="py-3 px-4 text-right">Net Paid</th>
+                              <th className="py-3 px-4">
+                                {activeVendorTab === "teksystems" ? "Consultant / Resource" : "Invoice #"}
+                              </th>
+                              <th className="py-3 px-4">
+                                {activeVendorTab === "teksystems" ? "Client & Order ID" : "Date"}
+                              </th>
+                              {activeVendorTab === "teksystems" && (
+                                <th className="py-3 px-4">Period / Date</th>
+                              )}
+                              <th className="py-3 px-4 text-right">
+                                {activeVendorTab === "teksystems" ? "Gross Billed" : "Gross Amount"}
+                              </th>
+                              <th className="py-3 px-4 text-right">
+                                {activeVendorTab === "teksystems" ? "Prompt Discount (3.5%)" : "Prompt Discount"}
+                              </th>
+                              {activeVendorTab !== "teksystems" && (
+                                <th className="py-3 px-4 text-right">Deductions</th>
+                              )}
+                              <th className="py-3 px-4 text-right">
+                                {activeVendorTab === "teksystems" ? "Net Remitted" : "Net Paid"}
+                              </th>
                               <th className="py-3 px-4 text-center">Status</th>
                             </tr>
                           </thead>
@@ -943,24 +1055,25 @@ export function ResourcesView() {
                             {draftRemittance.items.map((it, idx) => {
                               const isCollapsed = collapsedInvoices[it.invoice_number] === true;
                               const hasParts = it.parts && it.parts.length > 1;
+                              const isTek = activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems";
 
                               return (
                                 <React.Fragment key={idx}>
-                                  {/* Primary Invoice Row */}
+                                  {/* Primary Row */}
                                   <tr className="hover:bg-slate-50/80 transition-colors bg-white font-mono">
-                                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                                    <td className="py-3.5 px-4 font-bold text-slate-900 font-sans">
                                       <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-blue-600 font-black">
-                                          #{it.invoice_number}
+                                        <span className="text-blue-600 font-extrabold">
+                                          {isTek ? (it.consultant_name || it.invoice_number) : `#${it.invoice_number}`}
                                         </span>
                                         {hasParts && (
                                           <button
                                             type="button"
                                             onClick={() => toggleInvoiceCollapse(it.invoice_number)}
                                             className="px-2 py-0.5 rounded-md text-[10px] font-sans font-extrabold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
-                                            title="Toggle split parts"
+                                            title={isTek ? "Toggle daily work entries" : "Toggle split parts"}
                                           >
-                                            <span>{it.parts!.length} parts</span>
+                                            <span>{it.parts!.length} {isTek ? "entries" : "parts"}</span>
                                             {isCollapsed ? (
                                               <ChevronDown className="w-3 h-3" />
                                             ) : (
@@ -970,30 +1083,53 @@ export function ResourcesView() {
                                         )}
                                       </div>
                                     </td>
-                                    <td className="py-3.5 px-4 text-slate-500 font-sans">
-                                      {it.invoice_date || "—"}
-                                    </td>
+                                    {isTek ? (
+                                      <td className="py-3.5 px-4 text-slate-600 font-sans text-xs">
+                                        <div className="flex flex-col">
+                                          <span className="font-semibold text-slate-800">{it.client_name || "Client"}</span>
+                                          {it.order_id && (
+                                            <span className="text-[10px] text-slate-400 font-mono">Order #{it.order_id}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    ) : (
+                                      <td className="py-3.5 px-4 text-slate-500 font-sans">
+                                        {it.invoice_date || "—"}
+                                      </td>
+                                    )}
+                                    {isTek && (
+                                      <td className="py-3.5 px-4 text-slate-500 font-sans">
+                                        {it.invoice_date || "—"}
+                                      </td>
+                                    )}
                                     <td className="py-3.5 px-4 text-right font-bold text-slate-900">
                                       {formatCurrency(it.gross_amount)}
                                     </td>
                                     <td className="py-3.5 px-4 text-right text-slate-500">
                                       {it.discount_amount > 0 ? (
-                                        <span className="text-amber-600 font-semibold">
-                                          -{formatCurrency(it.discount_amount)}
+                                        <span className="text-amber-600 font-semibold flex items-center justify-end gap-1">
+                                          <span>-{formatCurrency(it.discount_amount)}</span>
+                                          {isTek && (
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200">
+                                              3.5%
+                                            </span>
+                                          )}
                                         </span>
                                       ) : (
                                         "$0.00"
                                       )}
                                     </td>
-                                    <td className="py-3.5 px-4 text-right text-slate-500">
-                                      {it.deductions_amount > 0 ? (
-                                        <span className="text-rose-600 font-semibold">
-                                          -{formatCurrency(it.deductions_amount)}
-                                        </span>
-                                      ) : (
-                                        "$0.00"
-                                      )}
-                                    </td>
+                                    {!isTek && (
+                                      <td className="py-3.5 px-4 text-right text-slate-500">
+                                        {it.deductions_amount > 0 ? (
+                                          <span className="text-rose-600 font-semibold">
+                                            -{formatCurrency(it.deductions_amount)}
+                                          </span>
+                                        ) : (
+                                          "$0.00"
+                                        )}
+                                      </td>
+                                    )}
                                     <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm">
                                       {formatCurrency(it.net_paid)}
                                     </td>
@@ -1012,13 +1148,13 @@ export function ResourcesView() {
                                         key={`${idx}-${pIdx}`}
                                         className="bg-slate-50/70 hover:bg-slate-100/60 transition-colors text-[11px] font-mono border-t border-slate-100/60"
                                       >
-                                        <td className="py-2 px-4 pl-8 text-slate-600">
+                                        <td colSpan={isTek ? 2 : 1} className="py-2 px-4 pl-8 text-slate-600 font-sans">
                                           <div className="flex items-center gap-1.5 flex-wrap">
                                             <CornerDownRight className="w-3 h-3 text-slate-400 shrink-0" />
                                             <span className="font-semibold text-slate-800">{p.part_id}</span>
                                             {p.voucher_number && (
                                               <span className="text-[10px] text-slate-400 font-sans">
-                                                (Voucher #{p.voucher_number})
+                                                ({p.voucher_number})
                                               </span>
                                             )}
                                           </div>
@@ -1034,17 +1170,19 @@ export function ResourcesView() {
                                             ? `-${formatCurrency(p.discount_amount)}`
                                             : "$0.00"}
                                         </td>
-                                        <td className="py-2 px-4 text-right text-slate-400">
-                                          {p.writeoff_amount > 0
-                                            ? `-${formatCurrency(p.writeoff_amount)}`
-                                            : "$0.00"}
-                                        </td>
+                                        {!isTek && (
+                                          <td className="py-2 px-4 text-right text-slate-400">
+                                            {p.writeoff_amount > 0
+                                              ? `-${formatCurrency(p.writeoff_amount)}`
+                                              : "$0.00"}
+                                          </td>
+                                        )}
                                         <td className="py-2 px-4 text-right font-bold text-emerald-600">
                                           {formatCurrency(p.net_paid)}
                                         </td>
                                         <td className="py-2 px-4 text-center font-sans">
                                           <span className="text-[9px] text-slate-400 font-semibold uppercase">
-                                            Part {pIdx + 1} of {it.parts!.length}
+                                            {isTek ? `Entry ${pIdx + 1}` : `Part ${pIdx + 1}`}
                                           </span>
                                         </td>
                                       </tr>
@@ -1211,38 +1349,49 @@ export function ResourcesView() {
                       </div>
                     </div>
 
-                    {/* Card 4: Invoices Count */}
+                    {/* Card 4: Records Count */}
                     <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          Invoices Included
+                          {selectedRemittance.vendor_id === "teksystems" ? "Consultants Included" : "Invoices Included"}
                         </span>
                         <Layers className="w-4 h-4 text-slate-400" />
                       </div>
                       <div className="mt-3">
                         <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
-                          {selectedRemittance.invoice_count} {selectedRemittance.invoice_count === 1 ? "Invoice" : "Invoices"}
+                          {selectedRemittance.invoice_count}{" "}
+                          {selectedRemittance.vendor_id === "teksystems"
+                            ? selectedRemittance.invoice_count === 1 ? "Consultant" : "Consultants"
+                            : selectedRemittance.invoice_count === 1 ? "Invoice" : "Invoices"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                          {selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} split line items reconciled
+                          {selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)}{" "}
+                          {selectedRemittance.vendor_id === "teksystems" ? "work entries reconciled" : "split line items reconciled"}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Structured Invoice Line-Items Table */}
+                  {/* Structured Line-Items Table */}
                   <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
                     <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-bold text-slate-900">
-                          Pyramid Inc Invoice Breakdown (Grouped by Invoice)
+                          {selectedRemittance.vendor_id === "teksystems"
+                            ? "TEKsystems Consultant Breakdown"
+                            : "Pyramid Inc Invoice Breakdown (Grouped by Invoice)"}
                         </h4>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          Line items parsed from confirmed statement
+                          {selectedRemittance.vendor_id === "teksystems"
+                            ? "Consultant settlements, client orders, and prompt discount breakdown"
+                            : "Line items parsed from confirmed statement"}
                         </p>
                       </div>
                       <span className="text-xs font-mono font-bold text-slate-500">
-                        {selectedRemittance.items?.length || 0} Invoices ({selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} Parts)
+                        {selectedRemittance.items?.length || 0}{" "}
+                        {selectedRemittance.vendor_id === "teksystems" ? "Consultants" : "Invoices"} (
+                        {selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)}{" "}
+                        {selectedRemittance.vendor_id === "teksystems" ? "Entries" : "Parts"})
                       </span>
                     </div>
 
@@ -1251,12 +1400,27 @@ export function ResourcesView() {
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
                             <tr>
-                              <th className="py-3 px-4">Invoice #</th>
-                              <th className="py-3 px-4">Date</th>
-                              <th className="py-3 px-4 text-right">Gross Amount</th>
-                              <th className="py-3 px-4 text-right">Prompt Discount</th>
-                              <th className="py-3 px-4 text-right">Deductions</th>
-                              <th className="py-3 px-4 text-right">Net Paid</th>
+                              <th className="py-3 px-4">
+                                {selectedRemittance.vendor_id === "teksystems" ? "Consultant / Resource" : "Invoice #"}
+                              </th>
+                              <th className="py-3 px-4">
+                                {selectedRemittance.vendor_id === "teksystems" ? "Client & Order ID" : "Date"}
+                              </th>
+                              {selectedRemittance.vendor_id === "teksystems" && (
+                                <th className="py-3 px-4">Period / Date</th>
+                              )}
+                              <th className="py-3 px-4 text-right">
+                                {selectedRemittance.vendor_id === "teksystems" ? "Gross Billed" : "Gross Amount"}
+                              </th>
+                              <th className="py-3 px-4 text-right">
+                                {selectedRemittance.vendor_id === "teksystems" ? "Prompt Discount (3.5%)" : "Prompt Discount"}
+                              </th>
+                              {selectedRemittance.vendor_id !== "teksystems" && (
+                                <th className="py-3 px-4 text-right">Deductions</th>
+                              )}
+                              <th className="py-3 px-4 text-right">
+                                {selectedRemittance.vendor_id === "teksystems" ? "Net Remitted" : "Net Paid"}
+                              </th>
                               <th className="py-3 px-4 text-center">Status</th>
                             </tr>
                           </thead>
@@ -1264,24 +1428,25 @@ export function ResourcesView() {
                             {selectedRemittance.items.map((it, idx) => {
                               const isCollapsed = collapsedInvoices[it.invoice_number] === true;
                               const hasParts = it.parts && it.parts.length > 1;
+                              const isTek = selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems";
 
                               return (
                                 <React.Fragment key={idx}>
-                                  {/* Primary Invoice Row */}
+                                  {/* Primary Row */}
                                   <tr className="hover:bg-slate-50/80 transition-colors bg-white font-mono">
-                                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                                    <td className="py-3.5 px-4 font-bold text-slate-900 font-sans">
                                       <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-blue-600 font-black">
-                                          #{it.invoice_number}
+                                        <span className="text-blue-600 font-extrabold">
+                                          {isTek ? (it.consultant_name || it.invoice_number) : `#${it.invoice_number}`}
                                         </span>
                                         {hasParts && (
                                           <button
                                             type="button"
                                             onClick={() => toggleInvoiceCollapse(it.invoice_number)}
                                             className="px-2 py-0.5 rounded-md text-[10px] font-sans font-extrabold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
-                                            title="Toggle split parts"
+                                            title={isTek ? "Toggle daily work entries" : "Toggle split parts"}
                                           >
-                                            <span>{it.parts!.length} parts</span>
+                                            <span>{it.parts!.length} {isTek ? "entries" : "parts"}</span>
                                             {isCollapsed ? (
                                               <ChevronDown className="w-3 h-3" />
                                             ) : (
@@ -1291,30 +1456,53 @@ export function ResourcesView() {
                                         )}
                                       </div>
                                     </td>
-                                    <td className="py-3.5 px-4 text-slate-500 font-sans">
-                                      {it.invoice_date || "—"}
-                                    </td>
+                                    {isTek ? (
+                                      <td className="py-3.5 px-4 text-slate-600 font-sans text-xs">
+                                        <div className="flex flex-col">
+                                          <span className="font-semibold text-slate-800">{it.client_name || "Client"}</span>
+                                          {it.order_id && (
+                                            <span className="text-[10px] text-slate-400 font-mono">Order #{it.order_id}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    ) : (
+                                      <td className="py-3.5 px-4 text-slate-500 font-sans">
+                                        {it.invoice_date || "—"}
+                                      </td>
+                                    )}
+                                    {isTek && (
+                                      <td className="py-3.5 px-4 text-slate-500 font-sans">
+                                        {it.invoice_date || "—"}
+                                      </td>
+                                    )}
                                     <td className="py-3.5 px-4 text-right font-bold text-slate-900">
                                       {formatCurrency(it.gross_amount)}
                                     </td>
                                     <td className="py-3.5 px-4 text-right text-slate-500">
                                       {it.discount_amount > 0 ? (
-                                        <span className="text-amber-600 font-semibold">
-                                          -{formatCurrency(it.discount_amount)}
+                                        <span className="text-amber-600 font-semibold flex items-center justify-end gap-1">
+                                          <span>-{formatCurrency(it.discount_amount)}</span>
+                                          {isTek && (
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200">
+                                              3.5%
+                                            </span>
+                                          )}
                                         </span>
                                       ) : (
                                         "$0.00"
                                       )}
                                     </td>
-                                    <td className="py-3.5 px-4 text-right text-slate-500">
-                                      {it.deductions_amount > 0 ? (
-                                        <span className="text-rose-600 font-semibold">
-                                          -{formatCurrency(it.deductions_amount)}
-                                        </span>
-                                      ) : (
-                                        "$0.00"
-                                      )}
-                                    </td>
+                                    {!isTek && (
+                                      <td className="py-3.5 px-4 text-right text-slate-500">
+                                        {it.deductions_amount > 0 ? (
+                                          <span className="text-rose-600 font-semibold">
+                                            -{formatCurrency(it.deductions_amount)}
+                                          </span>
+                                        ) : (
+                                          "$0.00"
+                                        )}
+                                      </td>
+                                    )}
                                     <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm">
                                       {formatCurrency(it.net_paid)}
                                     </td>
@@ -1333,13 +1521,13 @@ export function ResourcesView() {
                                         key={`${idx}-${pIdx}`}
                                         className="bg-slate-50/70 hover:bg-slate-100/60 transition-colors text-[11px] font-mono border-t border-slate-100/60"
                                       >
-                                        <td className="py-2 px-4 pl-8 text-slate-600">
+                                        <td colSpan={isTek ? 2 : 1} className="py-2 px-4 pl-8 text-slate-600 font-sans">
                                           <div className="flex items-center gap-1.5 flex-wrap">
                                             <CornerDownRight className="w-3 h-3 text-slate-400 shrink-0" />
                                             <span className="font-semibold text-slate-800">{p.part_id}</span>
                                             {p.voucher_number && (
                                               <span className="text-[10px] text-slate-400 font-sans">
-                                                (Voucher #{p.voucher_number})
+                                                ({p.voucher_number})
                                               </span>
                                             )}
                                           </div>
@@ -1355,17 +1543,19 @@ export function ResourcesView() {
                                             ? `-${formatCurrency(p.discount_amount)}`
                                             : "$0.00"}
                                         </td>
-                                        <td className="py-2 px-4 text-right text-slate-400">
-                                          {p.writeoff_amount > 0
-                                            ? `-${formatCurrency(p.writeoff_amount)}`
-                                            : "$0.00"}
-                                        </td>
+                                        {!isTek && (
+                                          <td className="py-2 px-4 text-right text-slate-400">
+                                            {p.writeoff_amount > 0
+                                              ? `-${formatCurrency(p.writeoff_amount)}`
+                                              : "$0.00"}
+                                          </td>
+                                        )}
                                         <td className="py-2 px-4 text-right font-bold text-emerald-600">
                                           {formatCurrency(p.net_paid)}
                                         </td>
                                         <td className="py-2 px-4 text-center font-sans">
                                           <span className="text-[9px] text-slate-400 font-semibold uppercase">
-                                            Part {pIdx + 1} of {it.parts!.length}
+                                            {isTek ? `Entry ${pIdx + 1}` : `Part ${pIdx + 1} of ${it.parts!.length}`}
                                           </span>
                                         </td>
                                       </tr>
@@ -1399,7 +1589,7 @@ export function ResourcesView() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
-                      Pyramid Inc Statement Archive (Supabase 30-Day Window)
+                      {activeVendorTab === "teksystems" ? "TEKsystems" : "Pyramid Inc"} Statement Archive (Supabase 30-Day Window)
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Previously uploaded vendor remittances safely saved in Supabase. Auto-prunes after 30 days.
@@ -1417,7 +1607,7 @@ export function ResourcesView() {
                   </div>
                 ) : remittances.length === 0 ? (
                   <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
-                    No statements uploaded yet for Pyramid Inc. Upload your vendor PDF remittance advice above.
+                    No statements uploaded yet for {activeVendorTab === "teksystems" ? "TEKsystems" : "Pyramid Inc"}. Upload your vendor remittance above.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1450,7 +1640,7 @@ export function ResourcesView() {
                                   })}
                                 </span>
                                 <span>•</span>
-                                <span>{rem.invoice_count} invoices</span>
+                                <span>{rem.invoice_count} {rem.vendor_id === "teksystems" ? "consultants" : "invoices"}</span>
                                 <span>•</span>
                                 <span className="font-bold text-amber-600">
                                   {daysLeft}d left
@@ -1481,7 +1671,6 @@ export function ResourcesView() {
                 )}
               </div>
             </div>
-          )}
         </div>
       )}
 
