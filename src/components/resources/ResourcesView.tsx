@@ -24,6 +24,9 @@ import {
   Sparkles,
   ShieldCheck,
   AlertCircle,
+  Save,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 
 // Standard prompt payment discount percentage presets
@@ -50,7 +53,7 @@ export interface RemittanceItem {
 }
 
 export interface RemittanceRecord {
-  id: string;
+  id?: string;
   vendor_id: string;
   vendor_name: string;
   file_name: string;
@@ -62,8 +65,9 @@ export interface RemittanceRecord {
   invoice_count: number;
   items: RemittanceItem[];
   raw_text?: string;
-  created_at: string;
-  expires_at: string;
+  created_at?: string;
+  expires_at?: string;
+  is_draft?: boolean;
 }
 
 export function ResourcesView() {
@@ -79,6 +83,9 @@ export function ResourcesView() {
   const [activeVendorTab, setActiveVendorTab] = useState<string>("pyramid");
   const [remittances, setRemittances] = useState<RemittanceRecord[]>([]);
   const [selectedRemittance, setSelectedRemittance] = useState<RemittanceRecord | null>(null);
+  const [draftRemittance, setDraftRemittance] = useState<RemittanceRecord | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [isLoadingRemittances, setIsLoadingRemittances] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -96,7 +103,15 @@ export function ResourcesView() {
     setIsLoadingRemittances(true);
     try {
       const res = await fetch(`/api/remittance/parse?vendorId=${vendorId}`);
-      const json = await res.json();
+      const rawText = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        console.warn("Non-JSON response fetching remittances:", rawText);
+        return;
+      }
+
       if (json.success && Array.isArray(json.remittances)) {
         setRemittances(json.remittances);
         if (json.remittances.length > 0) {
@@ -116,7 +131,7 @@ export function ResourcesView() {
     }
   }, [currentView, activeVendorTab, fetchRemittances]);
 
-  // Upload & parse remittance PDF
+  // Upload & parse remittance PDF (Parses draft only - does NOT store in database yet)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -128,6 +143,7 @@ export function ResourcesView() {
 
     setIsUploading(true);
     setUploadError(null);
+    setSaveSuccessMessage(null);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -139,20 +155,66 @@ export function ResourcesView() {
         method: "POST",
         body: formData,
       });
-      const json = await res.json();
-      if (json.success && json.remittance) {
-        setRemittances((prev) => [json.remittance, ...prev]);
-        setSelectedRemittance(json.remittance);
+
+      const rawText = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        throw new Error(`Server returned unexpected response (status ${res.status}): ${rawText.slice(0, 150)}`);
+      }
+
+      if (json.success && json.draft) {
+        // Present draft for user validation; do not persist to Supabase until confirmed
+        setDraftRemittance(json.draft);
+        setSelectedRemittance(null); // Focus on validating the new draft
       } else {
-        setUploadError(json.error || "Unable to parse PDF statement. Please ensure it contains readable text.");
+        setUploadError(json.error || "Unable to extract table from PDF. Please ensure the document is readable.");
       }
     } catch (err: any) {
-      setUploadError(err.message || "Network error uploading file.");
+      setUploadError(err.message || "Network error uploading statement file.");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  // Confirm & Save Validated Remittance to Supabase (Stores data only, NOT the PDF file)
+  const handleConfirmAndSave = async () => {
+    if (!draftRemittance) return;
+    setIsSavingDraft(true);
+    setUploadError(null);
+
+    try {
+      const res = await fetch("/api/remittance/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remittance: draftRemittance }),
+      });
+
+      const rawText = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        throw new Error(`Server returned error saving record: ${rawText.slice(0, 150)}`);
+      }
+
+      if (json.success && json.savedRemittance) {
+        setRemittances((prev) => [json.savedRemittance, ...prev]);
+        setSelectedRemittance(json.savedRemittance);
+        setDraftRemittance(null);
+        setSaveSuccessMessage("✓ Statement data confirmed and stored in Supabase for 30 days!");
+        setTimeout(() => setSaveSuccessMessage(null), 6000);
+      } else {
+        setUploadError(json.error || "Failed to save statement to Supabase.");
+      }
+    } catch (err: any) {
+      setUploadError(err.message || "Network error saving statement.");
+    } finally {
+      setIsSavingDraft(false);
     }
   };
 
@@ -165,8 +227,14 @@ export function ResourcesView() {
       const res = await fetch(`/api/remittance/parse?id=${id}`, {
         method: "DELETE",
       });
-      const json = await res.json();
-      if (json.success) {
+      const rawText = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        // Ignored
+      }
+      if (json?.success) {
         setRemittances((prev) => prev.filter((r) => r.id !== id));
         if (selectedRemittance?.id === id) {
           const remaining = remittances.filter((r) => r.id !== id);
@@ -179,7 +247,8 @@ export function ResourcesView() {
   };
 
   // Calculate days remaining before 30-day auto-purge
-  const getDaysRemaining = (expiresAt: string) => {
+  const getDaysRemaining = (expiresAt?: string) => {
+    if (!expiresAt) return 30;
     const diff = new Date(expiresAt).getTime() - Date.now();
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
     return days > 0 ? days : 0;
@@ -190,7 +259,7 @@ export function ResourcesView() {
     const lines = [
       `REMITTANCE STATEMENT SUMMARY - ${remittance.vendor_name.toUpperCase()}`,
       `File: ${remittance.file_name}`,
-      `Processed: ${new Date(remittance.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+      `Processed: ${new Date(remittance.created_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
       `==================================================`,
       `TOTAL NET PAID / CLEARED:  $${remittance.total_paid.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       `TOTAL GROSS INVOICED:      $${remittance.total_gross.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -507,19 +576,10 @@ export function ResourcesView() {
       {/* ======================================================== */}
       {currentView === "remittance-breakdown" && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Top Return & Vendor Sub-Tabs Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
-            <button
-              type="button"
-              onClick={() => setCurrentView("hub")}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer w-fit"
-            >
-              <span>← Back to All Resources</span>
-            </button>
-
-            {/* Vendor Sub-Tabs (Modular: Pyramid Inc now, expandable to other vendors later) */}
+          {/* Vendor Sub-Tabs Bar (Modular: Pyramid Inc now, expandable to other vendors later) */}
+          <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none hidden md:inline">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
                 Vendor:
               </span>
               <button
@@ -572,11 +632,11 @@ export function ResourcesView() {
                       </h2>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-blue-600" />
-                        <span>PDF Table Parser</span>
+                        <span>Interactive Validation</span>
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-                      Upload remittance advice statements received from Pyramid Inc. Automatically extract billed invoice numbers, prompt payment discounts, deductions, and total net paid amounts.
+                      Upload remittance advice statements from Pyramid Inc. Review and validate the extracted invoice table and discount totals before choosing to save to Supabase.
                     </p>
                   </div>
                 </div>
@@ -589,11 +649,28 @@ export function ResourcesView() {
                       30-Day Supabase Cloud Storage
                     </p>
                     <p className="text-[10px] text-emerald-700">
-                      Statements safely persist in Supabase and auto-prune after 30 days.
+                      Data only is saved (never the PDF file) upon your confirmation.
                     </p>
                   </div>
                 </div>
               </div>
+
+              {/* Success Notification Banner */}
+              {saveSuccessMessage && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-800 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-semibold">{saveSuccessMessage}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSaveSuccessMessage(null)}
+                    className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Upload Dropzone */}
               <div
@@ -611,7 +688,7 @@ export function ResourcesView() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800">
-                        Parsing Pyramid Inc Remittance Advice...
+                        Extracting Pyramid Inc Remittance Data...
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
                         Extracting invoice numbers, discount percentages, and net bank settlement totals.
@@ -628,7 +705,7 @@ export function ResourcesView() {
                         Click or drag & drop Pyramid Inc remittance PDF here
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Accepts official vendor advice with invoice number, discount, and check/ACH amount columns.
+                        Extracts invoice line items for your review. The PDF file is not stored in Supabase.
                       </p>
                     </div>
                     <button
@@ -658,8 +735,224 @@ export function ResourcesView() {
                 </div>
               )}
 
-              {/* Selected Statement Full Breakdown */}
-              {selectedRemittance && (
+              {/* ======================================================== */}
+              {/* STAGE 1: DRAFT VALIDATION VIEW (User confirms before saving) */}
+              {/* ======================================================== */}
+              {draftRemittance && (
+                <div className="space-y-6 bg-gradient-to-b from-blue-50/40 via-white to-white rounded-2xl border-2 border-blue-500/80 p-5 sm:p-7 shadow-lg shadow-blue-500/5 animate-in fade-in duration-200">
+                  {/* Validation Action Bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-blue-100">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base font-black text-slate-900">
+                            Validate Remittance Breakdown
+                          </h3>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>Draft • Unsaved</span>
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 max-w-xl leading-relaxed">
+                          Statement: <strong className="text-slate-900">{draftRemittance.file_name}</strong>. The PDF file binary itself is <span className="font-bold underline text-slate-900">never stored</span>. Verify that the breakdown below is accurate, then click below to store the extracted data in Supabase for 30 days.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleConfirmAndSave}
+                        disabled={isSavingDraft}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20 cursor-pointer transition-all disabled:opacity-50"
+                      >
+                        {isSavingDraft ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Saving to Supabase...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Confirm & Save to Supabase (30 Days)</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDraftRemittance(null)}
+                        className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Discard Draft</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4 Settlement KPI Cards for Draft */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Draft Card 1: Total Net Paid */}
+                    <div className="bg-emerald-500 rounded-2xl p-5 text-white shadow-md shadow-emerald-500/10 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">
+                          Total Net Paid
+                        </span>
+                        <Receipt className="w-4 h-4 text-emerald-100" />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight">
+                          {formatCurrency(draftRemittance.total_paid)}
+                        </p>
+                        <p className="text-[10px] text-emerald-100 font-semibold mt-1">
+                          Net bank ACH / Check cleared
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Draft Card 2: Total Gross Invoiced */}
+                    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          Total Gross Invoiced
+                        </span>
+                        <DollarSign className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
+                          {formatCurrency(draftRemittance.total_gross)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                          Full invoice face value
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Draft Card 3: Total Prompt Discount / Deductions */}
+                    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600">
+                          Discounts & Deductions
+                        </span>
+                        <TrendingDown className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-600">
+                          -{formatCurrency(draftRemittance.total_discount + draftRemittance.total_deductions)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                          {draftRemittance.total_discount > 0 && `Disc: -${formatCurrency(draftRemittance.total_discount)}`}
+                          {draftRemittance.total_deductions > 0 && ` | Ded: -${formatCurrency(draftRemittance.total_deductions)}`}
+                          {draftRemittance.total_discount === 0 && draftRemittance.total_deductions === 0 && "No prompt deductions"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Draft Card 4: Invoices Count */}
+                    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          Invoices Included
+                        </span>
+                        <Layers className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
+                          {draftRemittance.invoice_count}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                          Itemized remittance lines
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Draft Invoice Line-Items Table */}
+                  <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+                    <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          Extracted Invoice Line Items (Review)
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Extracted from statement for your review
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-slate-500">
+                        {draftRemittance.items?.length || 0} Records
+                      </span>
+                    </div>
+
+                    {draftRemittance.items && draftRemittance.items.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                            <tr>
+                              <th className="py-3 px-4">Invoice #</th>
+                              <th className="py-3 px-4">Date</th>
+                              <th className="py-3 px-4 text-right">Gross Amount</th>
+                              <th className="py-3 px-4 text-right">Prompt Discount</th>
+                              <th className="py-3 px-4 text-right">Deductions</th>
+                              <th className="py-3 px-4 text-right">Net Paid</th>
+                              <th className="py-3 px-4 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
+                            {draftRemittance.items.map((it, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3 px-4 font-bold text-blue-600">
+                                  {it.invoice_number || `INV-${idx + 1}`}
+                                </td>
+                                <td className="py-3 px-4 text-slate-500 font-sans">
+                                  {it.invoice_date || "—"}
+                                </td>
+                                <td className="py-3 px-4 text-right font-semibold text-slate-900">
+                                  {formatCurrency(it.gross_amount || 0)}
+                                </td>
+                                <td className="py-3 px-4 text-right text-amber-600">
+                                  {it.discount_amount > 0 ? `-${formatCurrency(it.discount_amount)}` : "—"}
+                                </td>
+                                <td className="py-3 px-4 text-right text-rose-600">
+                                  {it.deductions_amount > 0 ? `-${formatCurrency(it.deductions_amount)}` : "—"}
+                                </td>
+                                <td className="py-3 px-4 text-right font-black text-emerald-600">
+                                  {formatCurrency(it.net_paid || 0)}
+                                </td>
+                                <td className="py-3 px-4 text-center font-sans">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                                    Pending Save
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center space-y-2">
+                        <p className="text-xs font-bold text-slate-700">
+                          Summary Settlement Cleared
+                        </p>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                          The statement provided a total remittance settlement check of{" "}
+                          <span className="font-bold text-emerald-600">
+                            {formatCurrency(draftRemittance.total_paid)}
+                          </span>
+                          . Confirm to store this net amount in Supabase.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ======================================================== */}
+              {/* STAGE 2: CONFIRMED STATEMENT VIEW (Stored in Supabase)   */}
+              {/* ======================================================== */}
+              {selectedRemittance && !draftRemittance && (
                 <div className="space-y-6">
                   {/* Action Bar & Statement Meta */}
                   <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -672,20 +965,24 @@ export function ResourcesView() {
                           <h3 className="text-sm font-bold text-slate-900">
                             {selectedRemittance.file_name}
                           </h3>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            {new Date(selectedRemittance.created_at).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span>Expires in {getDaysRemaining(selectedRemittance.expires_at)} days</span>
-                          </span>
+                          {selectedRemittance.created_at && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              {new Date(selectedRemittance.created_at).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </span>
+                          )}
+                          {selectedRemittance.expires_at && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              <span>Expires in {getDaysRemaining(selectedRemittance.expires_at)} days</span>
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Stored in Supabase cloud • Scoped to Pyramid Inc
+                          Stored in Supabase cloud (data only) • Scoped to Pyramid Inc
                         </p>
                       </div>
                     </div>
@@ -811,7 +1108,7 @@ export function ResourcesView() {
                           Pyramid Inc Invoice Breakdown
                         </h4>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          Line items parsed from uploaded statement
+                          Line items parsed from confirmed statement
                         </p>
                       </div>
                       <span className="text-xs font-mono font-bold text-slate-500">
@@ -932,7 +1229,7 @@ export function ResourcesView() {
                               </p>
                               <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
                                 <span>
-                                  {new Date(rem.created_at).toLocaleDateString("en-US", {
+                                  {new Date(rem.created_at || Date.now()).toLocaleDateString("en-US", {
                                     month: "short",
                                     day: "numeric",
                                   })}
@@ -951,14 +1248,16 @@ export function ResourcesView() {
                             <span className="text-xs font-black font-mono text-emerald-600">
                               {formatCurrency(rem.total_paid)}
                             </span>
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteRemittance(rem.id, e)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                              title="Delete from Supabase"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {rem.id && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteRemittance(rem.id!, e)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete from Supabase"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
