@@ -40,7 +40,7 @@ export function DesignLabView() {
     <div className="space-y-6 sm:space-y-8 p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-28 animate-in fade-in duration-200">
       {/* Full Screen Live Preview Overlay */}
       {isFullScreen && (
-        <div className="fixed inset-0 z-[9999] bg-white">
+        <div className="fixed inset-0 z-[9999] bg-black">
           <WorkspaceLoadingScreen
             progress={progress}
             isInteractivePreview={true}
@@ -151,7 +151,7 @@ export function DesignLabView() {
         {/* Live Canvas Viewport */}
         <div className="p-3 sm:p-6 bg-slate-100/70 flex items-center justify-center min-h-[440px]">
           <div
-            className={`transition-all duration-300 overflow-hidden shadow-2xl rounded-3xl border border-slate-200/90 ${
+            className={`transition-all duration-300 overflow-hidden shadow-2xl rounded-3xl border border-slate-800 ${
               deviceFrame === "mobile"
                 ? "w-[340px] h-[580px] max-w-full"
                 : "w-full h-[460px] max-w-4xl"

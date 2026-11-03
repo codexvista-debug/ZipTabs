@@ -31,6 +31,7 @@ import {
   ChevronUp,
   CornerDownRight,
   Camera,
+  FolderArchive,
 } from "lucide-react";
 
 // Standard prompt payment discount percentage presets
@@ -713,48 +714,63 @@ export function ResourcesView() {
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
       {/* Top Header & Multi-Resource Tab Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
             <Calculator className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <span>Resources & Calculators</span>
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                Resources & Calculators
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+                SUITE
+              </span>
+            </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
               Interactive workspace utilities, prompt discount estimators, and financial settlement models.
             </p>
           </div>
         </div>
 
-        {/* Top View Switcher Tabs - Only visible on Hub directory */}
-        {currentView === "hub" && (
-          <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/80 shrink-0">
-            <button
-              type="button"
-              onClick={() => setCurrentView("hub")}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-white text-slate-900 shadow-xs border border-slate-200/80"
-            >
-              All Resources (Hub)
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentView("discount-calculator")}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-slate-600 hover:text-slate-900"
-            >
-              <Percent className="w-3.5 h-3.5" />
-              <span>Discount Calculator</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentView("remittance-breakdown")}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-slate-600 hover:text-slate-900"
-            >
-              <Receipt className="w-3.5 h-3.5" />
-              <span>Remittance Breakdown</span>
-            </button>
-          </div>
-        )}
+        {/* Top View Switcher Tabs - Accessible across views */}
+        <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/80 shrink-0 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setCurrentView("hub")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              currentView === "hub"
+                ? "bg-white text-blue-600 shadow-xs border border-slate-200/90 font-black"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            All Resources (Hub)
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentView("discount-calculator")}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              currentView === "discount-calculator"
+                ? "bg-white text-blue-600 shadow-xs border border-slate-200/90 font-black"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Percent className="w-3.5 h-3.5" />
+            <span>Discount Calculator</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentView("remittance-breakdown")}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              currentView === "remittance-breakdown"
+                ? "bg-white text-blue-600 shadow-xs border border-slate-200/90 font-black"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Receipt className="w-3.5 h-3.5" />
+            <span>Remittance Breakdown</span>
+          </button>
+        </div>
       </div>
 
       {/* ======================================================== */}
@@ -762,85 +778,116 @@ export function ResourcesView() {
       {/* ======================================================== */}
       {currentView === "hub" && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          <div>
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-              Workspace Calculators & Tools
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Select any calculator or resource below to open it in full view.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <span>Workspace Calculators & Tools</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Select any calculator or resource below to open it in full view.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono font-bold">2 Tools Active</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-5xl">
-            {/* Tool Card 1: Discount Calculator (Active & Ready) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl">
+            {/* Tool Card 1: Discount Calculator (Vibrant Light Mode Card) */}
             <div
               onClick={() => setCurrentView("discount-calculator")}
-              className="bg-white rounded-2xl border-2 border-blue-500/80 p-6 shadow-md shadow-blue-500/5 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between group"
+              className="bg-gradient-to-br from-white via-blue-50/20 to-slate-50/40 rounded-3xl border border-blue-200/80 hover:border-blue-500/80 p-6 sm:p-7 shadow-xs hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
             >
-              <div>
+              <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="relative z-10">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform shadow-xs">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-blue-700 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/25 group-hover:scale-105 group-hover:rotate-3 transition-transform">
                     <Percent className="w-6 h-6 stroke-[2.5]" />
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <span>Ready To Use</span>
                   </span>
                 </div>
 
-                <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                <h3 className="text-lg font-black text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight">
                   Discount Calculator
                 </h3>
                 <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
                   Calculate prompt payment invoice discounts, client savings deductions, and final net remittance with a high-precision percentage caliper.
                 </p>
 
-                {/* Sample Calculation Badge */}
-                <div className="mt-4 bg-slate-50 rounded-xl p-2.5 border border-slate-200/70 text-[11px] font-mono text-slate-700 flex items-center justify-between">
-                  <span className="text-slate-500">$14,080.00 - 4.0% =</span>
-                  <span className="font-bold text-blue-600">$13,516.80</span>
+                {/* Interactive Sample Calculation Strip */}
+                <div className="mt-4 bg-white/95 rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs flex items-center justify-between font-mono text-xs">
+                  <span className="text-slate-500 font-semibold">$14,080.00</span>
+                  <span className="bg-amber-50 text-amber-700 font-black px-2 py-0.5 rounded-md border border-amber-200 text-[10px]">
+                    -4.0% DISC
+                  </span>
+                  <span className="font-black text-blue-600 font-mono text-sm">
+                    $13,516.80
+                  </span>
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-blue-600">
-                <span>Launch Calculator</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-black text-blue-600 relative z-10">
+                <span className="text-[11px] text-slate-400 font-medium">Precision percentage caliper</span>
+                <div className="flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                  <span>Launch Calculator</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
               </div>
             </div>
 
-            {/* Tool Card 2: Remittance Breakdown */}
+            {/* Tool Card 2: Remittance Breakdown (Vibrant Light Mode Card) */}
             <div
               onClick={() => setCurrentView("remittance-breakdown")}
-              className="bg-white rounded-2xl border-2 border-slate-200/90 hover:border-blue-500/80 p-6 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between group"
+              className="bg-gradient-to-br from-white via-indigo-50/20 to-slate-50/40 rounded-3xl border border-indigo-200/80 hover:border-indigo-500/80 p-6 sm:p-7 shadow-xs hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
             >
-              <div>
+              <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="relative z-10">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform shadow-xs">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/25 group-hover:scale-105 group-hover:rotate-3 transition-transform">
                     <Receipt className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/80 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1.5 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
                     <span>Workspace Tool</span>
                   </span>
                 </div>
 
-                <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                <h3 className="text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tight">
                   Remittance Breakdown
                 </h3>
                 <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                  Vendor remittance calculations, deduction schedules, and payment allocation breakdowns.
+                  Vendor remittance calculations, deduction schedules, multi-line parts reconciliation, and payment allocation breakdowns.
                 </p>
 
-                {/* Placeholder Calculation Badge */}
-                <div className="mt-4 bg-slate-50 rounded-xl p-2.5 border border-slate-200/70 text-[11px] font-mono text-slate-700 flex items-center justify-between">
-                  <span className="text-slate-500">Gross Remittance - Deductions =</span>
-                  <span className="font-bold text-blue-600">Net Payable</span>
+                {/* Sample Calculation Strip */}
+                <div className="mt-4 bg-white/95 rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+                      Pyramid
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
+                      TEKsystems
+                    </span>
+                  </div>
+                  <span className="font-black text-emerald-600 font-mono text-xs flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Auto-Reconciled
+                  </span>
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-blue-600">
-                <span>Launch Breakdown</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-black text-indigo-600 relative z-10">
+                <span className="text-[11px] text-slate-400 font-medium">PDF, Excel & OCR Scanner</span>
+                <div className="flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                  <span>Launch Breakdown</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
               </div>
             </div>
           </div>
@@ -852,7 +899,7 @@ export function ResourcesView() {
       {/* ======================================================== */}
       {currentView === "remittance-breakdown" && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Vendor Sub-Tabs Bar & Cloud Storage Retention (Compact Sleek Toolbar) */}
+          {/* Vendor Sub-Tabs Bar & Cloud Storage Retention (Elevated Modern Dock) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none shrink-0">
@@ -866,10 +913,10 @@ export function ResourcesView() {
                     <button
                       type="button"
                       onClick={() => handleVendorTabChange(vendor.id)}
-                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                         isActive
-                          ? "bg-blue-600 text-white shadow-blue-500/20"
-                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                          ? "bg-blue-600 text-white shadow-blue-500/25 scale-[1.02]"
+                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-blue-600"
                       } ${vendor.isCustom ? "pr-7" : ""}`}
                     >
                       {vendor.fileType === "excel" ? (
@@ -880,15 +927,13 @@ export function ResourcesView() {
                         <Building2 className="w-3.5 h-3.5" />
                       )}
                       <span>{vendor.name}</span>
-                      {vendor.isCustom && (
-                        <span
-                          className={`text-[9px] px-1.5 py-0.2 rounded uppercase tracking-wider font-extrabold ${
-                            isActive ? "bg-blue-500/50 text-blue-100" : "bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          {vendor.fileType}
-                        </span>
-                      )}
+                      <span
+                        className={`text-[9px] px-1.5 py-0.2 rounded uppercase tracking-wider font-extrabold ${
+                          isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {vendor.fileType}
+                      </span>
                     </button>
 
                     {/* Delete button for custom vendor */}
@@ -913,7 +958,7 @@ export function ResourcesView() {
               <button
                 type="button"
                 onClick={handleOpenAddVendorModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-blue-600 border border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer shrink-0 shadow-2xs"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50/70 hover:bg-blue-100/70 border border-dashed border-blue-300 transition-all cursor-pointer shrink-0 shadow-2xs"
                 title="Add custom vendor tab"
               >
                 <Plus className="w-3.5 h-3.5 text-blue-600" />
@@ -921,15 +966,15 @@ export function ResourcesView() {
               </button>
             </div>
 
-            {/* Compact 30-Day Retention Badge */}
+            {/* Elevated 30-Day Retention Badge */}
             <div className="flex items-center gap-2 shrink-0">
-              <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl px-3 py-1.5 text-xs text-emerald-800 flex items-center gap-2 shadow-2xs">
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 rounded-2xl px-3.5 py-2 text-xs text-emerald-900 flex items-center gap-2 shadow-2xs">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="font-bold text-[11px] text-emerald-900">
+                <span className="font-black text-[11px] text-emerald-900">
                   30-Day Supabase Cloud Storage
                 </span>
-                <span className="text-[10px] text-emerald-700 hidden md:inline">
-                  (Auto-prunes • Data only)
+                <span className="text-[10px] text-emerald-700 hidden md:inline font-medium">
+                  (Auto-prunes • Secure data only)
                 </span>
               </div>
             </div>
@@ -944,10 +989,10 @@ export function ResourcesView() {
             className="hidden"
           />
 
-          <div className="space-y-5">
+          <div className="space-y-6">
             {/* Success Notification Banner */}
             {saveSuccessMessage && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 flex items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-xs text-emerald-800 flex items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span className="font-semibold">{saveSuccessMessage}</span>
@@ -962,23 +1007,23 @@ export function ResourcesView() {
               </div>
             )}
 
-            {/* Compact Uploader Area */}
+            {/* Elevated Uploader Hero Pod */}
             {selectedRemittance || draftRemittance ? (
               /* Slim 1-row Toolbar when a Statement is already loaded */
               <div
                 onClick={() => !isUploading && fileInputRef.current?.click()}
-                className="bg-white hover:bg-blue-50/40 border border-dashed border-slate-300 hover:border-blue-400 rounded-xl px-4 py-2.5 transition-all cursor-pointer flex items-center justify-between shadow-2xs group"
+                className="bg-white hover:bg-blue-50/40 border border-dashed border-slate-300 hover:border-blue-400 rounded-2xl px-5 py-3 transition-all cursor-pointer flex items-center justify-between shadow-2xs group"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
                     {isUploading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Upload className="w-3.5 h-3.5" />
+                      <Upload className="w-4 h-4" />
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-slate-800">
+                    <span className="text-xs font-black text-slate-900 group-hover:text-blue-600 transition-colors">
                       {isUploading
                         ? "Extracting remittance data..."
                         : currentVendor.fileType === "excel"
@@ -994,63 +1039,79 @@ export function ResourcesView() {
                 </div>
                 <button
                   type="button"
-                  className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-bold transition-colors pointer-events-none"
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white text-xs font-bold transition-colors pointer-events-none shadow-2xs"
                 >
                   {isUploading ? "Reading..." : "Browse File"}
                 </button>
               </div>
             ) : (
-              /* Sleek Horizontal Strip when no statement is loaded yet */
+              /* High-Impact Interactive Upload Hero Pod */
               <div
                 onClick={() => !isUploading && fileInputRef.current?.click()}
-                className={`bg-white rounded-2xl border-2 border-dashed p-4 sm:p-5 transition-all cursor-pointer flex items-center justify-between gap-4 ${
+                className={`bg-gradient-to-b from-blue-50/50 via-white to-slate-50/50 rounded-3xl border-2 border-dashed p-8 sm:p-10 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group shadow-xs hover:shadow-md ${
                   isUploading
-                    ? "border-blue-400 bg-blue-50/30 cursor-wait"
-                    : "border-slate-300 hover:border-blue-500 hover:bg-slate-50/60 shadow-xs"
+                    ? "border-blue-400 bg-blue-50/40 cursor-wait"
+                    : "border-blue-300/80 hover:border-blue-500 hover:bg-blue-50/60"
                 }`}
               >
-                <div className="flex items-center gap-3.5 text-left">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs shrink-0">
-                    {isUploading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : currentVendor.fileType === "excel" ? (
-                      <FileSpreadsheet className="w-5 h-5" />
-                    ) : currentVendor.fileType === "image" ? (
-                      <Camera className="w-5 h-5" />
-                    ) : (
-                      <Upload className="w-5 h-5" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">
-                      {isUploading
-                        ? `Extracting ${currentVendor.name} Data...`
-                        : currentVendor.fileType === "excel"
-                        ? `Click or drag & drop ${currentVendor.name} remittance Excel (.xlsx / .csv) here`
-                        : currentVendor.fileType === "image"
-                        ? `Click or drag & drop ${currentVendor.name} remittance screenshot / image here`
-                        : `Click or drag & drop ${currentVendor.name} remittance PDF here`}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      {currentVendor.id === "teksystems"
-                        ? "Parses consultant message lines, order IDs, gross amount, and 3.5% prompt discounts."
-                        : currentVendor.fileType === "image"
-                        ? "Runs OCR to extract invoice line items, prompt payment discounts, and net bank settlements."
-                        : "Extracts invoice line items, prompt payment discounts, and net bank settlements."}
-                    </p>
-                  </div>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+
+                {/* Animated Central Upload Pod */}
+                <div className="w-16 h-16 rounded-3xl bg-white border border-blue-200 text-blue-600 shadow-lg shadow-blue-500/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 relative z-10">
+                  {isUploading ? (
+                    <Loader2 className="w-7 h-7 animate-spin" />
+                  ) : currentVendor.fileType === "excel" ? (
+                    <FileSpreadsheet className="w-7 h-7" />
+                  ) : currentVendor.fileType === "image" ? (
+                    <Camera className="w-7 h-7" />
+                  ) : (
+                    <Upload className="w-7 h-7" />
+                  )}
                 </div>
+
+                <div className="relative z-10 max-w-md">
+                  <p className="text-base font-black text-slate-900 group-hover:text-blue-600 transition-colors">
+                    {isUploading
+                      ? `Extracting ${currentVendor.name} Data...`
+                      : currentVendor.fileType === "excel"
+                      ? `Upload or drop ${currentVendor.name} remittance Excel (.xlsx / .csv)`
+                      : currentVendor.fileType === "image"
+                      ? `Upload or drop ${currentVendor.name} remittance screenshot / image`
+                      : `Upload or drop ${currentVendor.name} remittance PDF statement`}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    {currentVendor.id === "teksystems"
+                      ? "Parses consultant message lines, client order IDs, gross amounts, and 3.5% prompt discounts."
+                      : currentVendor.fileType === "image"
+                      ? "Runs high-accuracy OCR to extract invoice line items, prompt payment discounts, and net settlements."
+                      : "Extracts invoice line items, prompt payment discounts, and net bank settlements."}
+                  </p>
+                </div>
+
+                {/* Multi-Format Pills Row */}
+                <div className="flex items-center gap-2 flex-wrap justify-center relative z-10 text-[10px] font-mono text-slate-500">
+                  <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200/90 shadow-2xs font-bold text-slate-700">
+                    {currentVendor.fileType === "excel" ? "📊 .xlsx / .csv" : currentVendor.fileType === "image" ? "📸 PNG / JPG" : "📄 PDF Tables"}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200/90 shadow-2xs font-bold text-emerald-700">
+                    ⚡ Instant Parsing
+                  </span>
+                  <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200/90 shadow-2xs font-bold text-indigo-700">
+                    🔒 Data-Only Cloud Storage
+                  </span>
+                </div>
+
                 <button
                   type="button"
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs hover:bg-blue-700 transition-colors pointer-events-none shrink-0"
+                  className="mt-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-black shadow-md shadow-blue-500/20 group-hover:bg-blue-700 transition-colors pointer-events-none relative z-10"
                 >
                   {isUploading
-                    ? "Reading..."
+                    ? "Reading Document..."
                     : currentVendor.fileType === "excel"
                     ? "Browse Spreadsheet"
                     : currentVendor.fileType === "image"
                     ? "Browse Screenshot"
-                    : "Browse PDF"}
+                    : "Browse PDF Document"}
                 </button>
               </div>
             )}
@@ -1919,32 +1980,48 @@ export function ResourcesView() {
               )}
 
               {/* Historical Statements List (Stored in Supabase for 30 Days) */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">
-                      {currentVendor.name} Statement Archive (Supabase 30-Day Window)
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Previously uploaded vendor remittances safely saved in Supabase. Auto-prunes after 30 days.
-                    </p>
+              <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-xs space-y-5 relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shadow-xs shrink-0">
+                      <FolderArchive className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        <span>{currentVendor.name} Statement Archive</span>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          30-DAY WINDOW
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Previously uploaded vendor remittances safely saved in Supabase. Auto-prunes after 30 days.
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-xs font-bold text-slate-500">
+                  <span className="px-3 py-1 rounded-full text-xs font-mono font-black bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs self-start sm:self-center">
                     {remittances.length} {remittances.length === 1 ? "Statement" : "Statements"}
                   </span>
                 </div>
 
                 {isLoadingRemittances ? (
-                  <div className="py-8 flex items-center justify-center gap-2 text-xs text-slate-400">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    <span>Loading saved statements...</span>
+                  <div className="py-12 flex flex-col items-center justify-center gap-2.5 text-xs text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                    <span className="font-semibold text-slate-600">Synchronizing 30-day cloud archive...</span>
                   </div>
                 ) : remittances.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
-                    No statements uploaded yet for {currentVendor.name}. Upload your vendor remittance above.
+                  <div className="py-10 px-4 text-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-slate-400 flex items-center justify-center mb-3 shadow-xs">
+                      <FileSpreadsheet className="w-6 h-6 text-slate-400" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-800">
+                      No statements uploaded yet for {currentVendor.name}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1 max-w-sm">
+                      Upload your vendor remittance advice statement in the dropzone above to extract invoices and discount breakdowns.
+                    </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {remittances.map((rem) => {
                       const isSelected = selectedRemittance?.id === rem.id;
                       const daysLeft = getDaysRemaining(rem.expires_at);
@@ -1952,39 +2029,42 @@ export function ResourcesView() {
                         <div
                           key={rem.id}
                           onClick={() => setSelectedRemittance(rem)}
-                          className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                             isSelected
-                              ? "bg-blue-50/50 border-blue-500/80 ring-2 ring-blue-500/10"
-                              : "bg-slate-50/50 border-slate-200/80 hover:bg-slate-50 hover:border-slate-300"
+                              ? "bg-blue-50/70 border-blue-500 shadow-sm ring-2 ring-blue-500/10"
+                              : "bg-slate-50/60 border-slate-200/90 hover:bg-white hover:border-slate-300 hover:shadow-xs"
                           }`}
                         >
                           <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
-                              <FileText className="w-4 h-4" />
+                            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-blue-600 shrink-0 shadow-2xs">
+                              <FileText className="w-5 h-5" />
                             </div>
                             <div className="truncate">
                               <p className="text-xs font-bold text-slate-900 truncate">
                                 {rem.file_name}
                               </p>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                                <span>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1">
+                                <span className="font-medium text-slate-500">
                                   {new Date(rem.created_at || Date.now()).toLocaleDateString("en-US", {
                                     month: "short",
                                     day: "numeric",
+                                    year: "numeric",
                                   })}
                                 </span>
                                 <span>•</span>
-                                <span>{rem.invoice_count} {rem.vendor_id === "teksystems" ? "consultants" : "invoices"}</span>
+                                <span className="font-semibold text-slate-600">
+                                  {rem.invoice_count} {rem.vendor_id === "teksystems" ? "consultants" : "invoices"}
+                                </span>
                                 <span>•</span>
-                                <span className="font-bold text-amber-600">
+                                <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 font-mono">
                                   {daysLeft}d left
                                 </span>
                               </div>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs font-black font-mono text-emerald-600">
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <span className="text-xs sm:text-sm font-black font-mono text-emerald-600">
                               {formatCurrency(rem.total_paid)}
                             </span>
                             {rem.id && (
