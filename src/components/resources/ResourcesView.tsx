@@ -58,6 +58,47 @@ const DEFAULT_VENDORS: VendorConfig[] = [
   { id: "teksystems", name: "TEKsystems", fileType: "excel" },
 ];
 
+/**
+ * Computes 3-letter day-of-week (e.g. MON, TUE, WED, THU, FRI, SAT, SUN)
+ * from a date string (YYYY-MM-DD, MM/DD/YYYY) or summary range ("2026-09-01 – 2026-09-05")
+ */
+function getDayOfWeekPill(summaryOrDate?: string): string {
+  if (!summaryOrDate) return "";
+  const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  
+  const dateRegex = /\b(\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/g;
+  const matches = summaryOrDate.match(dateRegex);
+  if (!matches || matches.length === 0) return "";
+
+  const parseDay = (dStr: string): string => {
+    const m1 = dStr.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+    if (m1) {
+      const dt = new Date(parseInt(m1[1], 10), parseInt(m1[2], 10) - 1, parseInt(m1[3], 10));
+      if (!isNaN(dt.getTime())) return days[dt.getDay()];
+    }
+    const m2 = dStr.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+    if (m2) {
+      let y = parseInt(m2[3], 10);
+      if (y < 100) y += 2000;
+      const dt = new Date(y, parseInt(m2[1], 10) - 1, parseInt(m2[2], 10));
+      if (!isNaN(dt.getTime())) return days[dt.getDay()];
+    }
+    return "";
+  };
+
+  const firstDay = parseDay(matches[0]);
+  if (!firstDay) return "";
+
+  if (matches.length > 1) {
+    const lastDay = parseDay(matches[matches.length - 1]);
+    if (lastDay && lastDay !== firstDay) {
+      return `${firstDay} – ${lastDay}`;
+    }
+  }
+
+  return firstDay;
+}
+
 export interface RemittanceLinePart {
   part_id: string; // e.g. "33990-1" or "Date Worked 2026-08-24 (8 hrs @ $75/hr)"
   voucher_number?: string; // e.g. "00325494" or "Order #31046162"
@@ -1163,14 +1204,17 @@ export function ResourcesView() {
                       </div>
                       <div className="mt-3">
                         <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
-                          {draftRemittance.invoice_count}{" "}
-                          {activeVendorTab === "teksystems"
-                            ? draftRemittance.invoice_count === 1 ? "Consultant" : "Consultants"
+                          {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems"
+                            ? new Set(draftRemittance.items?.map((it) => it.consultant_name?.trim().toLowerCase()).filter(Boolean)).size || draftRemittance.invoice_count
+                            : draftRemittance.invoice_count}{" "}
+                          {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems"
+                            ? (new Set(draftRemittance.items?.map((it) => it.consultant_name?.trim().toLowerCase()).filter(Boolean)).size || draftRemittance.invoice_count) === 1 ? "Consultant" : "Consultants"
                             : draftRemittance.invoice_count === 1 ? "Invoice" : "Invoices"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                          {draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)}{" "}
-                          {activeVendorTab === "teksystems" ? "work entries reconciled" : "split line items reconciled"}
+                          {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems"
+                            ? `${draftRemittance.items?.length || 0} invoice rows (${draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} daily entries)`
+                            : `${draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} split line items reconciled`}
                         </p>
                       </div>
                     </div>
@@ -1181,21 +1225,20 @@ export function ResourcesView() {
                     <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-bold text-slate-900">
-                          {activeVendorTab === "teksystems"
+                          {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems"
                             ? "Extracted Consultant Settlements (TEKsystems Breakdown)"
                             : "Extracted Invoice Line Items (Grouped by Invoice)"}
                         </h4>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {activeVendorTab === "teksystems"
+                          {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems"
                             ? "Consultant message lines, client orders, gross, 3.5% prompt discount, and net remittance"
                             : "Invoices grouped with their split parts and voucher details"}
                         </p>
                       </div>
                       <span className="text-xs font-mono font-bold text-slate-500">
-                        {draftRemittance.items?.length || 0}{" "}
-                        {activeVendorTab === "teksystems" ? "Consultants" : "Invoices"} (
-                        {draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)}{" "}
-                        {activeVendorTab === "teksystems" ? "Entries" : "Parts"})
+                        {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems"
+                          ? `${new Set(draftRemittance.items?.map((it) => it.consultant_name?.trim().toLowerCase()).filter(Boolean)).size || draftRemittance.invoice_count} Consultants (${draftRemittance.items?.length || 0} Rows)`
+                          : `${draftRemittance.items?.length || 0} Invoices (${draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} Parts)`}
                       </span>
                     </div>
 
@@ -1204,30 +1247,27 @@ export function ResourcesView() {
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
                             <tr>
-                              <th className="py-3 px-4">
-                                {activeVendorTab === "teksystems" ? "Consultant / Resource" : "Invoice #"}
+                              <th className={`py-3 px-4 ${activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "w-[18%]" : ""}`}>
+                                {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "Consultant / Resource" : "Invoice #"}
                               </th>
-                              <th className="py-3 px-4">
-                                {activeVendorTab === "teksystems" ? "Invoice Date" : "Date"}
+                              <th className={`py-3 px-4 ${activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "w-[12%]" : ""}`}>
+                                {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "Invoice Date" : "Date"}
                               </th>
-                              <th className="py-3 px-4 text-right">
-                                {activeVendorTab === "teksystems" ? "Amount (Gross)" : "Gross Amount"}
+                              <th className={`py-3 px-4 text-right ${activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "w-[12%]" : ""}`}>
+                                {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "Amount (Gross)" : "Gross Amount"}
                               </th>
-                              <th className="py-3 px-4 text-right">
-                                {activeVendorTab === "teksystems" ? "Discount Amount (3.5%)" : "Prompt Discount"}
+                              <th className={`py-3 px-4 text-right ${activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "w-[14%]" : ""}`}>
+                                {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "Discount Amount (3.5%)" : "Prompt Discount"}
                               </th>
-                              {activeVendorTab !== "teksystems" && (
+                              {activeVendorTab !== "teksystems" && draftRemittance.vendor_id !== "teksystems" && (
                                 <th className="py-3 px-4 text-right">Deductions</th>
                               )}
-                              <th className="py-3 px-4 text-right">
-                                {activeVendorTab === "teksystems" ? "Paid Amount" : "Net Paid"}
+                              <th className={`py-3 px-4 text-right ${activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "w-[12%]" : ""}`}>
+                                {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "Paid Amount" : "Net Paid"}
                               </th>
-                              <th className="py-3 px-4">
-                                {activeVendorTab === "teksystems" ? "Payment Message" : "Status"}
+                              <th className={`py-3 px-4 ${activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "" : "text-center"}`}>
+                                {activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems" ? "Payment Message" : "Status"}
                               </th>
-                              {activeVendorTab === "teksystems" && (
-                                <th className="py-3 px-4 text-center">Status</th>
-                              )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
@@ -1271,10 +1311,14 @@ export function ResourcesView() {
 
                                     {/* Invoice Date Column */}
                                     <td className="py-3.5 px-4 text-slate-700 font-sans font-semibold">
-                                      <div className="flex items-center gap-1.5">
-                                        <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                        <span>{it.invoice_date || "—"}</span>
-                                      </div>
+                                      {it.invoice_date ? (
+                                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                          <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                          <span>{it.invoice_date}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-300 font-normal">—</span>
+                                      )}
                                     </td>
 
                                     {/* Amount (Gross) Column */}
@@ -1316,9 +1360,9 @@ export function ResourcesView() {
                                       {formatCurrency(it.net_paid)}
                                     </td>
 
-                                    {/* Payment Message Column */}
+                                    {/* Payment Message / Status Column */}
                                     {isTek ? (
-                                      <td className="py-3 px-4 font-sans text-xs max-w-md">
+                                      <td className="py-3 px-4 font-sans text-xs">
                                         <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-1.5 shadow-2xs">
                                           <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <span className="font-bold text-slate-900 flex items-center gap-1.5">
@@ -1343,10 +1387,17 @@ export function ResourcesView() {
                                               </span>
                                             )}
                                             {it.work_dates_summary && (
-                                              <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                                                <Calendar className="w-3 h-3 text-slate-400" />
-                                                <span>{it.work_dates_summary}</span>
-                                              </span>
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                                                  <Calendar className="w-3 h-3 text-slate-400" />
+                                                  <span>{it.work_dates_summary}</span>
+                                                </span>
+                                                {getDayOfWeekPill(it.work_dates_summary) && (
+                                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-black bg-indigo-50 text-indigo-700 border border-indigo-200 tracking-wider shadow-2xs">
+                                                    {getDayOfWeekPill(it.work_dates_summary)}
+                                                  </span>
+                                                )}
+                                              </div>
                                             )}
                                             {it.payment_reference && (
                                               <span className="text-[10px] text-slate-400 font-mono">
@@ -1357,14 +1408,6 @@ export function ResourcesView() {
                                         </div>
                                       </td>
                                     ) : (
-                                      <td className="py-3.5 px-4 text-center font-sans">
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
-                                          Pending Save
-                                        </span>
-                                      </td>
-                                    )}
-
-                                    {isTek && (
                                       <td className="py-3.5 px-4 text-center font-sans">
                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
                                           Pending Save
@@ -1388,7 +1431,14 @@ export function ResourcesView() {
                                           </div>
                                         </td>
                                         <td className="py-2 px-4 text-slate-500 font-sans">
-                                          {p.date || "—"}
+                                          <div className="flex items-center gap-1.5">
+                                            <span>{p.date || "—"}</span>
+                                            {p.date && getDayOfWeekPill(p.date) && (
+                                              <span className="px-1 py-0.2 rounded text-[9px] font-mono font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                {getDayOfWeekPill(p.date)}
+                                              </span>
+                                            )}
+                                          </div>
                                         </td>
                                         <td className="py-2 px-4 text-right text-slate-700 font-mono">
                                           {formatCurrency(p.gross_amount)}
@@ -1411,13 +1461,6 @@ export function ResourcesView() {
                                         <td className="py-2 px-4 text-slate-500 font-sans">
                                           {p.voucher_number || it.client_name || "Daily Work Entry"}
                                         </td>
-                                        {isTek && (
-                                          <td className="py-2 px-4 text-center font-sans">
-                                            <span className="text-[9px] text-slate-400 font-semibold uppercase">
-                                              Entry {pIdx + 1}
-                                            </span>
-                                          </td>
-                                        )}
                                       </tr>
                                     ))}
                                 </React.Fragment>
@@ -1592,14 +1635,17 @@ export function ResourcesView() {
                       </div>
                       <div className="mt-3">
                         <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
-                          {selectedRemittance.invoice_count}{" "}
-                          {selectedRemittance.vendor_id === "teksystems"
-                            ? selectedRemittance.invoice_count === 1 ? "Consultant" : "Consultants"
+                          {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems"
+                            ? new Set(selectedRemittance.items?.map((it) => it.consultant_name?.trim().toLowerCase()).filter(Boolean)).size || selectedRemittance.invoice_count
+                            : selectedRemittance.invoice_count}{" "}
+                          {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems"
+                            ? (new Set(selectedRemittance.items?.map((it) => it.consultant_name?.trim().toLowerCase()).filter(Boolean)).size || selectedRemittance.invoice_count) === 1 ? "Consultant" : "Consultants"
                             : selectedRemittance.invoice_count === 1 ? "Invoice" : "Invoices"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                          {selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)}{" "}
-                          {selectedRemittance.vendor_id === "teksystems" ? "work entries reconciled" : "split line items reconciled"}
+                          {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems"
+                            ? `${selectedRemittance.items?.length || 0} invoice rows (${selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} daily entries)`
+                            : `${selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} split line items reconciled`}
                         </p>
                       </div>
                     </div>
@@ -1610,21 +1656,20 @@ export function ResourcesView() {
                     <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-bold text-slate-900">
-                          {selectedRemittance.vendor_id === "teksystems"
+                          {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems"
                             ? "TEKsystems Consultant Breakdown"
                             : `${selectedRemittance.vendor_name || "Vendor"} Invoice Breakdown (Grouped by Invoice)`}
                         </h4>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {selectedRemittance.vendor_id === "teksystems"
+                          {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems"
                             ? "Consultant settlements, client orders, and prompt discount breakdown"
                             : "Line items parsed from confirmed statement"}
                         </p>
                       </div>
                       <span className="text-xs font-mono font-bold text-slate-500">
-                        {selectedRemittance.items?.length || 0}{" "}
-                        {selectedRemittance.vendor_id === "teksystems" ? "Consultants" : "Invoices"} (
-                        {selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)}{" "}
-                        {selectedRemittance.vendor_id === "teksystems" ? "Entries" : "Parts"})
+                        {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems"
+                          ? `${new Set(selectedRemittance.items?.map((it) => it.consultant_name?.trim().toLowerCase()).filter(Boolean)).size || selectedRemittance.invoice_count} Consultants (${selectedRemittance.items?.length || 0} Rows)`
+                          : `${selectedRemittance.items?.length || 0} Invoices (${selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} Parts)`}
                       </span>
                     </div>
 
@@ -1633,30 +1678,27 @@ export function ResourcesView() {
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
                             <tr>
-                              <th className="py-3 px-4">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Consultant / Resource" : "Invoice #"}
+                              <th className={`py-3 px-4 ${selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "w-[18%]" : ""}`}>
+                                {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "Consultant / Resource" : "Invoice #"}
                               </th>
-                              <th className="py-3 px-4">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Invoice Date" : "Date"}
+                              <th className={`py-3 px-4 ${selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "w-[12%]" : ""}`}>
+                                {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "Invoice Date" : "Date"}
                               </th>
-                              <th className="py-3 px-4 text-right">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Amount (Gross)" : "Gross Amount"}
+                              <th className={`py-3 px-4 text-right ${selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "w-[12%]" : ""}`}>
+                                {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "Amount (Gross)" : "Gross Amount"}
                               </th>
-                              <th className="py-3 px-4 text-right">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Discount Amount (3.5%)" : "Prompt Discount"}
+                              <th className={`py-3 px-4 text-right ${selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "w-[14%]" : ""}`}>
+                                {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "Discount Amount (3.5%)" : "Prompt Discount"}
                               </th>
-                              {selectedRemittance.vendor_id !== "teksystems" && (
+                              {selectedRemittance.vendor_id !== "teksystems" && activeVendorTab !== "teksystems" && (
                                 <th className="py-3 px-4 text-right">Deductions</th>
                               )}
-                              <th className="py-3 px-4 text-right">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Paid Amount" : "Net Paid"}
+                              <th className={`py-3 px-4 text-right ${selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "w-[12%]" : ""}`}>
+                                {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "Paid Amount" : "Net Paid"}
                               </th>
-                              <th className="py-3 px-4">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Payment Message" : "Status"}
+                              <th className={`py-3 px-4 ${selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "" : "text-center"}`}>
+                                {selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems" ? "Payment Message" : "Status"}
                               </th>
-                              {selectedRemittance.vendor_id === "teksystems" && (
-                                <th className="py-3 px-4 text-center">Status</th>
-                              )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
@@ -1700,10 +1742,14 @@ export function ResourcesView() {
 
                                     {/* Invoice Date Column */}
                                     <td className="py-3.5 px-4 text-slate-700 font-sans font-semibold">
-                                      <div className="flex items-center gap-1.5">
-                                        <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                        <span>{it.invoice_date || "—"}</span>
-                                      </div>
+                                      {it.invoice_date ? (
+                                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                          <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                          <span>{it.invoice_date}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-300 font-normal">—</span>
+                                      )}
                                     </td>
 
                                     {/* Amount (Gross) Column */}
@@ -1745,9 +1791,9 @@ export function ResourcesView() {
                                       {formatCurrency(it.net_paid)}
                                     </td>
 
-                                    {/* Payment Message Column */}
+                                    {/* Payment Message / Status Column */}
                                     {isTek ? (
-                                      <td className="py-3 px-4 font-sans text-xs max-w-md">
+                                      <td className="py-3 px-4 font-sans text-xs">
                                         <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-1.5 shadow-2xs">
                                           <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <span className="font-bold text-slate-900 flex items-center gap-1.5">
@@ -1772,10 +1818,17 @@ export function ResourcesView() {
                                               </span>
                                             )}
                                             {it.work_dates_summary && (
-                                              <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                                                <Calendar className="w-3 h-3 text-slate-400" />
-                                                <span>{it.work_dates_summary}</span>
-                                              </span>
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                                                  <Calendar className="w-3 h-3 text-slate-400" />
+                                                  <span>{it.work_dates_summary}</span>
+                                                </span>
+                                                {getDayOfWeekPill(it.work_dates_summary) && (
+                                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-black bg-indigo-50 text-indigo-700 border border-indigo-200 tracking-wider shadow-2xs">
+                                                    {getDayOfWeekPill(it.work_dates_summary)}
+                                                  </span>
+                                                )}
+                                              </div>
                                             )}
                                             {it.payment_reference && (
                                               <span className="text-[10px] text-slate-400 font-mono">
@@ -1786,14 +1839,6 @@ export function ResourcesView() {
                                         </div>
                                       </td>
                                     ) : (
-                                      <td className="py-3.5 px-4 text-center font-sans">
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                          Reconciled
-                                        </span>
-                                      </td>
-                                    )}
-
-                                    {isTek && (
                                       <td className="py-3.5 px-4 text-center font-sans">
                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                           Reconciled
@@ -1817,7 +1862,14 @@ export function ResourcesView() {
                                           </div>
                                         </td>
                                         <td className="py-2 px-4 text-slate-500 font-sans">
-                                          {p.date || "—"}
+                                          <div className="flex items-center gap-1.5">
+                                            <span>{p.date || "—"}</span>
+                                            {p.date && getDayOfWeekPill(p.date) && (
+                                              <span className="px-1 py-0.2 rounded text-[9px] font-mono font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                {getDayOfWeekPill(p.date)}
+                                              </span>
+                                            )}
+                                          </div>
                                         </td>
                                         <td className="py-2 px-4 text-right text-slate-700 font-mono">
                                           {formatCurrency(p.gross_amount)}
@@ -1840,13 +1892,6 @@ export function ResourcesView() {
                                         <td className="py-2 px-4 text-slate-500 font-sans">
                                           {p.voucher_number || it.client_name || "Daily Work Entry"}
                                         </td>
-                                        {isTek && (
-                                          <td className="py-2 px-4 text-center font-sans">
-                                            <span className="text-[9px] text-slate-400 font-semibold uppercase">
-                                              Entry {pIdx + 1}
-                                            </span>
-                                          </td>
-                                        )}
                                       </tr>
                                     ))}
                                 </React.Fragment>

@@ -261,6 +261,10 @@ export async function POST(req: NextRequest) {
           rawPreview = res.rawPreview;
         }
 
+        const uniqueConsultantCount = vendorId === "teksystems"
+          ? new Set(items.map((it) => it.consultant_name?.trim().toLowerCase()).filter(Boolean)).size || items.length
+          : items.length;
+
         const draftRecord = {
           vendor_id: vendorId,
           vendor_name: vendorName,
@@ -270,7 +274,7 @@ export async function POST(req: NextRequest) {
           total_gross: totals.gross,
           total_discount: totals.discount,
           total_deductions: totals.writeoff,
-          invoice_count: items.length,
+          invoice_count: uniqueConsultantCount,
           items: items,
           raw_text: rawPreview.slice(0, 5000),
           is_draft: true,
@@ -610,9 +614,8 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
     const paymentMessage = messageCol >= 0 ? String(row[messageCol] || "").trim() : "";
     const paymentRef = refCol >= 0 ? String(row[refCol] || "").trim() : "";
     const invoiceNum = invoiceNumCol >= 0 ? String(row[invoiceNumCol] || "").trim() : "";
-    const invDate =
-      (invoiceDateCol >= 0 ? parseDateStr(row[invoiceDateCol]) : "") ||
-      (processDateCol >= 0 ? parseDateStr(row[processDateCol]) : "");
+    // Only extract invoice date if the InvoiceDate column actually has a value in this row
+    const invDate = invoiceDateCol >= 0 ? parseDateStr(row[invoiceDateCol]) : "";
 
     // Ignore completely empty rows
     if (rawGross === 0 && rawPaid === 0 && !paymentMessage && !paymentRef) {
@@ -855,7 +858,8 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
       total_hours: g.totalHours || g.parts.length * 8,
       work_dates_summary: `${dateSummary} (${hoursDisplay})`,
       payment_reference: g.batchRef,
-      invoice_date: g.invoiceDate || (sortedDatesWorked[0] || "—"),
+      // Strictly keep invoice_date empty if not specified in Excel (never invent or substitute daily work dates)
+      invoice_date: g.invoiceDate || "",
       gross_amount: finalGross,
       discount_amount: finalDiscount,
       deductions_amount: 0,
@@ -877,9 +881,11 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
       return nameCmp;
     }
 
-    // 2. Secondary Sort: Invoice Date ascending (e.g. 09-11 comes before 09-14)
-    const timeA = parseDateToTimestamp(a.invoice_date || "");
-    const timeB = parseDateToTimestamp(b.invoice_date || "");
+    // 2. Secondary Sort: Chronological order (prefer invoice_date; fallback to first work date for ordering so daily entries remain sequenced)
+    const dateA = a.invoice_date || (a.parts && a.parts[0]?.date) || "";
+    const dateB = b.invoice_date || (b.parts && b.parts[0]?.date) || "";
+    const timeA = parseDateToTimestamp(dateA);
+    const timeB = parseDateToTimestamp(dateB);
     if (timeA !== timeB) {
       return timeA - timeB;
     }
