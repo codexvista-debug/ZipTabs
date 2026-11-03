@@ -63,6 +63,11 @@ export interface RemittanceItem {
   consultant_name?: string;
   client_name?: string;
   order_id?: string;
+  employee_id?: string;
+  pay_rate?: number;
+  pay_type?: string;
+  total_hours?: number;
+  work_dates_summary?: string;
   payment_reference?: string;
   invoice_date?: string;
   gross_amount: number;
@@ -72,6 +77,7 @@ export interface RemittanceItem {
   part_count?: number;
   parts?: RemittanceLinePart[];
   notes?: string;
+  payment_message?: string;
 }
 
 export interface RemittanceRecord {
@@ -1031,7 +1037,7 @@ export function ResourcesView() {
                                 {activeVendorTab === "teksystems" ? "Consultant / Resource" : "Invoice #"}
                               </th>
                               <th className="py-3 px-4">
-                                {activeVendorTab === "teksystems" ? "Client & Order ID" : "Date"}
+                                {activeVendorTab === "teksystems" ? "Payment Message" : "Date"}
                               </th>
                               {activeVendorTab === "teksystems" && (
                                 <th className="py-3 px-4">Period / Date</th>
@@ -1084,12 +1090,45 @@ export function ResourcesView() {
                                       </div>
                                     </td>
                                     {isTek ? (
-                                      <td className="py-3.5 px-4 text-slate-600 font-sans text-xs">
-                                        <div className="flex flex-col">
-                                          <span className="font-semibold text-slate-800">{it.client_name || "Client"}</span>
-                                          {it.order_id && (
-                                            <span className="text-[10px] text-slate-400 font-mono">Order #{it.order_id}</span>
-                                          )}
+                                      <td className="py-3 px-4 font-sans text-xs max-w-md">
+                                        <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-1.5 shadow-2xs">
+                                          {/* Client & Order ID Header */}
+                                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                              <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                              <span>{it.client_name || "Client Account"}</span>
+                                            </span>
+                                            {it.order_id && (
+                                              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                Order #{it.order_id}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {/* Structured Details: Employee Badge, Rate & Type, Hours, Date Range, Ref */}
+                                          <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-600">
+                                            {it.employee_id && (
+                                              <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-[10px] text-slate-700">
+                                                ID: <strong>{it.employee_id}</strong>
+                                              </span>
+                                            )}
+                                            {it.pay_rate && (
+                                              <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-[10px] text-emerald-700 font-bold">
+                                                ${it.pay_rate}/hr {it.pay_type ? `(${it.pay_type})` : ""}
+                                              </span>
+                                            )}
+                                            {it.work_dates_summary && (
+                                              <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                                                <Calendar className="w-3 h-3 text-slate-400" />
+                                                <span>{it.work_dates_summary}</span>
+                                              </span>
+                                            )}
+                                            {it.payment_reference && (
+                                              <span className="text-[10px] text-slate-400 font-mono">
+                                                Ref: {it.payment_reference}
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
                                       </td>
                                     ) : (
@@ -1404,7 +1443,7 @@ export function ResourcesView() {
                                 {selectedRemittance.vendor_id === "teksystems" ? "Consultant / Resource" : "Invoice #"}
                               </th>
                               <th className="py-3 px-4">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Client & Order ID" : "Date"}
+                                {selectedRemittance.vendor_id === "teksystems" ? "Payment Message" : "Date"}
                               </th>
                               {selectedRemittance.vendor_id === "teksystems" && (
                                 <th className="py-3 px-4">Period / Date</th>
@@ -1457,12 +1496,45 @@ export function ResourcesView() {
                                       </div>
                                     </td>
                                     {isTek ? (
-                                      <td className="py-3.5 px-4 text-slate-600 font-sans text-xs">
-                                        <div className="flex flex-col">
-                                          <span className="font-semibold text-slate-800">{it.client_name || "Client"}</span>
-                                          {it.order_id && (
-                                            <span className="text-[10px] text-slate-400 font-mono">Order #{it.order_id}</span>
-                                          )}
+                                      <td className="py-3 px-4 font-sans text-xs max-w-md">
+                                        <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-1.5 shadow-2xs">
+                                          {/* Client & Order ID Header */}
+                                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                              <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                              <span>{it.client_name || "Client Account"}</span>
+                                            </span>
+                                            {it.order_id && (
+                                              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                Order #{it.order_id}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {/* Structured Details: Employee Badge, Rate & Type, Hours, Date Range, Ref */}
+                                          <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-600">
+                                            {it.employee_id && (
+                                              <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-[10px] text-slate-700">
+                                                ID: <strong>{it.employee_id}</strong>
+                                              </span>
+                                            )}
+                                            {it.pay_rate && (
+                                              <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-[10px] text-emerald-700 font-bold">
+                                                ${it.pay_rate}/hr {it.pay_type ? `(${it.pay_type})` : ""}
+                                              </span>
+                                            )}
+                                            {it.work_dates_summary && (
+                                              <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                                                <Calendar className="w-3 h-3 text-slate-400" />
+                                                <span>{it.work_dates_summary}</span>
+                                              </span>
+                                            )}
+                                            {it.payment_reference && (
+                                              <span className="text-[10px] text-slate-400 font-mono">
+                                                Ref: {it.payment_reference}
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
                                       </td>
                                     ) : (

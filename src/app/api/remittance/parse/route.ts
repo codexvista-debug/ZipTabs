@@ -82,6 +82,11 @@ export interface ParsedInvoiceItem {
   consultant_name?: string;
   client_name?: string;
   order_id?: string;
+  employee_id?: string;
+  pay_rate?: number;
+  pay_type?: string;
+  total_hours?: number;
+  work_dates_summary?: string;
   payment_reference?: string;
   invoice_date?: string;
   gross_amount: number;
@@ -91,6 +96,7 @@ export interface ParsedInvoiceItem {
   part_count: number;
   parts: RemittanceLinePart[];
   notes?: string;
+  payment_message?: string;
 }
 
 // 3. POST:
@@ -449,7 +455,26 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
     return String(val).trim();
   };
 
-  const items: ParsedInvoiceItem[] = [];
+  interface ConsultantGroup {
+    consultantName: string;
+    clientName: string;
+    orderId: string;
+    employeeId: string;
+    payRate: number;
+    payType: string;
+    batchRef: string;
+    invoiceDate: string;
+    grossAmount: number;
+    discountAmount: number;
+    netPaid: number;
+    totalHours: number;
+    datesWorked: string[];
+    parts: RemittanceLinePart[];
+    rawMessages: string[];
+  }
+
+  const consultantMap = new Map<string, ConsultantGroup>();
+  let lastKnownConsultant = "";
   const dataRows = rawRows.slice(headerRowIndex + 1);
 
   dataRows.forEach((row, rowIdx) => {
@@ -467,138 +492,238 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
       (invoiceDateCol >= 0 ? parseDateStr(row[invoiceDateCol]) : "") ||
       (processDateCol >= 0 ? parseDateStr(row[processDateCol]) : "");
 
-    // Ignore completely empty rows or footer notes
-    if (rawGross === 0 && rawPaid === 0 && !paymentMessage) {
+    // Ignore completely empty rows
+    if (rawGross === 0 && rawPaid === 0 && !paymentMessage && !paymentRef) {
       return;
     }
 
-    // 3. Parse Payment Message:
-    // Format: "08045118|Majithia, Akash|Date Worked 2026-08-24|Hours 8|REG-Regular|Pay Rate @ 75|Lowe's Companies, Inc.|Order ID 31046162"
+    // 3. Parse Payment Message tokens:
+    // Format: "08345118|Majithia, Akash|Date Worked 2026-08-24|Hours 8|REG-Regular|Pay Rate @ 75|Lowe's Companies, Inc.|Order ID 31046162,"
+    // Format 2: "08345118|Majithia, Akash|2026-08-29|MO_238236| Hours|Lowe's Companies, Inc.|31046162"
     const messageLines = paymentMessage
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
 
-    let consultantName = "";
-    let clientName = "";
-    let orderId = "";
-    const parts: RemittanceLinePart[] = [];
+    let rowConsultant = "";
+    let rowClient = "";
+    let rowOrderId = "";
+    let rowEmpId = "";
+    let rowRate = 0;
+    let rowType = "";
+    let rowBatch = "";
 
-    messageLines.forEach((mLine, lIdx) => {
-      const tokens = mLine.split("|").map((t) => t.trim());
+    const linesToProcess = messageLines.length > 0 ? messageLines : (paymentMessage ? [paymentMessage] : []);
 
-      let dateWorked = "";
-      let hours = 0;
-      let payRate = 0;
+    linesToProcess.forEach((mLine) => {
+      const cleanLine = mLine.replace(/[,;]+$/, "");
+      const tokens = cleanLine.split("|").map((t) => t.trim().replace(/^[,;]+|[,;]+$/g, ""));
 
-      for (let tIdx = 0; tIdx < tokens.length; tIdx++) {
-        const tok = tokens[tIdx];
+      tokens.forEach((tok, tIdx) => {
+        // 1. Employee ID: 6-12 digits
+        if (!rowEmpId && /^\d{6,12}$/.test(tok)) {
+          rowEmpId = tok;
+          return;
+        }
 
-        // 1. Consultant Name candidate (e.g. "Majithia, Akash" or "Meghana Karanm")
-        if (!consultantName) {
-          if (tok.includes(",") && !tok.toLowerCase().includes("inc") && !tok.toLowerCase().includes("corp")) {
-            consultantName = tok;
+        // 2. Consultant Name: contains comma (e.g. "Majithia, Akash") or is at index 1
+        if (!rowConsultant) {
+          if (tok.includes(",") && !/inc|corp|co\b|llc|bank|order|date|hour|rate|mexxage|message/i.test(tok)) {
+            rowConsultant = tok;
+            return;
           } else if (
             tIdx === 1 &&
             !/date|hour|rate|order|reg|pay/i.test(tok) &&
-            !/inc|corp|llc|co\b/i.test(tok)
+            !/inc|corp|llc|co\b|bank/i.test(tok)
           ) {
-            consultantName = tok;
+            rowConsultant = tok;
+            return;
           }
         }
 
-        // 2. Date Worked: "Date Worked 2026-08-24"
-        const dateMatch = tok.match(/Date Worked\s+([\d-]+)/i) || tok.match(/(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})/);
-        if (dateMatch && !dateWorked) {
-          dateWorked = dateMatch[1];
+        // 3. Date Worked: "Date Worked 2026-08-24" or "2026-08-29"
+        const dateMatch = tok.match(/Date Worked\s+([\d-]+)/i) || tok.match(/^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})$/);
+        if (dateMatch && !rowBatch) {
+          return;
         }
 
-        // 3. Hours: "Hours 8"
-        const hoursMatch = tok.match(/Hours\s+([\d.]+)/i);
+        // 4. Hours: "Hours 8" or "8 Hours"
+        const hoursMatch = tok.match(/Hours\s*([\d.]+)/i) || tok.match(/^([\d.]+)\s*Hours/i);
         if (hoursMatch) {
-          hours = parseFloat(hoursMatch[1]) || 0;
+          return;
         }
 
-        // 4. Pay Rate: "Pay Rate @ 75"
-        const rateMatch = tok.match(/Pay Rate\s*@?\s*([\d.]+)/i);
+        // 5. Pay Type: "REG-Regular", "OT-Overtime"
+        if (/REG|OT|Regular|Overtime/i.test(tok)) {
+          rowType = tok;
+          return;
+        }
+
+        // 6. Pay Rate: "Pay Rate @ 75" or "Rate @ 75"
+        const rateMatch = tok.match(/Pay Rate\s*@?\s*([\d.]+)/i) || tok.match(/Rate\s*@?\s*([\d.]+)/i);
         if (rateMatch) {
-          payRate = parseFloat(rateMatch[1]) || 0;
+          rowRate = parseFloat(rateMatch[1]) || 0;
+          return;
         }
 
-        // 5. Client candidate: "Lowe's Companies, Inc." or "Federal Home Loan Mortgage Corporation"
-        if (!clientName) {
-          if (/inc\b|corp\b|llc\b|companies\b|corporation\b|mortgage\b|bank\b/i.test(tok)) {
-            clientName = tok;
-          } else if (tIdx === 6 && !tok.toLowerCase().includes("order")) {
-            clientName = tok;
-          }
+        // 7. Client Name: contains Inc, Corp, LLC, Companies, Corporation, Mortgage, etc.
+        if (!rowClient && /inc\b|corp\b|llc\b|companies\b|corporation\b|mortgage\b|bank\b/i.test(tok)) {
+          rowClient = tok;
+          return;
         }
 
-        // 6. Order ID candidate: "Order ID 31046162"
+        // 8. Order ID: "Order ID 31046162" or trailing digits
         const orderMatch = tok.match(/Order\s*(?:ID)?\s*[:#]?\s*([A-Za-z0-9_-]+)/i);
-        if (orderMatch && !orderId) {
-          orderId = orderMatch[1];
+        if (orderMatch && !rowOrderId) {
+          rowOrderId = orderMatch[1].replace(/[,;]+$/, "");
+          return;
+        } else if (!rowOrderId && /^\d{7,10}$/.test(tok) && tok !== rowEmpId) {
+          rowOrderId = tok;
+          return;
         }
+
+        // 9. Batch Reference: e.g. "MO_238236"
+        if (!rowBatch && /^[A-Za-z]{2,5}_\d+$/.test(tok)) {
+          rowBatch = tok;
+          return;
+        }
+      });
+
+      if (rowConsultant) {
+        lastKnownConsultant = rowConsultant;
+      }
+    });
+
+    const activeConsultant = rowConsultant || lastKnownConsultant || "Consultant Settlement";
+    const groupKey = activeConsultant.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    if (!consultantMap.has(groupKey)) {
+      consultantMap.set(groupKey, {
+        consultantName: activeConsultant,
+        clientName: rowClient || "",
+        orderId: rowOrderId || "",
+        employeeId: rowEmpId || "",
+        payRate: rowRate || 0,
+        payType: rowType || "",
+        batchRef: rowBatch || paymentRef || invoiceNum || "",
+        invoiceDate: invDate || "",
+        grossAmount: 0,
+        discountAmount: 0,
+        netPaid: 0,
+        totalHours: 0,
+        datesWorked: [],
+        parts: [],
+        rawMessages: [],
+      });
+    }
+
+    const group = consultantMap.get(groupKey)!;
+
+    // Accumulate monetary totals across rows for this consultant
+    group.grossAmount += rawGross;
+    group.discountAmount += rawDiscount;
+    group.netPaid += rawPaid;
+
+    if (rowClient && !group.clientName) group.clientName = rowClient;
+    if (rowOrderId && !group.orderId) group.orderId = rowOrderId;
+    if (rowEmpId && !group.employeeId) group.employeeId = rowEmpId;
+    if (rowRate && !group.payRate) group.payRate = rowRate;
+    if (rowType && !group.payType) group.payType = rowType;
+    if (rowBatch && !group.batchRef) group.batchRef = rowBatch;
+    if (invDate && !group.invoiceDate) group.invoiceDate = invDate;
+    if (paymentMessage) group.rawMessages.push(paymentMessage);
+
+    // Extract daily work entries / sub-parts
+    linesToProcess.forEach((mLine) => {
+      const cleanLine = mLine.replace(/[,;]+$/, "");
+      const tokens = cleanLine.split("|").map((t) => t.trim().replace(/^[,;]+|[,;]+$/g, ""));
+
+      let dateWorked = "";
+      let hours = 0;
+      let payRate = group.payRate || 0;
+      let payType = group.payType || "REG-Regular";
+
+      tokens.forEach((tok) => {
+        const dateMatch = tok.match(/Date Worked\s+([\d-]+)/i) || tok.match(/^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})$/);
+        if (dateMatch && !dateWorked) dateWorked = dateMatch[1];
+
+        const hoursMatch = tok.match(/Hours\s*([\d.]+)/i) || tok.match(/^([\d.]+)\s*Hours/i);
+        if (hoursMatch) hours = parseFloat(hoursMatch[1]) || 0;
+
+        const rateMatch = tok.match(/Pay Rate\s*@?\s*([\d.]+)/i) || tok.match(/Rate\s*@?\s*([\d.]+)/i);
+        if (rateMatch) payRate = parseFloat(rateMatch[1]) || payRate;
+
+        if (/REG|OT|Regular|Overtime/i.test(tok)) payType = tok;
+      });
+
+      if (dateWorked && !group.datesWorked.includes(dateWorked)) {
+        group.datesWorked.push(dateWorked);
+      }
+      if (hours > 0) {
+        group.totalHours += hours;
       }
 
-      // Calculate part amounts
-      const lineGross = hours && payRate ? hours * payRate : (messageLines.length > 0 ? rawGross / messageLines.length : rawGross);
-      const discountRatio = rawGross > 0 ? lineGross / rawGross : (1 / Math.max(1, messageLines.length));
-      const lineDiscount = rawDiscount * discountRatio;
-      const lineNet = lineGross - lineDiscount;
+      const partGross = hours > 0 && payRate > 0 ? hours * payRate : (rawGross > 0 ? rawGross : 0);
+      const partDisc = Math.round(partGross * 0.035 * 100) / 100;
+      const partNet = partGross - partDisc;
 
-      parts.push({
+      group.parts.push({
         part_id: dateWorked
-          ? `Date Worked ${dateWorked} (${hours || 8} hrs @ $${payRate || "—"}/hr)`
-          : `Entry ${lIdx + 1}`,
-        voucher_number: orderId ? `Order #${orderId}` : (paymentRef ? `Ref #${paymentRef}` : undefined),
+          ? `Date Worked: ${dateWorked} (${hours || 8} hrs @ $${payRate || "—"}/hr • ${payType})`
+          : (rowBatch ? `Batch Summary: ${rowBatch}` : `Work Entry ${group.parts.length + 1}`),
+        voucher_number: rowOrderId ? `Order #${rowOrderId}` : (rowBatch ? `Ref #${rowBatch}` : undefined),
         date: dateWorked || invDate,
-        gross_amount: Math.round(lineGross * 100) / 100,
-        amount_paid: Math.round(lineNet * 100) / 100,
-        discount_amount: Math.round(lineDiscount * 100) / 100,
+        gross_amount: Math.round(partGross * 100) / 100,
+        amount_paid: Math.round(partNet * 100) / 100,
+        discount_amount: Math.round(partDisc * 100) / 100,
         writeoff_amount: 0,
-        net_paid: Math.round(lineNet * 100) / 100,
+        net_paid: Math.round(partNet * 100) / 100,
         hours: hours || undefined,
         rate: payRate || undefined,
       });
     });
+  });
 
-    // Fallback if no parts extracted
-    if (parts.length === 0) {
-      parts.push({
-        part_id: invoiceNum || `Row ${rowIdx + 1}`,
-        voucher_number: paymentRef || undefined,
-        date: invDate,
-        gross_amount: rawGross,
-        amount_paid: rawPaid,
-        discount_amount: rawDiscount,
-        writeoff_amount: 0,
-        net_paid: rawPaid,
-      });
+  // Convert grouped unique consultants to items list
+  const items: ParsedInvoiceItem[] = Array.from(consultantMap.values()).map((g) => {
+    const sortedDates = [...g.datesWorked].sort();
+    const dateSummary = sortedDates.length > 0
+      ? (sortedDates.length === 1 ? sortedDates[0] : `${sortedDates[0]} – ${sortedDates[sortedDates.length - 1]}`)
+      : (g.invoiceDate || "—");
+
+    const finalGross = Math.round(g.grossAmount * 100) / 100;
+    let finalDiscount = Math.round(g.discountAmount * 100) / 100;
+    if (finalDiscount === 0 && finalGross > 0) {
+      finalDiscount = Math.round(finalGross * 0.035 * 100) / 100;
+    }
+    let finalNet = Math.round(g.netPaid * 100) / 100;
+    if (finalNet === 0 && finalGross > 0) {
+      finalNet = finalGross - finalDiscount;
     }
 
-    // Friendly display name for the settlement row
-    const displayConsultant = consultantName
-      ? (consultantName.includes(",")
-          ? consultantName.split(",").reverse().map((s) => s.trim()).join(" ")
-          : consultantName)
-      : (orderId ? `Order #${orderId}` : (invoiceNum || `Settlement #${rowIdx + 1}`));
+    const hoursDisplay = g.totalHours > 0 ? `${g.totalHours} hrs` : `${g.parts.length * 8} hrs`;
 
-    items.push({
-      invoice_number: displayConsultant,
-      consultant_name: consultantName || displayConsultant,
-      client_name: clientName || "Client Account",
-      order_id: orderId || invoiceNum || paymentRef,
-      payment_reference: paymentRef || undefined,
-      invoice_date: invDate,
-      gross_amount: rawGross,
-      discount_amount: rawDiscount,
+    return {
+      invoice_number: g.consultantName,
+      consultant_name: g.consultantName,
+      client_name: g.clientName || "Client Account",
+      order_id: g.orderId,
+      employee_id: g.employeeId,
+      pay_rate: g.payRate,
+      pay_type: g.payType || "REG-Regular",
+      total_hours: g.totalHours || (g.parts.length * 8),
+      work_dates_summary: `${dateSummary} (${hoursDisplay})`,
+      payment_reference: g.batchRef,
+      invoice_date: g.invoiceDate || (sortedDates[0] || "—"),
+      gross_amount: finalGross,
+      discount_amount: finalDiscount,
       deductions_amount: 0,
-      net_paid: rawPaid,
-      part_count: parts.length,
-      parts: parts,
-      notes: paymentMessage || (orderId ? `Order ID: ${orderId}` : undefined),
-    });
+      net_paid: finalNet,
+      part_count: g.parts.length,
+      parts: g.parts,
+      notes: g.rawMessages.join("\n"),
+      payment_message: g.rawMessages[0] || "",
+    };
   });
 
   const totals = {
