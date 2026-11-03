@@ -1208,29 +1208,32 @@ export function ResourcesView() {
                                 {activeVendorTab === "teksystems" ? "Consultant / Resource" : "Invoice #"}
                               </th>
                               <th className="py-3 px-4">
-                                {activeVendorTab === "teksystems" ? "Payment Message" : "Date"}
-                              </th>
-                              {activeVendorTab === "teksystems" && (
-                                <th className="py-3 px-4">Period / Date</th>
-                              )}
-                              <th className="py-3 px-4 text-right">
-                                {activeVendorTab === "teksystems" ? "Gross Billed" : "Gross Amount"}
+                                {activeVendorTab === "teksystems" ? "Invoice Date" : "Date"}
                               </th>
                               <th className="py-3 px-4 text-right">
-                                {activeVendorTab === "teksystems" ? "Prompt Discount (3.5%)" : "Prompt Discount"}
+                                {activeVendorTab === "teksystems" ? "Amount (Gross)" : "Gross Amount"}
+                              </th>
+                              <th className="py-3 px-4 text-right">
+                                {activeVendorTab === "teksystems" ? "Discount Amount (3.5%)" : "Prompt Discount"}
                               </th>
                               {activeVendorTab !== "teksystems" && (
                                 <th className="py-3 px-4 text-right">Deductions</th>
                               )}
                               <th className="py-3 px-4 text-right">
-                                {activeVendorTab === "teksystems" ? "Net Remitted" : "Net Paid"}
+                                {activeVendorTab === "teksystems" ? "Paid Amount" : "Net Paid"}
                               </th>
-                              <th className="py-3 px-4 text-center">Status</th>
+                              <th className="py-3 px-4">
+                                {activeVendorTab === "teksystems" ? "Payment Message" : "Status"}
+                              </th>
+                              {activeVendorTab === "teksystems" && (
+                                <th className="py-3 px-4 text-center">Status</th>
+                              )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
                             {draftRemittance.items.map((it, idx) => {
-                              const isCollapsed = collapsedInvoices[it.invoice_number] === true;
+                              const itemKey = `${it.invoice_number}_${it.invoice_date || idx}`;
+                              const isCollapsed = collapsedInvoices[itemKey] === true;
                               const hasParts = it.parts && it.parts.length > 1;
                               const isTek = activeVendorTab === "teksystems" || draftRemittance.vendor_id === "teksystems";
 
@@ -1243,10 +1246,15 @@ export function ResourcesView() {
                                         <span className="text-blue-600 font-extrabold">
                                           {isTek ? (it.consultant_name || it.invoice_number) : `#${it.invoice_number}`}
                                         </span>
+                                        {isTek && it.invoice_number && (
+                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                            #{it.invoice_number}
+                                          </span>
+                                        )}
                                         {hasParts && (
                                           <button
                                             type="button"
-                                            onClick={() => toggleInvoiceCollapse(it.invoice_number)}
+                                            onClick={() => toggleInvoiceCollapse(itemKey)}
                                             className="px-2 py-0.5 rounded-md text-[10px] font-sans font-extrabold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
                                             title={isTek ? "Toggle daily work entries" : "Toggle split parts"}
                                           >
@@ -1260,10 +1268,58 @@ export function ResourcesView() {
                                         )}
                                       </div>
                                     </td>
+
+                                    {/* Invoice Date Column */}
+                                    <td className="py-3.5 px-4 text-slate-700 font-sans font-semibold">
+                                      <div className="flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                        <span>{it.invoice_date || "—"}</span>
+                                      </div>
+                                    </td>
+
+                                    {/* Amount (Gross) Column */}
+                                    <td className="py-3.5 px-4 text-right font-bold text-slate-900 font-mono">
+                                      {formatCurrency(it.gross_amount)}
+                                    </td>
+
+                                    {/* Discount Amount Column */}
+                                    <td className="py-3.5 px-4 text-right text-slate-500 font-mono">
+                                      {it.discount_amount > 0 ? (
+                                        <span className="text-amber-600 font-semibold flex items-center justify-end gap-1">
+                                          <span>-{formatCurrency(it.discount_amount)}</span>
+                                          {isTek && (
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200">
+                                              3.5%
+                                            </span>
+                                          )}
+                                        </span>
+                                      ) : (
+                                        "$0.00"
+                                      )}
+                                    </td>
+
+                                    {/* Deductions (Non-Tek) */}
+                                    {!isTek && (
+                                      <td className="py-3.5 px-4 text-right text-slate-500 font-mono">
+                                        {it.deductions_amount > 0 ? (
+                                          <span className="text-rose-600 font-semibold">
+                                            -{formatCurrency(it.deductions_amount)}
+                                          </span>
+                                        ) : (
+                                          "$0.00"
+                                        )}
+                                      </td>
+                                    )}
+
+                                    {/* Paid Amount (Net) Column */}
+                                    <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm font-mono">
+                                      {formatCurrency(it.net_paid)}
+                                    </td>
+
+                                    {/* Payment Message Column */}
                                     {isTek ? (
                                       <td className="py-3 px-4 font-sans text-xs max-w-md">
                                         <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-1.5 shadow-2xs">
-                                          {/* Client & Order ID Header */}
                                           <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <span className="font-bold text-slate-900 flex items-center gap-1.5">
                                               <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -1275,8 +1331,6 @@ export function ResourcesView() {
                                               </span>
                                             )}
                                           </div>
-
-                                          {/* Structured Details: Employee Badge, Rate & Type, Hours, Date Range, Ref */}
                                           <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-600">
                                             {it.employee_id && (
                                               <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-[10px] text-slate-700">
@@ -1303,51 +1357,20 @@ export function ResourcesView() {
                                         </div>
                                       </td>
                                     ) : (
-                                      <td className="py-3.5 px-4 text-slate-500 font-sans">
-                                        {it.invoice_date || "—"}
-                                      </td>
-                                    )}
-                                    {isTek && (
-                                      <td className="py-3.5 px-4 text-slate-500 font-sans">
-                                        {it.invoice_date || "—"}
-                                      </td>
-                                    )}
-                                    <td className="py-3.5 px-4 text-right font-bold text-slate-900">
-                                      {formatCurrency(it.gross_amount)}
-                                    </td>
-                                    <td className="py-3.5 px-4 text-right text-slate-500">
-                                      {it.discount_amount > 0 ? (
-                                        <span className="text-amber-600 font-semibold flex items-center justify-end gap-1">
-                                          <span>-{formatCurrency(it.discount_amount)}</span>
-                                          {isTek && (
-                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200">
-                                              3.5%
-                                            </span>
-                                          )}
+                                      <td className="py-3.5 px-4 text-center font-sans">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                                          Pending Save
                                         </span>
-                                      ) : (
-                                        "$0.00"
-                                      )}
-                                    </td>
-                                    {!isTek && (
-                                      <td className="py-3.5 px-4 text-right text-slate-500">
-                                        {it.deductions_amount > 0 ? (
-                                          <span className="text-rose-600 font-semibold">
-                                            -{formatCurrency(it.deductions_amount)}
-                                          </span>
-                                        ) : (
-                                          "$0.00"
-                                        )}
                                       </td>
                                     )}
-                                    <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm">
-                                      {formatCurrency(it.net_paid)}
-                                    </td>
-                                    <td className="py-3.5 px-4 text-center font-sans">
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
-                                        Pending Save
-                                      </span>
-                                    </td>
+
+                                    {isTek && (
+                                      <td className="py-3.5 px-4 text-center font-sans">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                                          Pending Save
+                                        </span>
+                                      </td>
+                                    )}
                                   </tr>
 
                                   {/* Itemized Split Parts Sub-Rows */}
@@ -1358,43 +1381,43 @@ export function ResourcesView() {
                                         key={`${idx}-${pIdx}`}
                                         className="bg-slate-50/70 hover:bg-slate-100/60 transition-colors text-[11px] font-mono border-t border-slate-100/60"
                                       >
-                                        <td colSpan={isTek ? 2 : 1} className="py-2 px-4 pl-8 text-slate-600 font-sans">
+                                        <td className="py-2 px-4 pl-8 text-slate-600 font-sans">
                                           <div className="flex items-center gap-1.5 flex-wrap">
                                             <CornerDownRight className="w-3 h-3 text-slate-400 shrink-0" />
                                             <span className="font-semibold text-slate-800">{p.part_id}</span>
-                                            {p.voucher_number && (
-                                              <span className="text-[10px] text-slate-400 font-sans">
-                                                ({p.voucher_number})
-                                              </span>
-                                            )}
                                           </div>
                                         </td>
-                                        <td className="py-2 px-4 text-slate-400 font-sans">
+                                        <td className="py-2 px-4 text-slate-500 font-sans">
                                           {p.date || "—"}
                                         </td>
-                                        <td className="py-2 px-4 text-right text-slate-700">
+                                        <td className="py-2 px-4 text-right text-slate-700 font-mono">
                                           {formatCurrency(p.gross_amount)}
                                         </td>
-                                        <td className="py-2 px-4 text-right text-slate-400">
+                                        <td className="py-2 px-4 text-right text-slate-400 font-mono">
                                           {p.discount_amount > 0
                                             ? `-${formatCurrency(p.discount_amount)}`
                                             : "$0.00"}
                                         </td>
                                         {!isTek && (
-                                          <td className="py-2 px-4 text-right text-slate-400">
+                                          <td className="py-2 px-4 text-right text-slate-400 font-mono">
                                             {p.writeoff_amount > 0
                                               ? `-${formatCurrency(p.writeoff_amount)}`
                                               : "$0.00"}
                                           </td>
                                         )}
-                                        <td className="py-2 px-4 text-right font-bold text-emerald-600">
+                                        <td className="py-2 px-4 text-right font-bold text-emerald-600 font-mono">
                                           {formatCurrency(p.net_paid)}
                                         </td>
-                                        <td className="py-2 px-4 text-center font-sans">
-                                          <span className="text-[9px] text-slate-400 font-semibold uppercase">
-                                            {isTek ? `Entry ${pIdx + 1}` : `Part ${pIdx + 1}`}
-                                          </span>
+                                        <td className="py-2 px-4 text-slate-500 font-sans">
+                                          {p.voucher_number || it.client_name || "Daily Work Entry"}
                                         </td>
+                                        {isTek && (
+                                          <td className="py-2 px-4 text-center font-sans">
+                                            <span className="text-[9px] text-slate-400 font-semibold uppercase">
+                                              Entry {pIdx + 1}
+                                            </span>
+                                          </td>
+                                        )}
                                       </tr>
                                     ))}
                                 </React.Fragment>
@@ -1614,29 +1637,32 @@ export function ResourcesView() {
                                 {selectedRemittance.vendor_id === "teksystems" ? "Consultant / Resource" : "Invoice #"}
                               </th>
                               <th className="py-3 px-4">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Payment Message" : "Date"}
-                              </th>
-                              {selectedRemittance.vendor_id === "teksystems" && (
-                                <th className="py-3 px-4">Period / Date</th>
-                              )}
-                              <th className="py-3 px-4 text-right">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Gross Billed" : "Gross Amount"}
+                                {selectedRemittance.vendor_id === "teksystems" ? "Invoice Date" : "Date"}
                               </th>
                               <th className="py-3 px-4 text-right">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Prompt Discount (3.5%)" : "Prompt Discount"}
+                                {selectedRemittance.vendor_id === "teksystems" ? "Amount (Gross)" : "Gross Amount"}
+                              </th>
+                              <th className="py-3 px-4 text-right">
+                                {selectedRemittance.vendor_id === "teksystems" ? "Discount Amount (3.5%)" : "Prompt Discount"}
                               </th>
                               {selectedRemittance.vendor_id !== "teksystems" && (
                                 <th className="py-3 px-4 text-right">Deductions</th>
                               )}
                               <th className="py-3 px-4 text-right">
-                                {selectedRemittance.vendor_id === "teksystems" ? "Net Remitted" : "Net Paid"}
+                                {selectedRemittance.vendor_id === "teksystems" ? "Paid Amount" : "Net Paid"}
                               </th>
-                              <th className="py-3 px-4 text-center">Status</th>
+                              <th className="py-3 px-4">
+                                {selectedRemittance.vendor_id === "teksystems" ? "Payment Message" : "Status"}
+                              </th>
+                              {selectedRemittance.vendor_id === "teksystems" && (
+                                <th className="py-3 px-4 text-center">Status</th>
+                              )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
                             {selectedRemittance.items.map((it, idx) => {
-                              const isCollapsed = collapsedInvoices[it.invoice_number] === true;
+                              const itemKey = `${it.invoice_number}_${it.invoice_date || idx}`;
+                              const isCollapsed = collapsedInvoices[itemKey] === true;
                               const hasParts = it.parts && it.parts.length > 1;
                               const isTek = selectedRemittance.vendor_id === "teksystems" || activeVendorTab === "teksystems";
 
@@ -1649,10 +1675,15 @@ export function ResourcesView() {
                                         <span className="text-blue-600 font-extrabold">
                                           {isTek ? (it.consultant_name || it.invoice_number) : `#${it.invoice_number}`}
                                         </span>
+                                        {isTek && it.invoice_number && (
+                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                            #{it.invoice_number}
+                                          </span>
+                                        )}
                                         {hasParts && (
                                           <button
                                             type="button"
-                                            onClick={() => toggleInvoiceCollapse(it.invoice_number)}
+                                            onClick={() => toggleInvoiceCollapse(itemKey)}
                                             className="px-2 py-0.5 rounded-md text-[10px] font-sans font-extrabold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
                                             title={isTek ? "Toggle daily work entries" : "Toggle split parts"}
                                           >
@@ -1666,10 +1697,58 @@ export function ResourcesView() {
                                         )}
                                       </div>
                                     </td>
+
+                                    {/* Invoice Date Column */}
+                                    <td className="py-3.5 px-4 text-slate-700 font-sans font-semibold">
+                                      <div className="flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                        <span>{it.invoice_date || "—"}</span>
+                                      </div>
+                                    </td>
+
+                                    {/* Amount (Gross) Column */}
+                                    <td className="py-3.5 px-4 text-right font-bold text-slate-900 font-mono">
+                                      {formatCurrency(it.gross_amount)}
+                                    </td>
+
+                                    {/* Discount Amount Column */}
+                                    <td className="py-3.5 px-4 text-right text-slate-500 font-mono">
+                                      {it.discount_amount > 0 ? (
+                                        <span className="text-amber-600 font-semibold flex items-center justify-end gap-1">
+                                          <span>-{formatCurrency(it.discount_amount)}</span>
+                                          {isTek && (
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200">
+                                              3.5%
+                                            </span>
+                                          )}
+                                        </span>
+                                      ) : (
+                                        "$0.00"
+                                      )}
+                                    </td>
+
+                                    {/* Deductions (Non-Tek) */}
+                                    {!isTek && (
+                                      <td className="py-3.5 px-4 text-right text-slate-500 font-mono">
+                                        {it.deductions_amount > 0 ? (
+                                          <span className="text-rose-600 font-semibold">
+                                            -{formatCurrency(it.deductions_amount)}
+                                          </span>
+                                        ) : (
+                                          "$0.00"
+                                        )}
+                                      </td>
+                                    )}
+
+                                    {/* Paid Amount (Net) Column */}
+                                    <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm font-mono">
+                                      {formatCurrency(it.net_paid)}
+                                    </td>
+
+                                    {/* Payment Message Column */}
                                     {isTek ? (
                                       <td className="py-3 px-4 font-sans text-xs max-w-md">
                                         <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-1.5 shadow-2xs">
-                                          {/* Client & Order ID Header */}
                                           <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <span className="font-bold text-slate-900 flex items-center gap-1.5">
                                               <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -1681,8 +1760,6 @@ export function ResourcesView() {
                                               </span>
                                             )}
                                           </div>
-
-                                          {/* Structured Details: Employee Badge, Rate & Type, Hours, Date Range, Ref */}
                                           <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-600">
                                             {it.employee_id && (
                                               <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-[10px] text-slate-700">
@@ -1709,51 +1786,20 @@ export function ResourcesView() {
                                         </div>
                                       </td>
                                     ) : (
-                                      <td className="py-3.5 px-4 text-slate-500 font-sans">
-                                        {it.invoice_date || "—"}
-                                      </td>
-                                    )}
-                                    {isTek && (
-                                      <td className="py-3.5 px-4 text-slate-500 font-sans">
-                                        {it.invoice_date || "—"}
-                                      </td>
-                                    )}
-                                    <td className="py-3.5 px-4 text-right font-bold text-slate-900">
-                                      {formatCurrency(it.gross_amount)}
-                                    </td>
-                                    <td className="py-3.5 px-4 text-right text-slate-500">
-                                      {it.discount_amount > 0 ? (
-                                        <span className="text-amber-600 font-semibold flex items-center justify-end gap-1">
-                                          <span>-{formatCurrency(it.discount_amount)}</span>
-                                          {isTek && (
-                                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200">
-                                              3.5%
-                                            </span>
-                                          )}
+                                      <td className="py-3.5 px-4 text-center font-sans">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                          Reconciled
                                         </span>
-                                      ) : (
-                                        "$0.00"
-                                      )}
-                                    </td>
-                                    {!isTek && (
-                                      <td className="py-3.5 px-4 text-right text-slate-500">
-                                        {it.deductions_amount > 0 ? (
-                                          <span className="text-rose-600 font-semibold">
-                                            -{formatCurrency(it.deductions_amount)}
-                                          </span>
-                                        ) : (
-                                          "$0.00"
-                                        )}
                                       </td>
                                     )}
-                                    <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm">
-                                      {formatCurrency(it.net_paid)}
-                                    </td>
-                                    <td className="py-3.5 px-4 text-center font-sans">
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        Reconciled
-                                      </span>
-                                    </td>
+
+                                    {isTek && (
+                                      <td className="py-3.5 px-4 text-center font-sans">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                          Reconciled
+                                        </span>
+                                      </td>
+                                    )}
                                   </tr>
 
                                   {/* Itemized Split Parts Sub-Rows */}
@@ -1764,43 +1810,43 @@ export function ResourcesView() {
                                         key={`${idx}-${pIdx}`}
                                         className="bg-slate-50/70 hover:bg-slate-100/60 transition-colors text-[11px] font-mono border-t border-slate-100/60"
                                       >
-                                        <td colSpan={isTek ? 2 : 1} className="py-2 px-4 pl-8 text-slate-600 font-sans">
+                                        <td className="py-2 px-4 pl-8 text-slate-600 font-sans">
                                           <div className="flex items-center gap-1.5 flex-wrap">
                                             <CornerDownRight className="w-3 h-3 text-slate-400 shrink-0" />
                                             <span className="font-semibold text-slate-800">{p.part_id}</span>
-                                            {p.voucher_number && (
-                                              <span className="text-[10px] text-slate-400 font-sans">
-                                                ({p.voucher_number})
-                                              </span>
-                                            )}
                                           </div>
                                         </td>
-                                        <td className="py-2 px-4 text-slate-400 font-sans">
+                                        <td className="py-2 px-4 text-slate-500 font-sans">
                                           {p.date || "—"}
                                         </td>
-                                        <td className="py-2 px-4 text-right text-slate-700">
+                                        <td className="py-2 px-4 text-right text-slate-700 font-mono">
                                           {formatCurrency(p.gross_amount)}
                                         </td>
-                                        <td className="py-2 px-4 text-right text-slate-400">
+                                        <td className="py-2 px-4 text-right text-slate-400 font-mono">
                                           {p.discount_amount > 0
                                             ? `-${formatCurrency(p.discount_amount)}`
                                             : "$0.00"}
                                         </td>
                                         {!isTek && (
-                                          <td className="py-2 px-4 text-right text-slate-400">
+                                          <td className="py-2 px-4 text-right text-slate-400 font-mono">
                                             {p.writeoff_amount > 0
                                               ? `-${formatCurrency(p.writeoff_amount)}`
                                               : "$0.00"}
                                           </td>
                                         )}
-                                        <td className="py-2 px-4 text-right font-bold text-emerald-600">
+                                        <td className="py-2 px-4 text-right font-bold text-emerald-600 font-mono">
                                           {formatCurrency(p.net_paid)}
                                         </td>
-                                        <td className="py-2 px-4 text-center font-sans">
-                                          <span className="text-[9px] text-slate-400 font-semibold uppercase">
-                                            {isTek ? `Entry ${pIdx + 1}` : `Part ${pIdx + 1} of ${it.parts!.length}`}
-                                          </span>
+                                        <td className="py-2 px-4 text-slate-500 font-sans">
+                                          {p.voucher_number || it.client_name || "Daily Work Entry"}
                                         </td>
+                                        {isTek && (
+                                          <td className="py-2 px-4 text-center font-sans">
+                                            <span className="text-[9px] text-slate-400 font-semibold uppercase">
+                                              Entry {pIdx + 1}
+                                            </span>
+                                          </td>
+                                        )}
                                       </tr>
                                     ))}
                                 </React.Fragment>

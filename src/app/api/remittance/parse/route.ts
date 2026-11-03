@@ -537,10 +537,46 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
       const date = new Date((val - 25569) * 86400 * 1000);
       return date.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
     }
-    return String(val).trim();
+    const s = String(val).trim();
+    const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+    if (m) {
+      const mm = m[1].padStart(2, "0");
+      const dd = m[2].padStart(2, "0");
+      let yyyy = m[3];
+      if (yyyy.length === 2) yyyy = "20" + yyyy;
+      return `${mm}/${dd}/${yyyy}`;
+    }
+    const my = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+    if (my) {
+      const yyyy = my[1];
+      const mm = my[2].padStart(2, "0");
+      const dd = my[3].padStart(2, "0");
+      return `${mm}/${dd}/${yyyy}`;
+    }
+    return s;
   };
 
-  interface ConsultantGroup {
+  const parseDateToTimestamp = (dateStr: string): number => {
+    if (!dateStr) return 0;
+    const m = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const mm = parseInt(m[1], 10) - 1;
+      const dd = parseInt(m[2], 10);
+      const yyyy = parseInt(m[3], 10);
+      return new Date(yyyy, mm, dd).getTime();
+    }
+    const my = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (my) {
+      const yyyy = parseInt(my[1], 10);
+      const mm = parseInt(my[2], 10) - 1;
+      const dd = parseInt(my[3], 10);
+      return new Date(yyyy, mm, dd).getTime();
+    }
+    const t = Date.parse(dateStr);
+    return isNaN(t) ? 0 : t;
+  };
+
+  interface InvoiceSettlementGroup {
     consultantName: string;
     clientName: string;
     orderId: string;
@@ -548,6 +584,7 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
     payRate: number;
     payType: string;
     batchRef: string;
+    invoiceNumber: string;
     invoiceDate: string;
     grossAmount: number;
     discountAmount: number;
@@ -558,7 +595,7 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
     rawMessages: string[];
   }
 
-  const consultantMap = new Map<string, ConsultantGroup>();
+  const settlementMap = new Map<string, InvoiceSettlementGroup>();
   let lastKnownConsultant = "";
   const dataRows = rawRows.slice(headerRowIndex + 1);
 
@@ -680,10 +717,13 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
     });
 
     const activeConsultant = rowConsultant || lastKnownConsultant || "Consultant Settlement";
-    const groupKey = activeConsultant.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const itemInvoiceNum = invoiceNum || rowBatch || (rowOrderId ? `ORD-${rowOrderId}` : `INV-${rowIdx + 1}`);
 
-    if (!consultantMap.has(groupKey)) {
-      consultantMap.set(groupKey, {
+    // Group each invoice settlement uniquely by Consultant + Invoice Date + Row Index / Invoice Num
+    const groupKey = `${activeConsultant.toLowerCase().trim()}__${invDate || "nodate"}__${itemInvoiceNum}__${rowIdx}`;
+
+    if (!settlementMap.has(groupKey)) {
+      settlementMap.set(groupKey, {
         consultantName: activeConsultant,
         clientName: rowClient || "",
         orderId: rowOrderId || "",
@@ -691,6 +731,7 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
         payRate: rowRate || 0,
         payType: rowType || "",
         batchRef: rowBatch || paymentRef || invoiceNum || "",
+        invoiceNumber: itemInvoiceNum,
         invoiceDate: invDate || "",
         grossAmount: 0,
         discountAmount: 0,
@@ -702,9 +743,9 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
       });
     }
 
-    const group = consultantMap.get(groupKey)!;
+    const group = settlementMap.get(groupKey)!;
 
-    // Accumulate monetary totals across rows for this consultant
+    // Exact gross, discount, and paid amounts for this invoice line
     group.grossAmount += rawGross;
     group.discountAmount += rawDiscount;
     group.netPaid += rawPaid;
@@ -719,14 +760,15 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
     if (paymentMessage) group.rawMessages.push(paymentMessage);
 
     // Extract daily work entries / sub-parts
-    linesToProcess.forEach((mLine) => {
+    linesToProcess.forEach((mLine, lIdx) => {
       const cleanLine = mLine.replace(/[,;]+$/, "");
       const tokens = cleanLine.split("|").map((t) => t.trim().replace(/^[,;]+|[,;]+$/g, ""));
 
       let dateWorked = "";
       let hours = 0;
-      let payRate = group.payRate || 0;
-      let payType = group.payType || "REG-Regular";
+      let payRate = group.payRate || rowRate || 0;
+      let payType = group.payType || rowType || "REG-Regular";
+      let lineBatch = "";
 
       tokens.forEach((tok) => {
         const dateMatch = tok.match(/Date Worked\s+([\d-]+)/i) || tok.match(/^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})$/);
@@ -739,6 +781,8 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
         if (rateMatch) payRate = parseFloat(rateMatch[1]) || payRate;
 
         if (/REG|OT|Regular|Overtime/i.test(tok)) payType = tok;
+
+        if (!lineBatch && /^[A-Za-z]{2,5}_\d+$/.test(tok)) lineBatch = tok;
       });
 
       if (dateWorked && !group.datesWorked.includes(dateWorked)) {
@@ -748,15 +792,15 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
         group.totalHours += hours;
       }
 
-      const partGross = hours > 0 && payRate > 0 ? hours * payRate : (rawGross > 0 ? rawGross : 0);
+      const partGross = hours > 0 && payRate > 0 ? hours * payRate : 0;
       const partDisc = Math.round(partGross * 0.035 * 100) / 100;
       const partNet = partGross - partDisc;
 
       group.parts.push({
         part_id: dateWorked
           ? `Date Worked: ${dateWorked} (${hours || 8} hrs @ $${payRate || "—"}/hr • ${payType})`
-          : (rowBatch ? `Batch Summary: ${rowBatch}` : `Work Entry ${group.parts.length + 1}`),
-        voucher_number: rowOrderId ? `Order #${rowOrderId}` : (rowBatch ? `Ref #${rowBatch}` : undefined),
+          : (lineBatch ? `Batch Summary: ${lineBatch}` : `Entry ${lIdx + 1}`),
+        voucher_number: rowOrderId ? `Order #${rowOrderId}` : (lineBatch ? `Ref #${lineBatch}` : undefined),
         date: dateWorked || invDate,
         gross_amount: Math.round(partGross * 100) / 100,
         amount_paid: Math.round(partNet * 100) / 100,
@@ -769,12 +813,24 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
     });
   });
 
-  // Convert grouped unique consultants to items list
-  const items: ParsedInvoiceItem[] = Array.from(consultantMap.values()).map((g) => {
-    const sortedDates = [...g.datesWorked].sort();
-    const dateSummary = sortedDates.length > 0
-      ? (sortedDates.length === 1 ? sortedDates[0] : `${sortedDates[0]} – ${sortedDates[sortedDates.length - 1]}`)
-      : (g.invoiceDate || "—");
+  // Convert grouped invoice settlements to items list
+  const items: ParsedInvoiceItem[] = Array.from(settlementMap.values()).map((g) => {
+    // Sort daily parts chronologically by date worked
+    g.parts.sort((p1, p2) => {
+      const t1 = parseDateToTimestamp(p1.date || "");
+      const t2 = parseDateToTimestamp(p2.date || "");
+      return t1 - t2;
+    });
+
+    const sortedDatesWorked = [...g.datesWorked].sort(
+      (a, b) => parseDateToTimestamp(a) - parseDateToTimestamp(b)
+    );
+    const dateSummary =
+      sortedDatesWorked.length > 0
+        ? sortedDatesWorked.length === 1
+          ? sortedDatesWorked[0]
+          : `${sortedDatesWorked[0]} – ${sortedDatesWorked[sortedDatesWorked.length - 1]}`
+        : g.invoiceDate || "—";
 
     const finalGross = Math.round(g.grossAmount * 100) / 100;
     let finalDiscount = Math.round(g.discountAmount * 100) / 100;
@@ -789,17 +845,17 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
     const hoursDisplay = g.totalHours > 0 ? `${g.totalHours} hrs` : `${g.parts.length * 8} hrs`;
 
     return {
-      invoice_number: g.consultantName,
+      invoice_number: g.invoiceNumber,
       consultant_name: g.consultantName,
       client_name: g.clientName || "Client Account",
       order_id: g.orderId,
       employee_id: g.employeeId,
       pay_rate: g.payRate,
       pay_type: g.payType || "REG-Regular",
-      total_hours: g.totalHours || (g.parts.length * 8),
+      total_hours: g.totalHours || g.parts.length * 8,
       work_dates_summary: `${dateSummary} (${hoursDisplay})`,
       payment_reference: g.batchRef,
-      invoice_date: g.invoiceDate || (sortedDates[0] || "—"),
+      invoice_date: g.invoiceDate || (sortedDatesWorked[0] || "—"),
       gross_amount: finalGross,
       discount_amount: finalDiscount,
       deductions_amount: 0,
@@ -809,6 +865,27 @@ function parseTeksystemsExcel(buffer: Buffer): TeksystemsParsedResult {
       notes: g.rawMessages.join("\n"),
       payment_message: g.rawMessages[0] || "",
     };
+  });
+
+  // SORT: First by Consultant Name, and then by Invoice Date column ascending (say 09-11 before 09-14)
+  items.sort((a, b) => {
+    // 1. Primary Sort: Consultant Name
+    const nameA = (a.consultant_name || "").toLowerCase().trim();
+    const nameB = (b.consultant_name || "").toLowerCase().trim();
+    const nameCmp = nameA.localeCompare(nameB);
+    if (nameCmp !== 0) {
+      return nameCmp;
+    }
+
+    // 2. Secondary Sort: Invoice Date ascending (e.g. 09-11 comes before 09-14)
+    const timeA = parseDateToTimestamp(a.invoice_date || "");
+    const timeB = parseDateToTimestamp(b.invoice_date || "");
+    if (timeA !== timeB) {
+      return timeA - timeB;
+    }
+
+    // 3. Tertiary Sort: Invoice Number
+    return (a.invoice_number || "").localeCompare(b.invoice_number || "");
   });
 
   const totals = {
