@@ -30,6 +30,7 @@ import {
   ChevronDown,
   ChevronUp,
   CornerDownRight,
+  Camera,
 } from "lucide-react";
 
 // Standard prompt payment discount percentage presets
@@ -44,6 +45,18 @@ const MAX_PERCENT = 20;
 const STEP_PERCENT = 0.1;
 const TOTAL_TICKS = Math.round((MAX_PERCENT - MIN_PERCENT) / STEP_PERCENT) + 1; // 201 ticks
 const TICK_WIDTH = 12; // 12px per 0.1% step
+
+export interface VendorConfig {
+  id: string;
+  name: string;
+  fileType: "pdf" | "excel" | "image";
+  isCustom?: boolean;
+}
+
+const DEFAULT_VENDORS: VendorConfig[] = [
+  { id: "pyramid", name: "Pyramid Inc", fileType: "pdf" },
+  { id: "teksystems", name: "TEKsystems", fileType: "excel" },
+];
 
 export interface RemittanceLinePart {
   part_id: string; // e.g. "33990-1" or "Date Worked 2026-08-24 (8 hrs @ $75/hr)"
@@ -108,7 +121,13 @@ export function ResourcesView() {
   const [isCopied, setIsCopied] = useState<string | null>(null);
 
   // Vendor Remittance State
+  const [vendors, setVendors] = useState<VendorConfig[]>(DEFAULT_VENDORS);
   const [activeVendorTab, setActiveVendorTab] = useState<string>("pyramid");
+  const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState<boolean>(false);
+  const [newVendorName, setNewVendorName] = useState<string>("");
+  const [newVendorFileType, setNewVendorFileType] = useState<"excel" | "pdf" | "image">("excel");
+  const [addVendorError, setAddVendorError] = useState<string | null>(null);
+
   const [remittances, setRemittances] = useState<RemittanceRecord[]>([]);
   const [selectedRemittance, setSelectedRemittance] = useState<RemittanceRecord | null>(null);
   const [draftRemittance, setDraftRemittance] = useState<RemittanceRecord | null>(null);
@@ -119,6 +138,49 @@ export function ResourcesView() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [collapsedInvoices, setCollapsedInvoices] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load custom vendors from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("ziptabs_remittance_vendors_v1");
+      if (saved) {
+        const parsed: VendorConfig[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const customOnes = parsed.filter(
+            (v) => v && v.id && v.id !== "pyramid" && v.id !== "teksystems"
+          );
+          setVendors([...DEFAULT_VENDORS, ...customOnes]);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load custom vendors from localStorage:", err);
+    }
+  }, []);
+
+  const saveVendorsToStorage = (updatedVendors: VendorConfig[]) => {
+    try {
+      const customOnes = updatedVendors.filter(
+        (v) => v.id !== "pyramid" && v.id !== "teksystems"
+      );
+      localStorage.setItem("ziptabs_remittance_vendors_v1", JSON.stringify(customOnes));
+    } catch (err) {
+      console.warn("Failed to save custom vendors to localStorage:", err);
+    }
+  };
+
+  const currentVendor = useMemo(() => {
+    return vendors.find((v) => v.id === activeVendorTab) || DEFAULT_VENDORS[0];
+  }, [vendors, activeVendorTab]);
+
+  const fileInputAccept = useMemo(() => {
+    if (currentVendor.fileType === "excel") {
+      return ".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv";
+    }
+    if (currentVendor.fileType === "image") {
+      return ".png,.jpg,.jpeg,.webp,image/*";
+    }
+    return ".pdf,application/pdf";
+  }, [currentVendor.fileType]);
 
   const toggleInvoiceCollapse = (invNum: string) => {
     setCollapsedInvoices((prev) => ({
@@ -177,27 +239,100 @@ export function ResourcesView() {
     fetchRemittances(vendorId);
   };
 
-  // Upload & parse remittance statement (PDF for Pyramid, Excel/CSV for TEKsystems)
+  // Open Add Vendor Modal
+  const handleOpenAddVendorModal = () => {
+    setNewVendorName("");
+    setNewVendorFileType("excel");
+    setAddVendorError(null);
+    setIsAddVendorModalOpen(true);
+  };
+
+  // Create a new custom vendor
+  const handleCreateVendor = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newVendorName.trim();
+    if (!trimmed) {
+      setAddVendorError("Please enter a vendor name.");
+      return;
+    }
+
+    if (vendors.some((v) => v.name.toLowerCase() === trimmed.toLowerCase())) {
+      setAddVendorError(`A vendor named "${trimmed}" already exists.`);
+      return;
+    }
+
+    const slug =
+      "vendor-" +
+      trimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") +
+      "-" +
+      Date.now().toString(36);
+
+    const newVendor: VendorConfig = {
+      id: slug,
+      name: trimmed,
+      fileType: newVendorFileType,
+      isCustom: true,
+    };
+
+    const updated = [...vendors, newVendor];
+    setVendors(updated);
+    saveVendorsToStorage(updated);
+    setIsAddVendorModalOpen(false);
+    handleVendorTabChange(slug);
+  };
+
+  // Delete a custom vendor
+  const handleDeleteVendor = (vendorId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const vendorToDelete = vendors.find((v) => v.id === vendorId);
+    if (!vendorToDelete) return;
+    if (!confirm(`Are you sure you want to remove the vendor tab "${vendorToDelete.name}"?`)) return;
+
+    const updated = vendors.filter((v) => v.id !== vendorId);
+    setVendors(updated);
+    saveVendorsToStorage(updated);
+
+    if (activeVendorTab === vendorId) {
+      handleVendorTabChange("pyramid");
+    }
+  };
+
+  // Upload & parse remittance statement (PDF, Excel/CSV, or Screenshot/Image)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const fileNameLower = file.name.toLowerCase();
-    const isTek = activeVendorTab === "teksystems";
+    const isImage =
+      file.type.startsWith("image/") ||
+      fileNameLower.endsWith(".png") ||
+      fileNameLower.endsWith(".jpg") ||
+      fileNameLower.endsWith(".jpeg") ||
+      fileNameLower.endsWith(".webp");
 
-    if (isTek) {
-      if (
-        !fileNameLower.endsWith(".xlsx") &&
-        !fileNameLower.endsWith(".xls") &&
-        !fileNameLower.endsWith(".csv") &&
-        !fileNameLower.endsWith(".pdf")
-      ) {
-        setUploadError("Please select a valid TEKsystems Excel file (.xlsx, .xls, .csv).");
+    const isExcel =
+      fileNameLower.endsWith(".xlsx") ||
+      fileNameLower.endsWith(".xls") ||
+      fileNameLower.endsWith(".csv");
+
+    const isPdf = fileNameLower.endsWith(".pdf");
+
+    if (currentVendor.fileType === "excel") {
+      if (!isExcel && !isPdf) {
+        setUploadError(`Please select a valid Excel or CSV file (.xlsx, .xls, .csv) for ${currentVendor.name}.`);
+        return;
+      }
+    } else if (currentVendor.fileType === "image") {
+      if (!isImage && !isPdf) {
+        setUploadError(`Please select a screenshot or image file (.png, .jpg, .jpeg, .webp) for ${currentVendor.name}.`);
         return;
       }
     } else {
-      if (!fileNameLower.endsWith(".pdf")) {
-        setUploadError("Please select a valid PDF remittance statement.");
+      if (!isPdf && !isImage) {
+        setUploadError(`Please select a valid PDF remittance statement for ${currentVendor.name}.`);
         return;
       }
     }
@@ -208,8 +343,9 @@ export function ResourcesView() {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("vendorId", activeVendorTab);
-    formData.append("vendorName", isTek ? "TEKsystems" : "Pyramid Inc");
+    formData.append("vendorId", currentVendor.id);
+    formData.append("vendorName", currentVendor.name);
+    formData.append("fileType", currentVendor.fileType);
 
     try {
       const res = await fetch("/api/remittance/parse", {
@@ -226,9 +362,8 @@ export function ResourcesView() {
       }
 
       if (json.success && json.draft) {
-        // Present draft for user validation; do not persist to Supabase until confirmed
         setDraftRemittance(json.draft);
-        setSelectedRemittance(null); // Focus on validating the new draft
+        setSelectedRemittance(null);
       } else {
         setUploadError(json.error || "Unable to extract table from statement. Please verify file format.");
       }
@@ -679,42 +814,68 @@ export function ResourcesView() {
           {/* Vendor Sub-Tabs Bar & Cloud Storage Retention (Compact Sleek Toolbar) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none shrink-0">
                 Vendor:
               </span>
-              <button
-                type="button"
-                onClick={() => handleVendorTabChange("pyramid")}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                  activeVendorTab === "pyramid"
-                    ? "bg-blue-600 text-white shadow-blue-500/20"
-                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>Pyramid Inc</span>
-              </button>
+
+              {vendors.map((vendor) => {
+                const isActive = activeVendorTab === vendor.id;
+                return (
+                  <div key={vendor.id} className="relative group/tab flex items-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleVendorTabChange(vendor.id)}
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-blue-500/20"
+                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                      } ${vendor.isCustom ? "pr-7" : ""}`}
+                    >
+                      {vendor.fileType === "excel" ? (
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                      ) : vendor.fileType === "image" ? (
+                        <Camera className="w-3.5 h-3.5" />
+                      ) : (
+                        <Building2 className="w-3.5 h-3.5" />
+                      )}
+                      <span>{vendor.name}</span>
+                      {vendor.isCustom && (
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded uppercase tracking-wider font-extrabold ${
+                            isActive ? "bg-blue-500/50 text-blue-100" : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {vendor.fileType}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Delete button for custom vendor */}
+                    {vendor.isCustom && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteVendor(vendor.id, e)}
+                        className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full transition-colors cursor-pointer ${
+                          isActive
+                            ? "text-blue-200 hover:text-white hover:bg-blue-500/60"
+                            : "text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                        }`}
+                        title={`Remove ${vendor.name} tab`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
 
               <button
                 type="button"
-                onClick={() => handleVendorTabChange("teksystems")}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                  activeVendorTab === "teksystems"
-                    ? "bg-blue-600 text-white shadow-blue-500/20"
-                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>TEKsystems</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => alert("Custom vendor tabs are modular and will be configured in the next update!")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 border border-dashed border-slate-300 hover:text-slate-600 hover:border-slate-400 transition-colors cursor-pointer"
+                onClick={handleOpenAddVendorModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-blue-600 border border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer shrink-0 shadow-2xs"
                 title="Add custom vendor tab"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 text-blue-600" />
                 <span>Add Vendor</span>
               </button>
             </div>
@@ -733,15 +894,11 @@ export function ResourcesView() {
             </div>
           </div>
 
-          {/* Hidden File Input for PDF / Excel Upload */}
+          {/* Hidden File Input for PDF / Excel / Screenshot Upload */}
           <input
             type="file"
             ref={fileInputRef}
-            accept={
-              activeVendorTab === "teksystems"
-                ? ".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
-                : ".pdf,application/pdf"
-            }
+            accept={fileInputAccept}
             onChange={handleFileUpload}
             className="hidden"
           />
@@ -783,9 +940,11 @@ export function ResourcesView() {
                     <span className="text-xs font-bold text-slate-800">
                       {isUploading
                         ? "Extracting remittance data..."
-                        : activeVendorTab === "teksystems"
-                        ? "Upload another TEKsystems remittance Excel (.xlsx / .csv)"
-                        : "Upload another Pyramid Inc remittance (.pdf)"}
+                        : currentVendor.fileType === "excel"
+                        ? `Upload another ${currentVendor.name} remittance Excel (.xlsx / .csv)`
+                        : currentVendor.fileType === "image"
+                        ? `Upload another ${currentVendor.name} remittance screenshot`
+                        : `Upload another ${currentVendor.name} remittance (.pdf)`}
                     </span>
                     <span className="text-[11px] text-slate-400 hidden sm:inline">
                       • Review extracted settlements before saving to Supabase
@@ -813,8 +972,10 @@ export function ResourcesView() {
                   <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs shrink-0">
                     {isUploading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : activeVendorTab === "teksystems" ? (
+                    ) : currentVendor.fileType === "excel" ? (
                       <FileSpreadsheet className="w-5 h-5" />
+                    ) : currentVendor.fileType === "image" ? (
+                      <Camera className="w-5 h-5" />
                     ) : (
                       <Upload className="w-5 h-5" />
                     )}
@@ -822,14 +983,18 @@ export function ResourcesView() {
                   <div>
                     <p className="text-xs font-bold text-slate-800">
                       {isUploading
-                        ? `Extracting ${activeVendorTab === "teksystems" ? "TEKsystems Excel" : "Pyramid Inc"} Data...`
-                        : activeVendorTab === "teksystems"
-                        ? "Click or drag & drop TEKsystems remittance Excel (.xlsx / .csv) here"
-                        : "Click or drag & drop Pyramid Inc remittance PDF here"}
+                        ? `Extracting ${currentVendor.name} Data...`
+                        : currentVendor.fileType === "excel"
+                        ? `Click or drag & drop ${currentVendor.name} remittance Excel (.xlsx / .csv) here`
+                        : currentVendor.fileType === "image"
+                        ? `Click or drag & drop ${currentVendor.name} remittance screenshot / image here`
+                        : `Click or drag & drop ${currentVendor.name} remittance PDF here`}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      {activeVendorTab === "teksystems"
+                      {currentVendor.id === "teksystems"
                         ? "Parses consultant message lines, order IDs, gross amount, and 3.5% prompt discounts."
+                        : currentVendor.fileType === "image"
+                        ? "Runs OCR to extract invoice line items, prompt payment discounts, and net bank settlements."
                         : "Extracts invoice line items, prompt payment discounts, and net bank settlements."}
                     </p>
                   </div>
@@ -838,7 +1003,13 @@ export function ResourcesView() {
                   type="button"
                   className="px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs hover:bg-blue-700 transition-colors pointer-events-none shrink-0"
                 >
-                  {isUploading ? "Reading..." : activeVendorTab === "teksystems" ? "Browse Spreadsheet" : "Browse PDF"}
+                  {isUploading
+                    ? "Reading..."
+                    : currentVendor.fileType === "excel"
+                    ? "Browse Spreadsheet"
+                    : currentVendor.fileType === "image"
+                    ? "Browse Screenshot"
+                    : "Browse PDF"}
                 </button>
               </div>
             )}
@@ -1418,7 +1589,7 @@ export function ResourcesView() {
                         <h4 className="text-sm font-bold text-slate-900">
                           {selectedRemittance.vendor_id === "teksystems"
                             ? "TEKsystems Consultant Breakdown"
-                            : "Pyramid Inc Invoice Breakdown (Grouped by Invoice)"}
+                            : `${selectedRemittance.vendor_name || "Vendor"} Invoice Breakdown (Grouped by Invoice)`}
                         </h4>
                         <p className="text-xs text-slate-400 mt-0.5">
                           {selectedRemittance.vendor_id === "teksystems"
@@ -1661,7 +1832,7 @@ export function ResourcesView() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
-                      {activeVendorTab === "teksystems" ? "TEKsystems" : "Pyramid Inc"} Statement Archive (Supabase 30-Day Window)
+                      {currentVendor.name} Statement Archive (Supabase 30-Day Window)
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Previously uploaded vendor remittances safely saved in Supabase. Auto-prunes after 30 days.
@@ -1679,7 +1850,7 @@ export function ResourcesView() {
                   </div>
                 ) : remittances.length === 0 ? (
                   <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
-                    No statements uploaded yet for {activeVendorTab === "teksystems" ? "TEKsystems" : "Pyramid Inc"}. Upload your vendor remittance above.
+                    No statements uploaded yet for {currentVendor.name}. Upload your vendor remittance above.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1743,6 +1914,200 @@ export function ResourcesView() {
                 )}
               </div>
             </div>
+
+            {/* ======================================================== */}
+            {/* POPUP MODAL: ADD VENDOR & FILE EXTRACTION CONFIGURATION   */}
+            {/* ======================================================== */}
+            {isAddVendorModalOpen && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+                onClick={() => setIsAddVendorModalOpen(false)}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
+                >
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/70">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-black text-slate-900 tracking-tight">Add Vendor Tab</h3>
+                        <p className="text-xs text-slate-500">Configure remittance extraction for a new vendor</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddVendorModalOpen(false)}
+                      className="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Modal Body */}
+                  <form onSubmit={handleCreateVendor} className="p-6 space-y-5 overflow-y-auto">
+                    {/* Error Notice */}
+                    {addVendorError && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-800 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>{addVendorError}</span>
+                      </div>
+                    )}
+
+                    {/* Vendor Name Field */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                        Vendor Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newVendorName}
+                        onChange={(e) => {
+                          setNewVendorName(e.target.value);
+                          if (addVendorError) setAddVendorError(null);
+                        }}
+                        placeholder="e.g. Apex Systems, Insight Global, Randstad, Robert Half..."
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-semibold text-slate-900 placeholder:text-slate-400 transition-all"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* File Extraction Type Selection */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                        Type of File Extraction <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {/* Option 1: Excel */}
+                        <div
+                          onClick={() => setNewVendorFileType("excel")}
+                          className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                            newVendorFileType === "excel"
+                              ? "border-blue-600 bg-blue-50/40 shadow-xs"
+                              : "border-slate-200 hover:border-slate-300 bg-white"
+                          }`}
+                        >
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                              newVendorFileType === "excel"
+                                ? "bg-blue-600 text-white shadow-xs"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            <FileSpreadsheet className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-900">Excel Spreadsheet</span>
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                .xlsx, .xls, .csv
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                              Parses multi-column spreadsheets, dates, gross invoice amounts, discounts, and net payments.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Option 2: PDF */}
+                        <div
+                          onClick={() => setNewVendorFileType("pdf")}
+                          className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                            newVendorFileType === "pdf"
+                              ? "border-blue-600 bg-blue-50/40 shadow-xs"
+                              : "border-slate-200 hover:border-slate-300 bg-white"
+                          }`}
+                        >
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                              newVendorFileType === "pdf"
+                                ? "bg-blue-600 text-white shadow-xs"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-900">PDF Document</span>
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                .pdf
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                              Extracts standard invoice tables, remittance advice, payment vouchers, deductions, and check totals.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Option 3: Screenshot */}
+                        <div
+                          onClick={() => setNewVendorFileType("image")}
+                          className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                            newVendorFileType === "image"
+                              ? "border-blue-600 bg-blue-50/40 shadow-xs"
+                              : "border-slate-200 hover:border-slate-300 bg-white"
+                          }`}
+                        >
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                              newVendorFileType === "image"
+                                ? "bg-blue-600 text-white shadow-xs"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            <Camera className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-900">Screenshot / Image (with text)</span>
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                                .png, .jpg, .webp
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                              Uses neural OCR text recognition to read vendor portals, email screenshots, payment slips, and photos.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Strict Custom Rule Isolation Note */}
+                    <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 text-xs text-slate-600 space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>Clean Generic Financial Extraction</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Generic extraction is applied without custom presets. Vendor-specific rules (such as TEKsystems consultant message lines or Pyramid voucher splits) will <strong>never</strong> be applied to this vendor unless explicitly configured later.
+                      </p>
+                    </div>
+
+                    {/* Modal Actions */}
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddVendorModalOpen(false)}
+                        className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 transition-all cursor-pointer flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Create Vendor</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
         </div>
       )}
 

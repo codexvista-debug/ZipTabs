@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractText } from "unpdf";
 import * as XLSX from "xlsx";
+import { createWorker } from "tesseract.js";
 
 // 1. GET: Fetch active remittances for a vendor (Auto-prunes expired >30 days)
 export async function GET(req: NextRequest) {
@@ -161,19 +162,29 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // CASE B: User uploaded a file (PDF or Excel/CSV) to parse and extract draft data
+  // CASE B: User uploaded a file (PDF, Excel/CSV, or Screenshot/Image) to parse and extract draft data
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     let vendorId = (formData.get("vendorId") as string) || "pyramid";
-    let vendorName = (formData.get("vendorName") as string) || (vendorId === "teksystems" ? "TEKsystems" : "Pyramid Inc");
+    let vendorName = (formData.get("vendorName") as string) || (vendorId === "teksystems" ? "TEKsystems" : vendorId === "pyramid" ? "Pyramid Inc" : "Vendor");
+    let fileType = (formData.get("fileType") as string) || "";
 
     if (!file) {
       return NextResponse.json({ success: false, error: "No statement file received" }, { status: 400 });
     }
 
     const fileNameLower = file.name.toLowerCase();
+    const isImage =
+      fileType === "image" ||
+      file.type.startsWith("image/") ||
+      fileNameLower.endsWith(".png") ||
+      fileNameLower.endsWith(".jpg") ||
+      fileNameLower.endsWith(".jpeg") ||
+      fileNameLower.endsWith(".webp");
+
     const isExcelOrCsv =
+      fileType === "excel" ||
       fileNameLower.endsWith(".xlsx") ||
       fileNameLower.endsWith(".xls") ||
       fileNameLower.endsWith(".csv") ||
@@ -182,15 +193,77 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
 
     // -------------------------------------------------------------
-    // BRANCH 1: TEKsystems / Excel / CSV spreadsheet parsing
+    // BRANCH 1: Screenshot / Image with Text (OCR Engine)
+    // -------------------------------------------------------------
+    if (isImage) {
+      try {
+        const rawText = await extractTextFromImage(Buffer.from(arrayBuffer));
+        if (!rawText || rawText.trim().length === 0) {
+          throw new Error("Could not detect readable text in the image. Please ensure the screenshot is clear and contains tabular numbers.");
+        }
+
+        const { items, totals } = parseGenericRemittanceText(rawText);
+
+        const totalGross = totals.gross > 0 ? totals.gross : items.reduce((acc, it) => acc + (it.gross_amount || 0), 0);
+        const totalDiscount = totals.discount >= 0 ? totals.discount : items.reduce((acc, it) => acc + (it.discount_amount || 0), 0);
+        const totalDeductions = totals.writeoff >= 0 ? totals.writeoff : items.reduce((acc, it) => acc + (it.deductions_amount || 0), 0);
+        const totalPaid = totals.net > 0 ? totals.net : items.reduce((acc, it) => acc + (it.net_paid || 0), 0);
+
+        const draftRecord = {
+          vendor_id: vendorId,
+          vendor_name: vendorName,
+          file_name: file.name,
+          file_size: file.size,
+          total_paid: totalPaid,
+          total_gross: totalGross,
+          total_discount: totalDiscount,
+          total_deductions: totalDeductions,
+          invoice_count: items.length,
+          items: items,
+          raw_text: rawText.slice(0, 5000),
+          is_draft: true,
+        };
+
+        return NextResponse.json({
+          success: true,
+          draft: draftRecord,
+          message: `Extracted ${items.length} line items from image ${file.name} via OCR. Review and confirm to save to Supabase.`,
+        });
+      } catch (ocrErr: any) {
+        console.error("Screenshot OCR parsing error:", ocrErr);
+        return NextResponse.json(
+          { success: false, error: `Failed to extract data from image: ${ocrErr.message || "OCR failed"}` },
+          { status: 422 }
+        );
+      }
+    }
+
+    // -------------------------------------------------------------
+    // BRANCH 2: Excel / CSV Spreadsheet Parsing
     // -------------------------------------------------------------
     if (isExcelOrCsv && !fileNameLower.endsWith(".pdf")) {
       try {
-        const { items, totals, rawPreview } = parseTeksystemsExcel(Buffer.from(arrayBuffer));
+        let items: ParsedInvoiceItem[] = [];
+        let totals = { gross: 0, discount: 0, writeoff: 0, net: 0 };
+        let rawPreview = "";
+
+        if (vendorId === "teksystems") {
+          // STRICT TEKsystems custom parser ONLY (isolated)
+          const res = parseTeksystemsExcel(Buffer.from(arrayBuffer));
+          items = res.items;
+          totals = res.totals;
+          rawPreview = res.rawPreview;
+        } else {
+          // Pure generic Excel parser (No TEKsystems assumptions)
+          const res = parseGenericExcel(Buffer.from(arrayBuffer));
+          items = res.items;
+          totals = res.totals;
+          rawPreview = res.rawPreview;
+        }
 
         const draftRecord = {
-          vendor_id: "teksystems",
-          vendor_name: "TEKsystems",
+          vendor_id: vendorId,
+          vendor_name: vendorName,
           file_name: file.name,
           file_size: file.size,
           total_paid: totals.net,
@@ -206,14 +279,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           success: true,
           draft: draftRecord,
-          message: `Extracted ${items.length} consultant settlements from ${file.name}. Review and confirm to save to Supabase.`,
+          message: `Extracted ${items.length} line items from ${file.name}. Review and confirm to save to Supabase.`,
         });
       } catch (excelErr: any) {
-        console.error("TEKsystems Excel parsing error:", excelErr);
+        console.error("Excel parsing error:", excelErr);
         return NextResponse.json(
           {
             success: false,
-            error: `Failed to parse TEKsystems Excel file: ${excelErr.message || "Invalid sheet format"}`,
+            error: `Failed to parse spreadsheet file: ${excelErr.message || "Invalid sheet format"}`,
           },
           { status: 422 }
         );
@@ -221,7 +294,7 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------------
-    // BRANCH 2: Pyramid Inc / PDF Document parsing
+    // BRANCH 3: PDF Document Parsing
     // -------------------------------------------------------------
     const uint8Array = new Uint8Array(arrayBuffer);
     let rawText = "";
@@ -275,7 +348,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 4: Parse lines into structured and grouped items
-    const { items: invoiceGroups, totals: parsedTotals } = parseRemittanceText(rawText);
+    // Strict isolation: Pyramid parser is ONLY applied when vendorId === "pyramid"
+    let invoiceGroups: ParsedInvoiceItem[] = [];
+    let parsedTotals = { gross: 0, discount: 0, writeoff: 0, net: 0 };
+
+    if (vendorId === "pyramid") {
+      const result = parseRemittanceText(rawText);
+      invoiceGroups = result.items;
+      parsedTotals = result.totals;
+    } else {
+      const result = parseGenericRemittanceText(rawText);
+      invoiceGroups = result.items;
+      parsedTotals = result.totals;
+    }
 
     const totalGross = parsedTotals.gross > 0
       ? parsedTotals.gross
@@ -923,6 +1008,385 @@ function parseRemittanceText(text: string): ParsedResult {
     explicitTotals = {
       gross: items.reduce((acc, it) => acc + it.gross_amount, 0),
       paid: items.reduce((acc, it) => acc + it.net_paid, 0),
+      discount: items.reduce((acc, it) => acc + it.discount_amount, 0),
+      writeoff: items.reduce((acc, it) => acc + it.deductions_amount, 0),
+      net: items.reduce((acc, it) => acc + it.net_paid, 0),
+    };
+  }
+
+  return { items, totals: explicitTotals };
+}
+
+// =========================================================================
+// SCREENSHOT / IMAGE OPTICAL CHARACTER RECOGNITION (OCR)
+// =========================================================================
+async function extractTextFromImage(buffer: Buffer): Promise<string> {
+  let rawText = "";
+
+  // 1. Local Tesseract OCR
+  try {
+    const worker = await createWorker("eng");
+    const ret = await worker.recognize(buffer);
+    rawText = ret.data?.text || "";
+    await worker.terminate();
+  } catch (ocrErr) {
+    console.warn("Local tesseract OCR failed:", ocrErr);
+  }
+
+  // 2. Cloud OCR Space Fallback if local OCR produced empty output
+  if (!rawText || rawText.trim().length === 0) {
+    try {
+      const base64Data = buffer.toString("base64");
+      const ocrFormData = new FormData();
+      ocrFormData.append("base64Image", `data:image/png;base64,${base64Data}`);
+      ocrFormData.append("apikey", "helloworld");
+      ocrFormData.append("language", "eng");
+      ocrFormData.append("scale", "true");
+
+      const ocrRes = await fetch("https://api.ocr.space/parse/image", {
+        method: "POST",
+        body: ocrFormData,
+      });
+
+      if (ocrRes.ok) {
+        const ocrData = await ocrRes.json();
+        rawText = ocrData?.ParsedResults?.[0]?.ParsedText || "";
+      }
+    } catch (cloudOcrErr) {
+      console.warn("Cloud OCR Space fallback error:", cloudOcrErr);
+    }
+  }
+
+  return rawText;
+}
+
+// =========================================================================
+// GENERIC EXCEL / SPREADSHEET PARSER (No TEKsystems Custom Rules)
+// =========================================================================
+function parseGenericExcel(buffer: Buffer): {
+  items: ParsedInvoiceItem[];
+  totals: { gross: number; discount: number; writeoff: number; net: number };
+  rawPreview: string;
+} {
+  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  const firstSheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[firstSheetName];
+
+  if (!sheet) {
+    throw new Error("Spreadsheet contains no readable sheets.");
+  }
+
+  const rawRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  if (!rawRows || rawRows.length === 0) {
+    throw new Error("Spreadsheet is empty.");
+  }
+
+  // 1. Locate header row
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(rawRows.length, 30); i++) {
+    const rowStr = rawRows[i].map((cell) => String(cell || "").toLowerCase().trim()).join(" ");
+    if (
+      (rowStr.includes("invoice") || rowStr.includes("inv") || rowStr.includes("voucher") || rowStr.includes("bill") || rowStr.includes("item")) &&
+      (rowStr.includes("amount") || rowStr.includes("paid") || rowStr.includes("total") || rowStr.includes("net") || rowStr.includes("gross"))
+    ) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+      const rowStr = rawRows[i].map((cell) => String(cell || "").toLowerCase().trim()).join(" ");
+      if (rowStr.includes("amount") || rowStr.includes("paid") || rowStr.includes("total") || rowStr.includes("net")) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    headerRowIndex = 0;
+  }
+
+  const headerRow = rawRows[headerRowIndex].map((h) => String(h || "").toLowerCase().trim());
+
+  let invCol = -1;
+  let dateCol = -1;
+  let grossCol = -1;
+  let discountCol = -1;
+  let deductionCol = -1;
+  let netCol = -1;
+  let descCol = -1;
+
+  for (let j = 0; j < headerRow.length; j++) {
+    const h = headerRow[j];
+    if (!h) continue;
+
+    if (invCol === -1 && (h.includes("invoice") || h.includes("inv #") || h.includes("inv_") || h.includes("voucher") || h.includes("bill #") || h.includes("reference"))) {
+      invCol = j;
+    } else if (dateCol === -1 && (h.includes("date") || h.includes("dt") || h.includes("period"))) {
+      dateCol = j;
+    } else if (discountCol === -1 && (h.includes("discount") || h.includes("disc") || h.includes("prompt"))) {
+      discountCol = j;
+    } else if (deductionCol === -1 && (h.includes("deduct") || h.includes("writeoff") || h.includes("withhold") || h.includes("adjustment"))) {
+      deductionCol = j;
+    } else if (netCol === -1 && (h.includes("net") || h.includes("paid") || h.includes("cleared") || h.includes("payment"))) {
+      netCol = j;
+    } else if (grossCol === -1 && (h.includes("gross") || h.includes("amount") || h.includes("total") || h.includes("billed"))) {
+      grossCol = j;
+    } else if (descCol === -1 && (h.includes("desc") || h.includes("message") || h.includes("comment") || h.includes("notes") || h.includes("client"))) {
+      descCol = j;
+    }
+  }
+
+  if (grossCol !== -1 && netCol === -1) {
+    netCol = grossCol;
+  }
+
+  const cleanNum = (val: any): number => {
+    if (typeof val === "number") return isNaN(val) ? 0 : val;
+    if (!val) return 0;
+    const s = String(val).replace(/[$ ,]/g, "").replace(/\((.*)\)/, "-$1").trim();
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const formatDate = (val: any): string => {
+    if (!val) return "";
+    if (val instanceof Date) {
+      return val.toLocaleDateString("en-US");
+    }
+    return String(val).trim();
+  };
+
+  const itemsMap = new Map<string, ParsedInvoiceItem>();
+  let totalGross = 0;
+  let totalDiscount = 0;
+  let totalDeduction = 0;
+  let totalNet = 0;
+
+  for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    if (!row || row.length === 0) continue;
+
+    const rowText = row.map((c) => String(c || "").trim()).join(" ");
+    if (!rowText || /^(total|totals|grand total|summary|subtotal)/i.test(rowText)) {
+      continue;
+    }
+
+    let rawInv = invCol !== -1 ? String(row[invCol] || "").trim() : "";
+    const dateStr = dateCol !== -1 ? formatDate(row[dateCol]) : "";
+    let grossVal = grossCol !== -1 ? cleanNum(row[grossCol]) : 0;
+    const discVal = discountCol !== -1 ? cleanNum(row[discountCol]) : 0;
+    const dedVal = deductionCol !== -1 ? cleanNum(row[deductionCol]) : 0;
+    let netVal = netCol !== -1 ? cleanNum(row[netCol]) : 0;
+    const notesVal = descCol !== -1 ? String(row[descCol] || "").trim() : "";
+
+    if (netVal === 0 && grossVal > 0) {
+      netVal = grossVal - discVal - dedVal;
+    }
+    if (grossVal === 0 && netVal > 0) {
+      grossVal = netVal + discVal + dedVal;
+    }
+
+    if (!rawInv && grossVal === 0 && netVal === 0) {
+      continue;
+    }
+
+    if (!rawInv) {
+      rawInv = `INV-${i - headerRowIndex}`;
+    }
+
+    if (!itemsMap.has(rawInv)) {
+      itemsMap.set(rawInv, {
+        invoice_number: rawInv,
+        invoice_date: dateStr || undefined,
+        gross_amount: 0,
+        discount_amount: 0,
+        deductions_amount: 0,
+        net_paid: 0,
+        part_count: 0,
+        parts: [],
+        notes: notesVal || undefined,
+      });
+    }
+
+    const item = itemsMap.get(rawInv)!;
+    item.gross_amount += grossVal;
+    item.discount_amount += discVal;
+    item.deductions_amount += dedVal;
+    item.net_paid += netVal;
+    item.part_count = (item.part_count || 0) + 1;
+    if (!item.invoice_date && dateStr) item.invoice_date = dateStr;
+    if (!item.notes && notesVal) item.notes = notesVal;
+
+    item.parts.push({
+      part_id: `${rawInv}-${item.part_count}`,
+      date: dateStr || undefined,
+      gross_amount: grossVal,
+      amount_paid: netVal,
+      discount_amount: discVal,
+      writeoff_amount: dedVal,
+      net_paid: netVal,
+    });
+
+    totalGross += grossVal;
+    totalDiscount += discVal;
+    totalDeduction += dedVal;
+    totalNet += netVal;
+  }
+
+  const items = Array.from(itemsMap.values());
+  const rawPreview = rawRows.slice(0, 40).map((r) => r.join("\t")).join("\n");
+
+  return {
+    items,
+    totals: {
+      gross: totalGross,
+      discount: totalDiscount,
+      writeoff: totalDeduction,
+      net: totalNet,
+    },
+    rawPreview,
+  };
+}
+
+// =========================================================================
+// GENERIC REMITTANCE TEXT PARSER (PDF & Image OCR, No Pyramid Custom Rules)
+// =========================================================================
+function parseGenericRemittanceText(rawText: string): {
+  items: ParsedInvoiceItem[];
+  totals: { gross: number; discount: number; writeoff: number; net: number };
+} {
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const itemsMap = new Map<string, ParsedInvoiceItem>();
+  let explicitTotals = { gross: 0, discount: 0, writeoff: 0, net: 0 };
+  let itemCounter = 0;
+
+  for (const line of lines) {
+    // Check for totals line
+    if (/(?:total|totals|grand total|remittance total)\b/i.test(line)) {
+      const moneyMatches = line.match(/\$?\s*-?\(?\b\d{1,3}(?:,\d{3})*(?:\.\d{2})\)?/g);
+      if (moneyMatches && moneyMatches.length >= 1) {
+        const nums = moneyMatches.map((m) => {
+          const s = m.replace(/[$ ,]/g, "").replace(/\((.*)\)/, "-$1");
+          return parseFloat(s) || 0;
+        });
+
+        if (nums.length >= 4) {
+          explicitTotals = { gross: nums[0], discount: nums[1], writeoff: nums[2], net: nums[3] };
+        } else if (nums.length === 3) {
+          explicitTotals = { gross: nums[0], discount: nums[1], writeoff: 0, net: nums[2] };
+        } else if (nums.length === 2) {
+          explicitTotals = { gross: nums[0], discount: Math.max(0, nums[0] - nums[1]), writeoff: 0, net: nums[1] };
+        } else if (nums.length === 1) {
+          explicitTotals.net = nums[0];
+          if (explicitTotals.gross === 0) explicitTotals.gross = nums[0];
+        }
+        continue;
+      }
+    }
+
+    // Check for line containing monetary values
+    const moneyMatches = line.match(/\$?\s*-?\(?\b\d{1,3}(?:,\d{3})*(?:\.\d{2})\)?/g);
+    if (!moneyMatches || moneyMatches.length === 0) {
+      continue;
+    }
+
+    const tokens = line.split(/\s+/);
+    let invNumber = "";
+    let invDate = "";
+
+    // Extract date & invoice candidate
+    for (const tok of tokens) {
+      const cleanTok = tok.replace(/[,;:]/g, "");
+      if (!invDate && /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(cleanTok)) {
+        invDate = cleanTok;
+        continue;
+      }
+      if (!invNumber && !cleanTok.includes("$") && !/^\d{1,2}[/-]\d{1,2}/.test(cleanTok)) {
+        if (/^(?:INV-?|#)?[A-Z0-9_-]{3,20}$/i.test(cleanTok)) {
+          if (!/^\d+\.\d+$/.test(cleanTok)) {
+            invNumber = cleanTok.replace(/^#/, "");
+          }
+        }
+      }
+    }
+
+    if (!invNumber) {
+      itemCounter++;
+      invNumber = `INV-${itemCounter}`;
+    }
+
+    const nums = moneyMatches.map((m) => {
+      const s = m.replace(/[$ ,]/g, "").replace(/\((.*)\)/, "-$1");
+      return parseFloat(s) || 0;
+    });
+
+    let gross = 0;
+    let discount = 0;
+    let writeoff = 0;
+    let net = 0;
+
+    if (nums.length >= 4) {
+      gross = nums[0];
+      discount = nums[1];
+      writeoff = nums[2];
+      net = nums[3];
+    } else if (nums.length === 3) {
+      gross = nums[0];
+      discount = nums[1];
+      net = nums[2];
+    } else if (nums.length === 2) {
+      gross = nums[0];
+      net = nums[1];
+      discount = Math.max(0, gross - net);
+    } else if (nums.length === 1) {
+      gross = nums[0];
+      net = nums[0];
+    }
+
+    if (!itemsMap.has(invNumber)) {
+      itemsMap.set(invNumber, {
+        invoice_number: invNumber,
+        invoice_date: invDate || undefined,
+        gross_amount: 0,
+        discount_amount: 0,
+        deductions_amount: 0,
+        net_paid: 0,
+        part_count: 0,
+        parts: [],
+      });
+    }
+
+    const group = itemsMap.get(invNumber)!;
+    group.gross_amount += gross;
+    group.discount_amount += discount;
+    group.deductions_amount += writeoff;
+    group.net_paid += net;
+    group.part_count = (group.part_count || 0) + 1;
+    if (!group.invoice_date && invDate) group.invoice_date = invDate;
+
+    group.parts.push({
+      part_id: `${invNumber}-${group.part_count}`,
+      date: invDate || undefined,
+      gross_amount: gross,
+      amount_paid: net,
+      discount_amount: discount,
+      writeoff_amount: writeoff,
+      net_paid: net,
+    });
+  }
+
+  const items = Array.from(itemsMap.values());
+
+  if (explicitTotals.net === 0 && items.length > 0) {
+    explicitTotals = {
+      gross: items.reduce((acc, it) => acc + it.gross_amount, 0),
       discount: items.reduce((acc, it) => acc + it.discount_amount, 0),
       writeoff: items.reduce((acc, it) => acc + it.deductions_amount, 0),
       net: items.reduce((acc, it) => acc + it.net_paid, 0),
