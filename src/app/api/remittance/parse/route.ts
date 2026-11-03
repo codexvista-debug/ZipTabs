@@ -63,13 +63,26 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
+export interface RemittanceLinePart {
+  part_id: string; // e.g. "33990-1"
+  voucher_number?: string; // e.g. "00325494"
+  date?: string; // e.g. "6/16/2026"
+  gross_amount: number; // Amount
+  amount_paid: number; // Amount Paid
+  discount_amount: number; // Discount
+  writeoff_amount: number; // Writeoff / Deductions
+  net_paid: number; // Net
+}
+
 export interface ParsedInvoiceItem {
-  invoice_number: string;
+  invoice_number: string; // Base invoice, e.g. "33990"
   invoice_date?: string;
   gross_amount: number;
   discount_amount: number;
   deductions_amount: number;
   net_paid: number;
+  part_count: number;
+  parts: RemittanceLinePart[];
   notes?: string;
 }
 
@@ -164,7 +177,6 @@ export async function POST(req: NextRequest) {
       try {
         const buffer = Buffer.from(arrayBuffer);
         const latinString = buffer.toString("latin1");
-        // Extract stream blocks
         const streamMatches = latinString.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g);
         if (streamMatches) {
           rawText = streamMatches.join("\n");
@@ -200,18 +212,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Step 4: Parse lines into structured items
-    const extractedItems: ParsedInvoiceItem[] = parseRemittanceText(rawText);
+    // Step 4: Parse lines into structured and grouped items
+    const { items: invoiceGroups, totals: parsedTotals } = parseRemittanceText(rawText);
 
     // Calculate totals
-    const totalGross = extractedItems.reduce((acc, it) => acc + (it.gross_amount || 0), 0);
-    const totalDiscount = extractedItems.reduce((acc, it) => acc + (it.discount_amount || 0), 0);
-    const totalDeductions = extractedItems.reduce((acc, it) => acc + (it.deductions_amount || 0), 0);
-    const calculatedNet = extractedItems.reduce((acc, it) => acc + (it.net_paid || 0), 0);
+    const totalGross = parsedTotals.gross > 0
+      ? parsedTotals.gross
+      : invoiceGroups.reduce((acc, it) => acc + (it.gross_amount || 0), 0);
 
-    // Look for explicit payment check totals in text
-    const explicitTotalPaid = findExplicitTotalPaid(rawText);
-    const finalTotalPaid = explicitTotalPaid > 0 ? explicitTotalPaid : calculatedNet;
+    const totalDiscount = parsedTotals.discount >= 0
+      ? parsedTotals.discount
+      : invoiceGroups.reduce((acc, it) => acc + (it.discount_amount || 0), 0);
+
+    const totalDeductions = parsedTotals.writeoff >= 0
+      ? parsedTotals.writeoff
+      : invoiceGroups.reduce((acc, it) => acc + (it.deductions_amount || 0), 0);
+
+    const totalPaid = parsedTotals.net > 0
+      ? parsedTotals.net
+      : invoiceGroups.reduce((acc, it) => acc + (it.net_paid || 0), 0);
 
     // Build the draft record (DO NOT SAVE TO SUPABASE YET)
     const draftRecord = {
@@ -219,12 +238,12 @@ export async function POST(req: NextRequest) {
       vendor_name: vendorName,
       file_name: file.name,
       file_size: file.size,
-      total_paid: finalTotalPaid,
-      total_gross: totalGross > 0 ? totalGross : finalTotalPaid + totalDiscount + totalDeductions,
+      total_paid: totalPaid,
+      total_gross: totalGross,
       total_discount: totalDiscount,
       total_deductions: totalDeductions,
-      invoice_count: extractedItems.length,
-      items: extractedItems,
+      invoice_count: invoiceGroups.length,
+      items: invoiceGroups,
       raw_text: rawText.slice(0, 5000),
       is_draft: true, // Marked as draft until confirmed
     };
@@ -232,7 +251,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       draft: draftRecord,
-      message: `Extracted ${extractedItems.length} invoices from ${file.name}. Review and confirm to save to Supabase.`,
+      message: `Extracted ${invoiceGroups.length} invoices from ${file.name}. Review and confirm to save to Supabase.`,
     });
   } catch (err: any) {
     console.error("PDF Remittance processing error:", err);
@@ -243,100 +262,196 @@ export async function POST(req: NextRequest) {
   }
 }
 
+interface ParsedResult {
+  items: ParsedInvoiceItem[];
+  totals: {
+    gross: number;
+    paid: number;
+    discount: number;
+    writeoff: number;
+    net: number;
+  };
+}
+
 /**
- * Intelligent parser for remittance lines (supports Pyramid Inc and standard vendor tables)
+ * Intelligent parser for remittance lines
+ * Specifically recognizes vendor layout:
+ * [Our Voucher Number] [Your Voucher Number] [Date] [Amount] [Amount Paid] [Discount] [Writeoff] [Net]
+ * Automatically groups split invoice parts (e.g. 33990-1 ... 33990-5) under parent invoice 33990.
  */
-function parseRemittanceText(text: string): ParsedInvoiceItem[] {
-  const items: ParsedInvoiceItem[] = [];
-  if (!text) return items;
+function parseRemittanceText(text: string): ParsedResult {
+  const invoiceGroups = new Map<string, ParsedInvoiceItem>();
+  let explicitTotals = {
+    gross: 0,
+    paid: 0,
+    discount: 0,
+    writeoff: 0,
+    net: 0,
+  };
+
+  if (!text) return { items: [], totals: explicitTotals };
 
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
   for (const line of lines) {
-    // Check if line contains dollar/monetary patterns
+    // 1. Skip table header lines
+    if (/our\s+voucher/i.test(line) && /your\s+voucher/i.test(line)) {
+      continue;
+    }
+
+    // 2. Detect summary 'Totals' line
+    if (/^totals?\b/i.test(line) || /\bgrand\s+totals?\b/i.test(line)) {
+      const moneyMatches = line.match(/-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
+      const nums = moneyMatches.map((m) => parseFloat(m.replace(/[$,]/g, "")) || 0);
+
+      if (nums.length >= 5) {
+        // [Amount, Amount Paid, Discount, Writeoff, Net]
+        explicitTotals = {
+          gross: nums[0],
+          paid: nums[1],
+          discount: nums[2],
+          writeoff: nums[3],
+          net: nums[4],
+        };
+      } else if (nums.length === 1) {
+        explicitTotals.net = nums[0];
+      }
+      continue;
+    }
+
+    // 3. Match row with monetary amounts
     const moneyMatches = line.match(/-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})/g);
 
     if (moneyMatches && moneyMatches.length >= 1) {
       const tokens = line.split(/\s+/);
-      let invNum = "";
+      let voucherNum = "";
+      let rawInvoiceNum = "";
       let invDate = "";
 
       for (const tok of tokens) {
         const cleanTok = tok.replace(/[,;:]/g, "");
+
+        // Match date: 6/16/2026 or 2026-06-16
         if (!invDate && /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(cleanTok)) {
           invDate = cleanTok;
           continue;
         }
 
-        // Match typical invoice numbers (e.g., 24408, 100923, INV-1234, PYR901)
-        if (
-          !invNum &&
-          /^(?:INV-?|[A-Z]{0,4}\d{4,10}|\d{4,10})$/i.test(cleanTok) &&
-          !cleanTok.includes("$") &&
-          !/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(cleanTok)
-        ) {
-          invNum = cleanTok;
+        // Match invoice format like 33990-1 or 34289-5
+        if (/^\d{4,10}-\d+$/.test(cleanTok)) {
+          rawInvoiceNum = cleanTok;
+          continue;
+        }
+
+        // Match voucher format like 00325494
+        if (/^\d{6,10}$/.test(cleanTok) && !tok.includes("$")) {
+          if (!voucherNum) {
+            voucherNum = cleanTok;
+          } else if (!rawInvoiceNum) {
+            rawInvoiceNum = cleanTok;
+          }
+          continue;
+        }
+
+        // Alphanumeric invoice candidate (e.g. INV-33990 or 33990)
+        if (!rawInvoiceNum && /^[A-Z0-9-]{4,20}$/i.test(cleanTok) && !tok.includes("$")) {
+          rawInvoiceNum = cleanTok;
         }
       }
 
-      if (invNum || moneyMatches.length >= 2) {
-        const numbers = moneyMatches.map((m) => {
-          const numStr = m.replace(/[$,]/g, "");
-          return parseFloat(numStr) || 0;
+      const nums = moneyMatches.map((m) => parseFloat(m.replace(/[$,]/g, "")) || 0);
+
+      let gross = 0;
+      let amountPaid = 0;
+      let discount = 0;
+      let writeoff = 0;
+      let net = 0;
+
+      if (nums.length >= 5) {
+        // Standard Vendor Layout: [Amount, Amount Paid, Discount, Writeoff, Net]
+        gross = nums[0];
+        amountPaid = nums[1];
+        discount = nums[2];
+        writeoff = nums[3];
+        net = nums[4];
+      } else if (nums.length === 4) {
+        // [Amount, Discount, Writeoff, Net]
+        gross = nums[0];
+        discount = nums[1];
+        writeoff = nums[2];
+        net = nums[3];
+        amountPaid = net;
+      } else if (nums.length === 3) {
+        // [Gross, Discount, Net]
+        gross = nums[0];
+        discount = nums[1];
+        net = nums[2];
+        amountPaid = net;
+      } else if (nums.length === 2) {
+        // [Gross, Net]
+        gross = nums[0];
+        net = nums[1];
+        amountPaid = net;
+        discount = Math.max(0, gross - net);
+      } else if (nums.length === 1) {
+        gross = nums[0];
+        net = nums[0];
+        amountPaid = nums[0];
+      }
+
+      // Group split parts by base invoice:
+      // '33990-1' -> baseInvoice: '33990', part: '33990-1'
+      const baseInvoice = rawInvoiceNum ? rawInvoiceNum.replace(/-\d+$/, "") : (voucherNum || "INV");
+      const partId = rawInvoiceNum || baseInvoice;
+
+      if (!invoiceGroups.has(baseInvoice)) {
+        invoiceGroups.set(baseInvoice, {
+          invoice_number: baseInvoice,
+          invoice_date: invDate || undefined,
+          gross_amount: 0,
+          discount_amount: 0,
+          deductions_amount: 0,
+          net_paid: 0,
+          part_count: 0,
+          parts: [],
         });
-
-        let gross = 0;
-        let discount = 0;
-        let deductions = 0;
-        let net = 0;
-
-        if (numbers.length === 1) {
-          net = numbers[0];
-          gross = numbers[0];
-        } else if (numbers.length === 2) {
-          gross = Math.max(numbers[0], numbers[1]);
-          net = Math.min(numbers[0], numbers[1]);
-          discount = Math.max(0, gross - net);
-        } else if (numbers.length === 3) {
-          gross = numbers[0];
-          discount = Math.abs(numbers[1]);
-          net = numbers[2];
-        } else if (numbers.length >= 4) {
-          gross = numbers[0];
-          discount = Math.abs(numbers[1]);
-          deductions = Math.abs(numbers[2]);
-          net = numbers[3];
-        }
-
-        const finalInv = invNum || `INV-${items.length + 1}`;
-        if (!items.some((it) => it.invoice_number === finalInv)) {
-          items.push({
-            invoice_number: finalInv,
-            invoice_date: invDate || undefined,
-            gross_amount: Math.abs(gross),
-            discount_amount: Math.abs(discount),
-            deductions_amount: Math.abs(deductions),
-            net_paid: Math.abs(net),
-          });
-        }
       }
+
+      const group = invoiceGroups.get(baseInvoice)!;
+      group.gross_amount += gross;
+      group.discount_amount += discount;
+      group.deductions_amount += writeoff;
+      group.net_paid += net;
+      group.part_count += 1;
+      if (!group.invoice_date && invDate) {
+        group.invoice_date = invDate;
+      }
+
+      group.parts.push({
+        part_id: partId,
+        voucher_number: voucherNum || undefined,
+        date: invDate || undefined,
+        gross_amount: gross,
+        amount_paid: amountPaid,
+        discount_amount: discount,
+        writeoff_amount: writeoff,
+        net_paid: net,
+      });
     }
   }
 
-  return items;
-}
+  const items = Array.from(invoiceGroups.values());
 
-/**
- * Searches for explicit check / payment totals in text
- */
-function findExplicitTotalPaid(text: string): number {
-  if (!text) return 0;
-  const match = text.match(
-    /(?:check\s+total|total\s+paid|net\s+paid|total\s+payment|payment\s+amount|amount\s+paid)[^\d]*\$?\s*([\d,]+\.\d{2})/i
-  );
-  if (match && match[1]) {
-    const val = parseFloat(match[1].replace(/,/g, ""));
-    return isNaN(val) ? 0 : val;
+  // If no explicit totals row was found, calculate from sum of groups
+  if (explicitTotals.gross === 0 && items.length > 0) {
+    explicitTotals = {
+      gross: items.reduce((acc, it) => acc + it.gross_amount, 0),
+      paid: items.reduce((acc, it) => acc + it.net_paid, 0),
+      discount: items.reduce((acc, it) => acc + it.discount_amount, 0),
+      writeoff: items.reduce((acc, it) => acc + it.deductions_amount, 0),
+      net: items.reduce((acc, it) => acc + it.net_paid, 0),
+    };
   }
-  return 0;
+
+  return { items, totals: explicitTotals };
 }

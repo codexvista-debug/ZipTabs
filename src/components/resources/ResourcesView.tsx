@@ -27,6 +27,9 @@ import {
   Save,
   CheckCircle2,
   X,
+  ChevronDown,
+  ChevronUp,
+  CornerDownRight,
 } from "lucide-react";
 
 // Standard prompt payment discount percentage presets
@@ -42,13 +45,26 @@ const STEP_PERCENT = 0.1;
 const TOTAL_TICKS = Math.round((MAX_PERCENT - MIN_PERCENT) / STEP_PERCENT) + 1; // 201 ticks
 const TICK_WIDTH = 12; // 12px per 0.1% step
 
+export interface RemittanceLinePart {
+  part_id: string; // e.g. "33990-1"
+  voucher_number?: string; // e.g. "00325494"
+  date?: string; // e.g. "6/16/2026"
+  gross_amount: number;
+  amount_paid: number;
+  discount_amount: number;
+  writeoff_amount: number;
+  net_paid: number;
+}
+
 export interface RemittanceItem {
-  invoice_number: string;
+  invoice_number: string; // Base invoice, e.g. "33990"
   invoice_date?: string;
   gross_amount: number;
   discount_amount: number;
   deductions_amount: number;
   net_paid: number;
+  part_count?: number;
+  parts?: RemittanceLinePart[];
   notes?: string;
 }
 
@@ -89,7 +105,15 @@ export function ResourcesView() {
   const [isLoadingRemittances, setIsLoadingRemittances] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [collapsedInvoices, setCollapsedInvoices] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleInvoiceCollapse = (invNum: string) => {
+    setCollapsedInvoices((prev) => ({
+      ...prev,
+      [invNum]: !prev[invNum],
+    }));
+  };
 
   // Wheel scroll container ref & drag states
   const wheelRef = useRef<HTMLDivElement>(null);
@@ -256,6 +280,7 @@ export function ResourcesView() {
 
   // Format remittance summary for Zoho Mail copy-paste
   const handleCopyZohoFormat = (remittance: RemittanceRecord) => {
+    const totalParts = remittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0) || 0;
     const lines = [
       `REMITTANCE STATEMENT SUMMARY - ${remittance.vendor_name.toUpperCase()}`,
       `File: ${remittance.file_name}`,
@@ -265,16 +290,24 @@ export function ResourcesView() {
       `TOTAL GROSS INVOICED:      $${remittance.total_gross.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       `PROMPT DISCOUNTS DEDUCTED: -$${remittance.total_discount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       remittance.total_deductions > 0
-        ? `OTHER DEDUCTIONS:          -$${remittance.total_deductions.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : null,
-      `INVOICES ACCOUNTED:        ${remittance.invoice_count}`,
+        ? `WRITEOFFS / DEDUCTIONS:    -$${remittance.total_deductions.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : `WRITEOFFS / DEDUCTIONS:    $0.00`,
+      `INVOICES ACCOUNTED:        ${remittance.invoice_count} Invoices (${totalParts} split line items)`,
       `==================================================`,
       `INVOICE BREAKDOWN:`,
       ...(remittance.items && remittance.items.length > 0
-        ? remittance.items.map(
-            (it, idx) =>
-              `${idx + 1}. Inv #${it.invoice_number} | Gross: $${it.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Disc: -$${it.discount_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Net Paid: $${it.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}${it.invoice_date ? ` (${it.invoice_date})` : ""}`
-          )
+        ? remittance.items.flatMap((it, idx) => {
+            const hasMultipleParts = it.parts && it.parts.length > 1;
+            const mainLine = `${idx + 1}. Invoice #${it.invoice_number}${hasMultipleParts ? ` (${it.parts!.length} split parts)` : ""} | Gross: $${it.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Disc: -$${it.discount_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Net Paid: $${it.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}${it.invoice_date ? ` (${it.invoice_date})` : ""}`;
+            if (hasMultipleParts) {
+              const partLines = it.parts!.map(
+                (p) =>
+                  `   • Part ${p.part_id}${p.voucher_number ? ` (Voucher ${p.voucher_number})` : ""}: Gross $${p.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Paid $${p.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+              );
+              return [mainLine, ...partLines];
+            }
+            return [mainLine];
+          })
         : ["(See net cleared remittance total above)"]),
     ]
       .filter(Boolean)
@@ -834,19 +867,25 @@ export function ResourcesView() {
                     {/* Draft Card 3: Total Prompt Discount / Deductions */}
                     <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                           Discounts & Deductions
                         </span>
-                        <TrendingDown className="w-4 h-4 text-amber-600" />
+                        <TrendingDown className={`w-4 h-4 ${draftRemittance.total_discount + draftRemittance.total_deductions > 0 ? "text-amber-600" : "text-emerald-500"}`} />
                       </div>
                       <div className="mt-3">
-                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-600">
-                          -{formatCurrency(draftRemittance.total_discount + draftRemittance.total_deductions)}
+                        <p className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
+                          draftRemittance.total_discount + draftRemittance.total_deductions > 0
+                            ? "text-amber-600"
+                            : "text-slate-800"
+                        }`}>
+                          {draftRemittance.total_discount + draftRemittance.total_deductions > 0
+                            ? `-${formatCurrency(draftRemittance.total_discount + draftRemittance.total_deductions)}`
+                            : "$0.00"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-1">
                           {draftRemittance.total_discount > 0 && `Disc: -${formatCurrency(draftRemittance.total_discount)}`}
-                          {draftRemittance.total_deductions > 0 && ` | Ded: -${formatCurrency(draftRemittance.total_deductions)}`}
-                          {draftRemittance.total_discount === 0 && draftRemittance.total_deductions === 0 && "No prompt deductions"}
+                          {draftRemittance.total_deductions > 0 && ` | Writeoff: -${formatCurrency(draftRemittance.total_deductions)}`}
+                          {draftRemittance.total_discount === 0 && draftRemittance.total_deductions === 0 && "Zero discounts or write-offs taken"}
                         </p>
                       </div>
                     </div>
@@ -861,10 +900,10 @@ export function ResourcesView() {
                       </div>
                       <div className="mt-3">
                         <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
-                          {draftRemittance.invoice_count}
+                          {draftRemittance.invoice_count} {draftRemittance.invoice_count === 1 ? "Invoice" : "Invoices"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                          Itemized remittance lines
+                          {draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} split line items reconciled
                         </p>
                       </div>
                     </div>
@@ -875,14 +914,14 @@ export function ResourcesView() {
                     <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-bold text-slate-900">
-                          Extracted Invoice Line Items (Review)
+                          Extracted Invoice Line Items (Grouped by Invoice)
                         </h4>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          Extracted from statement for your review
+                          Invoices grouped with their split parts and voucher details
                         </p>
                       </div>
                       <span className="text-xs font-mono font-bold text-slate-500">
-                        {draftRemittance.items?.length || 0} Records
+                        {draftRemittance.items?.length || 0} Invoices ({draftRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} Parts)
                       </span>
                     </div>
 
@@ -901,33 +940,118 @@ export function ResourcesView() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
-                            {draftRemittance.items.map((it, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                                <td className="py-3 px-4 font-bold text-blue-600">
-                                  {it.invoice_number || `INV-${idx + 1}`}
-                                </td>
-                                <td className="py-3 px-4 text-slate-500 font-sans">
-                                  {it.invoice_date || "—"}
-                                </td>
-                                <td className="py-3 px-4 text-right font-semibold text-slate-900">
-                                  {formatCurrency(it.gross_amount || 0)}
-                                </td>
-                                <td className="py-3 px-4 text-right text-amber-600">
-                                  {it.discount_amount > 0 ? `-${formatCurrency(it.discount_amount)}` : "—"}
-                                </td>
-                                <td className="py-3 px-4 text-right text-rose-600">
-                                  {it.deductions_amount > 0 ? `-${formatCurrency(it.deductions_amount)}` : "—"}
-                                </td>
-                                <td className="py-3 px-4 text-right font-black text-emerald-600">
-                                  {formatCurrency(it.net_paid || 0)}
-                                </td>
-                                <td className="py-3 px-4 text-center font-sans">
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
-                                    Pending Save
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
+                            {draftRemittance.items.map((it, idx) => {
+                              const isCollapsed = collapsedInvoices[it.invoice_number] === true;
+                              const hasParts = it.parts && it.parts.length > 1;
+
+                              return (
+                                <React.Fragment key={idx}>
+                                  {/* Primary Invoice Row */}
+                                  <tr className="hover:bg-slate-50/80 transition-colors bg-white font-mono">
+                                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-blue-600 font-black">
+                                          #{it.invoice_number}
+                                        </span>
+                                        {hasParts && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleInvoiceCollapse(it.invoice_number)}
+                                            className="px-2 py-0.5 rounded-md text-[10px] font-sans font-extrabold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                            title="Toggle split parts"
+                                          >
+                                            <span>{it.parts!.length} parts</span>
+                                            {isCollapsed ? (
+                                              <ChevronDown className="w-3 h-3" />
+                                            ) : (
+                                              <ChevronUp className="w-3 h-3" />
+                                            )}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3.5 px-4 text-slate-500 font-sans">
+                                      {it.invoice_date || "—"}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-bold text-slate-900">
+                                      {formatCurrency(it.gross_amount)}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right text-slate-500">
+                                      {it.discount_amount > 0 ? (
+                                        <span className="text-amber-600 font-semibold">
+                                          -{formatCurrency(it.discount_amount)}
+                                        </span>
+                                      ) : (
+                                        "$0.00"
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right text-slate-500">
+                                      {it.deductions_amount > 0 ? (
+                                        <span className="text-rose-600 font-semibold">
+                                          -{formatCurrency(it.deductions_amount)}
+                                        </span>
+                                      ) : (
+                                        "$0.00"
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm">
+                                      {formatCurrency(it.net_paid)}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-center font-sans">
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                                        Pending Save
+                                      </span>
+                                    </td>
+                                  </tr>
+
+                                  {/* Itemized Split Parts Sub-Rows */}
+                                  {hasParts &&
+                                    !isCollapsed &&
+                                    it.parts!.map((p, pIdx) => (
+                                      <tr
+                                        key={`${idx}-${pIdx}`}
+                                        className="bg-slate-50/70 hover:bg-slate-100/60 transition-colors text-[11px] font-mono border-t border-slate-100/60"
+                                      >
+                                        <td className="py-2 px-4 pl-8 text-slate-600">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <CornerDownRight className="w-3 h-3 text-slate-400 shrink-0" />
+                                            <span className="font-semibold text-slate-800">{p.part_id}</span>
+                                            {p.voucher_number && (
+                                              <span className="text-[10px] text-slate-400 font-sans">
+                                                (Voucher #{p.voucher_number})
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="py-2 px-4 text-slate-400 font-sans">
+                                          {p.date || "—"}
+                                        </td>
+                                        <td className="py-2 px-4 text-right text-slate-700">
+                                          {formatCurrency(p.gross_amount)}
+                                        </td>
+                                        <td className="py-2 px-4 text-right text-slate-400">
+                                          {p.discount_amount > 0
+                                            ? `-${formatCurrency(p.discount_amount)}`
+                                            : "$0.00"}
+                                        </td>
+                                        <td className="py-2 px-4 text-right text-slate-400">
+                                          {p.writeoff_amount > 0
+                                            ? `-${formatCurrency(p.writeoff_amount)}`
+                                            : "$0.00"}
+                                        </td>
+                                        <td className="py-2 px-4 text-right font-bold text-emerald-600">
+                                          {formatCurrency(p.net_paid)}
+                                        </td>
+                                        <td className="py-2 px-4 text-center font-sans">
+                                          <span className="text-[9px] text-slate-400 font-semibold uppercase">
+                                            Part {pIdx + 1} of {it.parts!.length}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                </React.Fragment>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -1064,19 +1188,25 @@ export function ResourcesView() {
                     {/* Card 3: Total Prompt Discount / Deductions */}
                     <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                           Discounts & Deductions
                         </span>
-                        <TrendingDown className="w-4 h-4 text-amber-600" />
+                        <TrendingDown className={`w-4 h-4 ${selectedRemittance.total_discount + selectedRemittance.total_deductions > 0 ? "text-amber-600" : "text-emerald-500"}`} />
                       </div>
                       <div className="mt-3">
-                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-600">
-                          -{formatCurrency(selectedRemittance.total_discount + selectedRemittance.total_deductions)}
+                        <p className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
+                          selectedRemittance.total_discount + selectedRemittance.total_deductions > 0
+                            ? "text-amber-600"
+                            : "text-slate-800"
+                        }`}>
+                          {selectedRemittance.total_discount + selectedRemittance.total_deductions > 0
+                            ? `-${formatCurrency(selectedRemittance.total_discount + selectedRemittance.total_deductions)}`
+                            : "$0.00"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-1">
                           {selectedRemittance.total_discount > 0 && `Disc: -${formatCurrency(selectedRemittance.total_discount)}`}
-                          {selectedRemittance.total_deductions > 0 && ` | Ded: -${formatCurrency(selectedRemittance.total_deductions)}`}
-                          {selectedRemittance.total_discount === 0 && selectedRemittance.total_deductions === 0 && "No prompt deductions"}
+                          {selectedRemittance.total_deductions > 0 && ` | Writeoff: -${formatCurrency(selectedRemittance.total_deductions)}`}
+                          {selectedRemittance.total_discount === 0 && selectedRemittance.total_deductions === 0 && "Zero discounts or write-offs taken"}
                         </p>
                       </div>
                     </div>
@@ -1091,10 +1221,10 @@ export function ResourcesView() {
                       </div>
                       <div className="mt-3">
                         <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
-                          {selectedRemittance.invoice_count}
+                          {selectedRemittance.invoice_count} {selectedRemittance.invoice_count === 1 ? "Invoice" : "Invoices"}
                         </p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                          Itemized remittance lines
+                          {selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} split line items reconciled
                         </p>
                       </div>
                     </div>
@@ -1105,14 +1235,14 @@ export function ResourcesView() {
                     <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-bold text-slate-900">
-                          Pyramid Inc Invoice Breakdown
+                          Pyramid Inc Invoice Breakdown (Grouped by Invoice)
                         </h4>
                         <p className="text-xs text-slate-400 mt-0.5">
                           Line items parsed from confirmed statement
                         </p>
                       </div>
                       <span className="text-xs font-mono font-bold text-slate-500">
-                        {selectedRemittance.items?.length || 0} Records
+                        {selectedRemittance.items?.length || 0} Invoices ({selectedRemittance.items?.reduce((acc, it) => acc + (it.parts?.length || 1), 0)} Parts)
                       </span>
                     </div>
 
@@ -1131,33 +1261,118 @@ export function ResourcesView() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
-                            {selectedRemittance.items.map((it, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                                <td className="py-3 px-4 font-bold text-blue-600">
-                                  {it.invoice_number || `INV-${idx + 1}`}
-                                </td>
-                                <td className="py-3 px-4 text-slate-500 font-sans">
-                                  {it.invoice_date || "—"}
-                                </td>
-                                <td className="py-3 px-4 text-right font-semibold text-slate-900">
-                                  {formatCurrency(it.gross_amount || 0)}
-                                </td>
-                                <td className="py-3 px-4 text-right text-amber-600">
-                                  {it.discount_amount > 0 ? `-${formatCurrency(it.discount_amount)}` : "—"}
-                                </td>
-                                <td className="py-3 px-4 text-right text-rose-600">
-                                  {it.deductions_amount > 0 ? `-${formatCurrency(it.deductions_amount)}` : "—"}
-                                </td>
-                                <td className="py-3 px-4 text-right font-black text-emerald-600">
-                                  {formatCurrency(it.net_paid || 0)}
-                                </td>
-                                <td className="py-3 px-4 text-center font-sans">
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    Reconciled
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
+                            {selectedRemittance.items.map((it, idx) => {
+                              const isCollapsed = collapsedInvoices[it.invoice_number] === true;
+                              const hasParts = it.parts && it.parts.length > 1;
+
+                              return (
+                                <React.Fragment key={idx}>
+                                  {/* Primary Invoice Row */}
+                                  <tr className="hover:bg-slate-50/80 transition-colors bg-white font-mono">
+                                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-blue-600 font-black">
+                                          #{it.invoice_number}
+                                        </span>
+                                        {hasParts && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleInvoiceCollapse(it.invoice_number)}
+                                            className="px-2 py-0.5 rounded-md text-[10px] font-sans font-extrabold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                            title="Toggle split parts"
+                                          >
+                                            <span>{it.parts!.length} parts</span>
+                                            {isCollapsed ? (
+                                              <ChevronDown className="w-3 h-3" />
+                                            ) : (
+                                              <ChevronUp className="w-3 h-3" />
+                                            )}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3.5 px-4 text-slate-500 font-sans">
+                                      {it.invoice_date || "—"}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-bold text-slate-900">
+                                      {formatCurrency(it.gross_amount)}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right text-slate-500">
+                                      {it.discount_amount > 0 ? (
+                                        <span className="text-amber-600 font-semibold">
+                                          -{formatCurrency(it.discount_amount)}
+                                        </span>
+                                      ) : (
+                                        "$0.00"
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right text-slate-500">
+                                      {it.deductions_amount > 0 ? (
+                                        <span className="text-rose-600 font-semibold">
+                                          -{formatCurrency(it.deductions_amount)}
+                                        </span>
+                                      ) : (
+                                        "$0.00"
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm">
+                                      {formatCurrency(it.net_paid)}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-center font-sans">
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        Reconciled
+                                      </span>
+                                    </td>
+                                  </tr>
+
+                                  {/* Itemized Split Parts Sub-Rows */}
+                                  {hasParts &&
+                                    !isCollapsed &&
+                                    it.parts!.map((p, pIdx) => (
+                                      <tr
+                                        key={`${idx}-${pIdx}`}
+                                        className="bg-slate-50/70 hover:bg-slate-100/60 transition-colors text-[11px] font-mono border-t border-slate-100/60"
+                                      >
+                                        <td className="py-2 px-4 pl-8 text-slate-600">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <CornerDownRight className="w-3 h-3 text-slate-400 shrink-0" />
+                                            <span className="font-semibold text-slate-800">{p.part_id}</span>
+                                            {p.voucher_number && (
+                                              <span className="text-[10px] text-slate-400 font-sans">
+                                                (Voucher #{p.voucher_number})
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="py-2 px-4 text-slate-400 font-sans">
+                                          {p.date || "—"}
+                                        </td>
+                                        <td className="py-2 px-4 text-right text-slate-700">
+                                          {formatCurrency(p.gross_amount)}
+                                        </td>
+                                        <td className="py-2 px-4 text-right text-slate-400">
+                                          {p.discount_amount > 0
+                                            ? `-${formatCurrency(p.discount_amount)}`
+                                            : "$0.00"}
+                                        </td>
+                                        <td className="py-2 px-4 text-right text-slate-400">
+                                          {p.writeoff_amount > 0
+                                            ? `-${formatCurrency(p.writeoff_amount)}`
+                                            : "$0.00"}
+                                        </td>
+                                        <td className="py-2 px-4 text-right font-bold text-emerald-600">
+                                          {formatCurrency(p.net_paid)}
+                                        </td>
+                                        <td className="py-2 px-4 text-center font-sans">
+                                          <span className="text-[9px] text-slate-400 font-semibold uppercase">
+                                            Part {pIdx + 1} of {it.parts!.length}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                </React.Fragment>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
