@@ -15,6 +15,15 @@ import {
   Clock,
   ArrowRight,
   FileSpreadsheet,
+  Upload,
+  FileText,
+  Trash2,
+  Loader2,
+  Calendar,
+  Building2,
+  Sparkles,
+  ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 
 // Standard prompt payment discount percentage presets
@@ -30,6 +39,33 @@ const STEP_PERCENT = 0.1;
 const TOTAL_TICKS = Math.round((MAX_PERCENT - MIN_PERCENT) / STEP_PERCENT) + 1; // 201 ticks
 const TICK_WIDTH = 12; // 12px per 0.1% step
 
+export interface RemittanceItem {
+  invoice_number: string;
+  invoice_date?: string;
+  gross_amount: number;
+  discount_amount: number;
+  deductions_amount: number;
+  net_paid: number;
+  notes?: string;
+}
+
+export interface RemittanceRecord {
+  id: string;
+  vendor_id: string;
+  vendor_name: string;
+  file_name: string;
+  file_size: number;
+  total_paid: number;
+  total_gross: number;
+  total_discount: number;
+  total_deductions: number;
+  invoice_count: number;
+  items: RemittanceItem[];
+  raw_text?: string;
+  created_at: string;
+  expires_at: string;
+}
+
 export function ResourcesView() {
   // Navigation: "hub" for Resources directory, "discount-calculator" for discount tool, "remittance-breakdown" for remittance tool
   const [currentView, setCurrentView] = useState<"hub" | "discount-calculator" | "remittance-breakdown">("hub");
@@ -39,12 +75,146 @@ export function ResourcesView() {
   const [discountPercent, setDiscountPercent] = useState<number>(4.0);
   const [isCopied, setIsCopied] = useState<string | null>(null);
 
+  // Vendor Remittance State
+  const [activeVendorTab, setActiveVendorTab] = useState<string>("pyramid");
+  const [remittances, setRemittances] = useState<RemittanceRecord[]>([]);
+  const [selectedRemittance, setSelectedRemittance] = useState<RemittanceRecord | null>(null);
+  const [isLoadingRemittances, setIsLoadingRemittances] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Wheel scroll container ref & drag states
   const wheelRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef<boolean>(false);
   const startXRef = useRef<number>(0);
   const scrollLeftRef = useRef<number>(0);
   const isProgrammaticScrollRef = useRef<boolean>(false);
+
+  // Fetch saved remittances for active vendor from Supabase
+  const fetchRemittances = useCallback(async (vendorId: string = "pyramid") => {
+    setIsLoadingRemittances(true);
+    try {
+      const res = await fetch(`/api/remittance/parse?vendorId=${vendorId}`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.remittances)) {
+        setRemittances(json.remittances);
+        if (json.remittances.length > 0) {
+          setSelectedRemittance((prev) => prev || json.remittances[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load vendor remittances:", err);
+    } finally {
+      setIsLoadingRemittances(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentView === "remittance-breakdown") {
+      fetchRemittances(activeVendorTab);
+    }
+  }, [currentView, activeVendorTab, fetchRemittances]);
+
+  // Upload & parse remittance PDF
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setUploadError("Please select a valid PDF remittance statement.");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("vendorId", activeVendorTab);
+    formData.append("vendorName", activeVendorTab === "pyramid" ? "Pyramid Inc" : activeVendorTab);
+
+    try {
+      const res = await fetch("/api/remittance/parse", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.success && json.remittance) {
+        setRemittances((prev) => [json.remittance, ...prev]);
+        setSelectedRemittance(json.remittance);
+      } else {
+        setUploadError(json.error || "Unable to parse PDF statement. Please ensure it contains readable text.");
+      }
+    } catch (err: any) {
+      setUploadError(err.message || "Network error uploading file.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // Delete remittance statement from Supabase
+  const handleDeleteRemittance = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Permanently remove this remittance record from cloud storage?")) return;
+
+    try {
+      const res = await fetch(`/api/remittance/parse?id=${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json.success) {
+        setRemittances((prev) => prev.filter((r) => r.id !== id));
+        if (selectedRemittance?.id === id) {
+          const remaining = remittances.filter((r) => r.id !== id);
+          setSelectedRemittance(remaining.length > 0 ? remaining[0] : null);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to delete remittance statement:", err);
+    }
+  };
+
+  // Calculate days remaining before 30-day auto-purge
+  const getDaysRemaining = (expiresAt: string) => {
+    const diff = new Date(expiresAt).getTime() - Date.now();
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
+  };
+
+  // Format remittance summary for Zoho Mail copy-paste
+  const handleCopyZohoFormat = (remittance: RemittanceRecord) => {
+    const lines = [
+      `REMITTANCE STATEMENT SUMMARY - ${remittance.vendor_name.toUpperCase()}`,
+      `File: ${remittance.file_name}`,
+      `Processed: ${new Date(remittance.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+      `==================================================`,
+      `TOTAL NET PAID / CLEARED:  $${remittance.total_paid.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `TOTAL GROSS INVOICED:      $${remittance.total_gross.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      `PROMPT DISCOUNTS DEDUCTED: -$${remittance.total_discount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      remittance.total_deductions > 0
+        ? `OTHER DEDUCTIONS:          -$${remittance.total_deductions.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : null,
+      `INVOICES ACCOUNTED:        ${remittance.invoice_count}`,
+      `==================================================`,
+      `INVOICE BREAKDOWN:`,
+      ...(remittance.items && remittance.items.length > 0
+        ? remittance.items.map(
+            (it, idx) =>
+              `${idx + 1}. Inv #${it.invoice_number} | Gross: $${it.gross_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Disc: -$${it.discount_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} | Net Paid: $${it.net_paid.toLocaleString("en-US", { minimumFractionDigits: 2 })}${it.invoice_date ? ` (${it.invoice_date})` : ""}`
+          )
+        : ["(See net cleared remittance total above)"]),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    navigator.clipboard.writeText(lines);
+    setIsCopied("zoho");
+    setTimeout(() => setIsCopied(null), 2500);
+  };
 
   // Parse numeric invoice amount safely
   const invoiceAmount = useMemo(() => {
@@ -212,44 +382,34 @@ export function ResourcesView() {
           </div>
         </div>
 
-        {/* Top View Switcher Tabs */}
-        <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/80 shrink-0">
-          <button
-            type="button"
-            onClick={() => setCurrentView("hub")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              currentView === "hub"
-                ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            All Resources (Hub)
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentView("discount-calculator")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              currentView === "discount-calculator"
-                ? "bg-blue-600 text-white shadow-xs shadow-blue-500/20"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Percent className="w-3.5 h-3.5" />
-            <span>Discount Calculator</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentView("remittance-breakdown")}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              currentView === "remittance-breakdown"
-                ? "bg-blue-600 text-white shadow-xs shadow-blue-500/20"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Receipt className="w-3.5 h-3.5" />
-            <span>Remittance Breakdown</span>
-          </button>
-        </div>
+        {/* Top View Switcher Tabs - Only visible on Hub directory */}
+        {currentView === "hub" && (
+          <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/80 shrink-0">
+            <button
+              type="button"
+              onClick={() => setCurrentView("hub")}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-white text-slate-900 shadow-xs border border-slate-200/80"
+            >
+              All Resources (Hub)
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentView("discount-calculator")}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-slate-600 hover:text-slate-900"
+            >
+              <Percent className="w-3.5 h-3.5" />
+              <span>Discount Calculator</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentView("remittance-breakdown")}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-slate-600 hover:text-slate-900"
+            >
+              <Receipt className="w-3.5 h-3.5" />
+              <span>Remittance Breakdown</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ======================================================== */}
@@ -343,31 +503,471 @@ export function ResourcesView() {
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 2: REMITTANCE BREAKDOWN (Placeholder & Setup View)   */}
+      {/* VIEW 2: REMITTANCE BREAKDOWN (Pyramid Inc & Multi-Vendor) */}
       {/* ======================================================== */}
       {currentView === "remittance-breakdown" && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          <div className="flex items-center justify-between">
+          {/* Top Return & Vendor Sub-Tabs Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
             <button
               type="button"
               onClick={() => setCurrentView("hub")}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer w-fit"
             >
               <span>← Back to All Resources</span>
             </button>
+
+            {/* Vendor Sub-Tabs (Modular: Pyramid Inc now, expandable to other vendors later) */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none hidden md:inline">
+                Vendor:
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveVendorTab("pyramid")}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  activeVendorTab === "pyramid"
+                    ? "bg-blue-600 text-white shadow-blue-500/20"
+                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>Pyramid Inc</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => alert("Custom vendor tabs are modular and will be configured in the next update!")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 border border-dashed border-slate-300 hover:text-slate-600 hover:border-slate-400 transition-colors cursor-pointer"
+                title="Add custom vendor tab"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Vendor</span>
+              </button>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/90 p-8 sm:p-14 shadow-xs flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
-              <Receipt className="w-8 h-8 stroke-[2.2]" />
+          {/* Hidden File Input for PDF Upload */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".pdf,application/pdf"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+
+          {/* Active Vendor Card: Pyramid Inc */}
+          {activeVendorTab === "pyramid" && (
+            <div className="space-y-6">
+              {/* Vendor Card Header */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs shrink-0">
+                    <Building2 className="w-6 h-6 stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                        Pyramid Inc Remittance Statement
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-blue-600" />
+                        <span>PDF Table Parser</span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                      Upload remittance advice statements received from Pyramid Inc. Automatically extract billed invoice numbers, prompt payment discounts, deductions, and total net paid amounts.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 30-Day Retention Badge */}
+                <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-xl px-3.5 py-2.5 text-xs text-emerald-800 flex items-center gap-2.5 shrink-0">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-[11px] uppercase tracking-wide text-emerald-900">
+                      30-Day Supabase Cloud Storage
+                    </p>
+                    <p className="text-[10px] text-emerald-700">
+                      Statements safely persist in Supabase and auto-prune after 30 days.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Upload Dropzone */}
+              <div
+                onClick={() => !isUploading && fileInputRef.current?.click()}
+                className={`bg-white rounded-2xl border-2 border-dashed p-8 sm:p-10 text-center transition-all cursor-pointer flex flex-col items-center justify-center space-y-3 ${
+                  isUploading
+                    ? "border-blue-400 bg-blue-50/30 cursor-wait"
+                    : "border-slate-300 hover:border-blue-500 hover:bg-slate-50/60 shadow-xs"
+                }`}
+              >
+                {isUploading ? (
+                  <>
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 animate-spin">
+                      <Loader2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        Parsing Pyramid Inc Remittance Advice...
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Extracting invoice numbers, discount percentages, and net bank settlement totals.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs group-hover:scale-105 transition-transform">
+                      <Upload className="w-6 h-6 stroke-[2.2]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        Click or drag & drop Pyramid Inc remittance PDF here
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Accepts official vendor advice with invoice number, discount, and check/ACH amount columns.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="mt-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs hover:bg-blue-700 transition-colors pointer-events-none"
+                    >
+                      Browse PDF Document
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Upload Error Banner */}
+              {uploadError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 text-xs text-rose-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{uploadError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUploadError(null)}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-900 cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* Selected Statement Full Breakdown */}
+              {selectedRemittance && (
+                <div className="space-y-6">
+                  {/* Action Bar & Statement Meta */}
+                  <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 border border-slate-200/80">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-bold text-slate-900">
+                            {selectedRemittance.file_name}
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            {new Date(selectedRemittance.created_at).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>Expires in {getDaysRemaining(selectedRemittance.expires_at)} days</span>
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Stored in Supabase cloud • Scoped to Pyramid Inc
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Copy for Zoho Mail Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleCopyZohoFormat(selectedRemittance)}
+                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                          isCopied === "zoho"
+                            ? "bg-emerald-600 text-white"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
+                        title="Copy structured breakdown to paste into Zoho Mail"
+                      >
+                        {isCopied === "zoho" ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Copied for Zoho Mail!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy for Zoho Mail</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Upload Another Button */}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                      >
+                        Upload Another
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4 Summary Settlement KPI Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Card 1: Total Net Paid */}
+                    <div className="bg-emerald-500 rounded-2xl p-5 text-white shadow-md shadow-emerald-500/10 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">
+                          Total Net Paid
+                        </span>
+                        <Receipt className="w-4 h-4 text-emerald-100" />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight">
+                          {formatCurrency(selectedRemittance.total_paid)}
+                        </p>
+                        <p className="text-[10px] text-emerald-100 font-semibold mt-1">
+                          Net bank ACH / Check cleared
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Total Gross Invoiced */}
+                    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          Total Gross Invoiced
+                        </span>
+                        <DollarSign className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
+                          {formatCurrency(selectedRemittance.total_gross)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                          Full invoice face value
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Total Prompt Discount / Deductions */}
+                    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600">
+                          Discounts & Deductions
+                        </span>
+                        <TrendingDown className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-amber-600">
+                          -{formatCurrency(selectedRemittance.total_discount + selectedRemittance.total_deductions)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                          {selectedRemittance.total_discount > 0 && `Disc: -${formatCurrency(selectedRemittance.total_discount)}`}
+                          {selectedRemittance.total_deductions > 0 && ` | Ded: -${formatCurrency(selectedRemittance.total_deductions)}`}
+                          {selectedRemittance.total_discount === 0 && selectedRemittance.total_deductions === 0 && "No prompt deductions"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Invoices Count */}
+                    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          Invoices Included
+                        </span>
+                        <Layers className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900">
+                          {selectedRemittance.invoice_count}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                          Itemized remittance lines
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Structured Invoice Line-Items Table */}
+                  <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+                    <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          Pyramid Inc Invoice Breakdown
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Line items parsed from uploaded statement
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-slate-500">
+                        {selectedRemittance.items?.length || 0} Records
+                      </span>
+                    </div>
+
+                    {selectedRemittance.items && selectedRemittance.items.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                            <tr>
+                              <th className="py-3 px-4">Invoice #</th>
+                              <th className="py-3 px-4">Date</th>
+                              <th className="py-3 px-4 text-right">Gross Amount</th>
+                              <th className="py-3 px-4 text-right">Prompt Discount</th>
+                              <th className="py-3 px-4 text-right">Deductions</th>
+                              <th className="py-3 px-4 text-right">Net Paid</th>
+                              <th className="py-3 px-4 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-700 font-mono">
+                            {selectedRemittance.items.map((it, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3 px-4 font-bold text-blue-600">
+                                  {it.invoice_number || `INV-${idx + 1}`}
+                                </td>
+                                <td className="py-3 px-4 text-slate-500 font-sans">
+                                  {it.invoice_date || "—"}
+                                </td>
+                                <td className="py-3 px-4 text-right font-semibold text-slate-900">
+                                  {formatCurrency(it.gross_amount || 0)}
+                                </td>
+                                <td className="py-3 px-4 text-right text-amber-600">
+                                  {it.discount_amount > 0 ? `-${formatCurrency(it.discount_amount)}` : "—"}
+                                </td>
+                                <td className="py-3 px-4 text-right text-rose-600">
+                                  {it.deductions_amount > 0 ? `-${formatCurrency(it.deductions_amount)}` : "—"}
+                                </td>
+                                <td className="py-3 px-4 text-right font-black text-emerald-600">
+                                  {formatCurrency(it.net_paid || 0)}
+                                </td>
+                                <td className="py-3 px-4 text-center font-sans">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    Reconciled
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center space-y-2">
+                        <p className="text-xs font-bold text-slate-700">
+                          Summary Settlement Cleared
+                        </p>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                          The statement provided a total remittance settlement check of{" "}
+                          <span className="font-bold text-emerald-600">
+                            {formatCurrency(selectedRemittance.total_paid)}
+                          </span>
+                          . Individual invoice rows could not be isolated from the PDF text table.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Historical Statements List (Stored in Supabase for 30 Days) */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Pyramid Inc Statement Archive (Supabase 30-Day Window)
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Previously uploaded vendor remittances safely saved in Supabase. Auto-prunes after 30 days.
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-slate-500">
+                    {remittances.length} {remittances.length === 1 ? "Statement" : "Statements"}
+                  </span>
+                </div>
+
+                {isLoadingRemittances ? (
+                  <div className="py-8 flex items-center justify-center gap-2 text-xs text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <span>Loading saved statements...</span>
+                  </div>
+                ) : remittances.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                    No statements uploaded yet for Pyramid Inc. Upload your vendor PDF remittance advice above.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {remittances.map((rem) => {
+                      const isSelected = selectedRemittance?.id === rem.id;
+                      const daysLeft = getDaysRemaining(rem.expires_at);
+                      return (
+                        <div
+                          key={rem.id}
+                          onClick={() => setSelectedRemittance(rem)}
+                          className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                            isSelected
+                              ? "bg-blue-50/50 border-blue-500/80 ring-2 ring-blue-500/10"
+                              : "bg-slate-50/50 border-slate-200/80 hover:bg-slate-50 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                            <div className="truncate">
+                              <p className="text-xs font-bold text-slate-900 truncate">
+                                {rem.file_name}
+                              </p>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                <span>
+                                  {new Date(rem.created_at).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </span>
+                                <span>•</span>
+                                <span>{rem.invoice_count} invoices</span>
+                                <span>•</span>
+                                <span className="font-bold text-amber-600">
+                                  {daysLeft}d left
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs font-black font-mono text-emerald-600">
+                              {formatCurrency(rem.total_paid)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteRemittance(rem.id, e)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete from Supabase"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Remittance Breakdown</h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-2 max-w-md leading-relaxed">
-                This space is ready for your Remittance Breakdown tool. Specify what calculations, deduction line items, or settlement models you need here, and they will be built.
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
