@@ -7,6 +7,7 @@ import {
   User,
   Building2,
   Phone,
+  PhoneForwarded,
   Mail,
   FileText,
   X,
@@ -473,31 +474,15 @@ export function DirectoryContactModal({
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1 min-w-0">
-                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(formatAsYouTypeUSAPhone(e.target.value))}
-                    placeholder="1 (555) 000-0000"
-                    className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white font-mono"
-                  />
-                </div>
-
-                {/* Extra field for extension shown ONLY when toggle is ON */}
-                {showExtension && (
-                  <div className="w-24 sm:w-28 shrink-0 animate-in fade-in slide-in-from-right-1 duration-150">
-                    <input
-                      type="text"
-                      value={extension}
-                      onChange={(e) => setExtension(e.target.value.replace(/[^\d\w-]/g, ""))}
-                      placeholder="Ext #"
-                      className="w-full px-2.5 py-2 text-xs sm:text-sm rounded-xl border border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-blue-50/40 text-blue-900 font-mono text-center font-bold"
-                      title="Phone Extension Number (e.g. 204)"
-                    />
-                  </div>
-                )}
+              <div className="relative">
+                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(formatAsYouTypeUSAPhone(e.target.value))}
+                  placeholder="1 (555) 000-0000"
+                  className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white font-mono"
+                />
               </div>
             </div>
 
@@ -518,10 +503,34 @@ export function DirectoryContactModal({
             </div>
           </div>
 
+          {/* Extension field placed in a dedicated new line when enabled so phone number remains 100% visible */}
+          {showExtension && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-150 p-2.5 bg-blue-50/50 rounded-xl border border-blue-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <PhoneForwarded className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Phone Extension Number</span>
+                </label>
+                <span className="text-[10px] text-blue-500 font-mono">Displayed as superscript with phone</span>
+              </div>
+              <div className="relative w-full sm:w-1/2">
+                <PhoneForwarded className="w-4 h-4 text-blue-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={extension}
+                  onChange={(e) => setExtension(e.target.value.replace(/[^\d\w-]/g, ""))}
+                  placeholder="e.g. 204 or 416"
+                  className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white text-blue-900 font-mono font-bold"
+                  title="Phone Extension Number (e.g. 204)"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Notes / Department / Title (Bigger Text Area) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-              <span>Title / Extension / Notes <span className="text-slate-400 font-normal">(Optional)</span></span>
+              <span>Title / Notes <span className="text-slate-400 font-normal">(Optional)</span></span>
               <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
                 <Lock className="w-2.5 h-2.5" />
                 Hashed &amp; Salted
@@ -533,7 +542,7 @@ export function DirectoryContactModal({
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Senior Dispatcher - Ext 204 / Direct Support / Delivery Instructions"
+                placeholder="e.g. Senior Dispatcher / Direct Support / Delivery Instructions"
                 className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white resize-y min-h-[88px] leading-relaxed"
               />
             </div>
