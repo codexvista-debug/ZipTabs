@@ -695,6 +695,29 @@ export function DirectoryView() {
           </div>
         </div>
 
+        {/* Vendors (Default landing division) */}
+        <div
+          onClick={() => setActiveDivision("vendor")}
+          className={`bg-white border rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+            activeDivision === "vendor"
+              ? "border-indigo-500 ring-2 ring-indigo-500/10 bg-indigo-50/20"
+              : "border-slate-200/80 hover:border-slate-300"
+          }`}
+        >
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-[11px] font-bold text-indigo-600 uppercase tracking-wider truncate">
+              Vendors
+            </p>
+            <p className="text-base sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
+              {vendorCount}
+            </p>
+            <p className="hidden sm:block text-[11px] text-slate-400 mt-0.5">External business partners</p>
+          </div>
+          <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <Building2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+          </div>
+        </div>
+
         {/* Employees */}
         <div
           onClick={() => setActiveDivision("employee")}
@@ -715,29 +738,6 @@ export function DirectoryView() {
           </div>
           <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
             <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-          </div>
-        </div>
-
-        {/* Vendors */}
-        <div
-          onClick={() => setActiveDivision("vendor")}
-          className={`bg-white border rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between cursor-pointer transition-all ${
-            activeDivision === "vendor"
-              ? "border-indigo-500 ring-2 ring-indigo-500/10 bg-indigo-50/20"
-              : "border-slate-200/80 hover:border-slate-300"
-          }`}
-        >
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] font-bold text-indigo-600 uppercase tracking-wider truncate">
-              Vendors
-            </p>
-            <p className="text-base sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
-              {vendorCount}
-            </p>
-            <p className="hidden sm:block text-[11px] text-slate-400 mt-0.5">External business partners</p>
-          </div>
-          <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-            <Building2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
           </div>
         </div>
 
@@ -767,30 +767,8 @@ export function DirectoryView() {
       {/* TWO DIVISIONS TAB SELECTOR + FILTER CONTROLS */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-xs space-y-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Main Division Segmented Switcher */}
+          {/* Main Division Segmented Switcher (Vendors default on left) */}
           <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setActiveDivision("employee")}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeDivision === "employee"
-                  ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Employees</span>
-              <span
-                className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  activeDivision === "employee"
-                    ? "bg-blue-100 text-blue-800"
-                    : "bg-slate-200 text-slate-600"
-                }`}
-              >
-                {employeeCount}
-              </span>
-            </button>
-
             <button
               type="button"
               onClick={() => setActiveDivision("vendor")}
@@ -810,6 +788,28 @@ export function DirectoryView() {
                 }`}
               >
                 {vendorCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveDivision("employee")}
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeDivision === "employee"
+                  ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Employees</span>
+              <span
+                className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  activeDivision === "employee"
+                    ? "bg-blue-100 text-blue-800"
+                    : "bg-slate-200 text-slate-600"
+                }`}
+              >
+                {employeeCount}
               </span>
             </button>
 

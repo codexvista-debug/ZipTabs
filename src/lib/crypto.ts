@@ -7,6 +7,17 @@
 const SALT = "ziptabs_prod_salt_8f92b4c1_2026";
 const VAULT_SALT = "ziptabs_vault_kdf_salt_9e31d8f_2026";
 
+export const VAULT_CRYPTO_SALT = "ziptabs_vault_kdf_salt_9e31d8f_2026";
+
+export async function sha256SaltedHex(text: string, salt = VAULT_CRYPTO_SALT): Promise<string> {
+  const normalized = (text || "").trim();
+  const encoder = new TextEncoder();
+  const data = encoder.encode(normalized + ":" + salt);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password + ":" + SALT);

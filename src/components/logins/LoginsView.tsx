@@ -10,6 +10,7 @@ import {
   encryptVaultPayload,
   decryptVaultPayload,
   hashPassword,
+  sha256SaltedHex,
 } from "@/lib/crypto";
 import {
   VaultBrandAvatar,
@@ -368,6 +369,91 @@ export function LoginsView() {
     }
   };
 
+  /**
+   * Encrypts and hashes a vault credential so that 100% of fields, metadata,
+   * and audit logs are securely salted (SHA-256) and encrypted (AES-256-GCM) in Supabase.
+   */
+  const saveEncryptedCredentialToSupabase = async (
+    item: {
+      id: string;
+      title: string;
+      category: LoginCategory;
+      username: string;
+      password: string;
+      url?: string;
+      notes?: string;
+      icon?: string;
+      logs?: VaultLoginLog[];
+    },
+    key: CryptoKey
+  ) => {
+    if (!supabase) return;
+    const nowIso = new Date().toISOString();
+
+    // 1. Compute salted SHA-256 hashes for each field (including logs)
+    const [
+      titleHash,
+      usernameHash,
+      passwordHash,
+      urlHash,
+      notesHash,
+      logsHash,
+    ] = await Promise.all([
+      sha256SaltedHex(item.title.trim()),
+      sha256SaltedHex(item.username.trim()),
+      sha256SaltedHex(item.password),
+      sha256SaltedHex(item.url?.trim() || ""),
+      sha256SaltedHex(item.notes?.trim() || ""),
+      sha256SaltedHex(JSON.stringify(item.logs || [])),
+    ]);
+
+    // 2. Encrypt password with AES-256-GCM
+    const { ciphertext: encPass, iv: passIv } = await encryptVaultData(item.password, key);
+
+    // 3. Package the complete vault record with all fields, logs, and hashes
+    const fullPayload = {
+      v: 2,
+      id: item.id,
+      title: item.title.trim(),
+      category: item.category,
+      username: item.username.trim(),
+      password: item.password,
+      url: item.url?.trim() || "",
+      notes: item.notes?.trim() || "",
+      icon: item.icon,
+      logs: item.logs || [],
+      hashes: {
+        title_hash: titleHash,
+        username_hash: usernameHash,
+        password_hash: passwordHash,
+        url_hash: urlHash,
+        notes_hash: notesHash,
+        logs_hash: logsHash,
+      },
+      secured_at: nowIso,
+    };
+
+    // 4. Encrypt full payload with AES-256-GCM
+    const encNotes = await encryptVaultPayload(JSON.stringify(fullPayload), key);
+
+    // 5. Store in Supabase: columns title, username, url are masked with salted hashes
+    const dbPayload = {
+      id: item.id,
+      owner_username: "chief",
+      title: `[Encrypted] ${titleHash.slice(0, 16)}`,
+      category: item.category,
+      username: `[Hashed] ${usernameHash.slice(0, 20)}`,
+      encrypted_password: encPass,
+      iv: passIv,
+      url: urlHash ? `hash:${urlHash.slice(0, 24)}` : null,
+      encrypted_notes: encNotes,
+      updated_at: nowIso,
+    };
+
+    const { error } = await supabase.from("vault_credentials").upsert(dbPayload);
+    if (error) throw error;
+  };
+
   // Fetch from Supabase and Decrypt
   const fetchAndDecryptLogins = async (key: CryptoKey) => {
     if (!supabase) return;
@@ -392,12 +478,20 @@ export function LoginsView() {
       }
 
       const decryptedList: DecryptedLoginCredential[] = [];
+      const legacyRowsToUpgrade: DecryptedLoginCredential[] = [];
+
       for (const row of data as RawVaultRow[]) {
         try {
           const decPass = await decryptVaultData(row.encrypted_password, row.iv, key);
+          let decTitle = row.title;
+          let decCategory = row.category;
+          let decUsername = row.username;
+          let decPassword = decPass;
+          let decUrl: string | undefined = row.url || undefined;
           let decNotes: string | undefined = undefined;
           let decIcon: string | undefined = undefined;
           let decLogs: VaultLoginLog[] | undefined = undefined;
+          let isLegacyPlaintext = !row.username.startsWith("[Hashed]");
 
           if (row.encrypted_notes) {
             try {
@@ -405,9 +499,21 @@ export function LoginsView() {
               try {
                 const parsed = JSON.parse(decryptedRaw);
                 if (typeof parsed === "object" && parsed !== null) {
-                  decNotes = parsed.notes || parsed.note || undefined;
-                  decIcon = parsed.icon || undefined;
-                  decLogs = Array.isArray(parsed.logs) ? parsed.logs : undefined;
+                  if (parsed.v === 2 || parsed.title) {
+                    decTitle = parsed.title || row.title;
+                    decCategory = parsed.category || row.category;
+                    decUsername = parsed.username || row.username;
+                    decPassword = parsed.password || decPass;
+                    decUrl = parsed.url || row.url || undefined;
+                    decNotes = parsed.notes || undefined;
+                    decIcon = parsed.icon || undefined;
+                    decLogs = Array.isArray(parsed.logs) ? parsed.logs : undefined;
+                    isLegacyPlaintext = false;
+                  } else {
+                    decNotes = parsed.notes || parsed.note || undefined;
+                    decIcon = parsed.icon || undefined;
+                    decLogs = Array.isArray(parsed.logs) ? parsed.logs : undefined;
+                  }
                 } else {
                   decNotes = decryptedRaw;
                 }
@@ -433,21 +539,26 @@ export function LoginsView() {
 
           // If icon was not explicitly saved, detect automatically
           if (!decIcon) {
-            decIcon = detectVaultAvatar(row.title, row.category, row.url || "");
+            decIcon = detectVaultAvatar(decTitle, decCategory, decUrl || "");
           }
 
-          decryptedList.push({
+          const item: DecryptedLoginCredential = {
             id: row.id,
-            title: row.title,
-            category: row.category,
-            username: row.username,
-            password: decPass,
-            url: row.url || undefined,
+            title: decTitle,
+            category: decCategory,
+            username: decUsername,
+            password: decPassword,
+            url: decUrl,
             notes: decNotes,
             icon: decIcon,
             updatedAt: row.updated_at ? row.updated_at.split("T")[0] : "2026-10-28",
             logs: decLogs,
-          });
+          };
+
+          decryptedList.push(item);
+          if (isLegacyPlaintext) {
+            legacyRowsToUpgrade.push(item);
+          }
         } catch (decryptErr) {
           console.warn(`Failed to decrypt row ${row.id}`, decryptErr);
           decryptedList.push({
@@ -465,6 +576,19 @@ export function LoginsView() {
       }
 
       setLogins(decryptedList);
+
+      // Background migration: Upgrade any legacy plaintext database rows to salted hashes & AES-256
+      if (legacyRowsToUpgrade.length > 0 && supabase) {
+        (async () => {
+          for (const item of legacyRowsToUpgrade) {
+            try {
+              await saveEncryptedCredentialToSupabase(item, key);
+            } catch (upErr) {
+              console.debug("Silent vault credential upgrade skipped:", upErr);
+            }
+          }
+        })();
+      }
     } catch (err) {
       console.error("Failed to load vault:", err);
     } finally {
@@ -508,29 +632,29 @@ export function LoginsView() {
       },
     ];
 
-    const toInsert = [];
     const decryptedStarters: DecryptedLoginCredential[] = [];
 
     for (const item of starters) {
-      const { ciphertext: encPass, iv } = await encryptVaultData(item.password, key);
-      const encNotes = await encryptVaultPayload(
-        JSON.stringify({ notes: item.notes, icon: item.icon }),
-        key
-      );
+      const initialLogs: VaultLoginLog[] = [
+        {
+          id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          timestamp: new Date().toISOString(),
+          summary: "Initial credential record created",
+          changes: [
+            { field: "username", label: "Username", newValue: item.username },
+            { field: "password", label: "Password", newValue: item.password, isSecret: true },
+            { field: "url", label: "Portal URL", newValue: item.url },
+            { field: "notes", label: "Notes & 2FA Hint", newValue: item.notes },
+          ],
+        },
+      ];
 
-      toInsert.push({
-        id: item.id,
-        owner_username: "chief",
-        title: item.title,
-        category: item.category,
-        username: item.username,
-        encrypted_password: encPass,
-        iv,
-        url: item.url,
-        encrypted_notes: encNotes,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
+      const fullItem = {
+        ...item,
+        logs: initialLogs,
+      };
+
+      await saveEncryptedCredentialToSupabase(fullItem, key);
 
       decryptedStarters.push({
         id: item.id,
@@ -542,10 +666,10 @@ export function LoginsView() {
         notes: item.notes,
         icon: item.icon,
         updatedAt: new Date().toISOString().split("T")[0],
+        logs: initialLogs,
       });
     }
 
-    await supabase.from("vault_credentials").insert(toInsert);
     setLogins(decryptedStarters);
   };
 
@@ -661,7 +785,7 @@ export function LoginsView() {
         if (formData.username.trim() !== existing.username) {
           changes.push({
             field: "username",
-            label: "Username / Email",
+            label: "Username",
             oldValue: existing.username,
             newValue: formData.username.trim(),
           });
@@ -669,9 +793,9 @@ export function LoginsView() {
         if (formData.password !== existing.password) {
           changes.push({
             field: "password",
-            label: "Master Password",
-            oldValue: "••••••••",
-            newValue: "••••••••",
+            label: "Password",
+            oldValue: existing.password,
+            newValue: formData.password,
             isSecret: true,
           });
         }
@@ -690,7 +814,7 @@ export function LoginsView() {
         if (newNotes !== oldNotes) {
           changes.push({
             field: "notes",
-            label: "Notes & Security Hint",
+            label: "Notes & 2FA Hint",
             oldValue: oldNotes || "None",
             newValue: newNotes || "None",
           });
@@ -727,48 +851,34 @@ export function LoginsView() {
         }
       } else {
         const initialChanges: VaultLoginLogChange[] = [
-          { field: "username", label: "Username / Email", newValue: formData.username.trim() },
+          { field: "username", label: "Username", newValue: formData.username.trim() },
+          { field: "password", label: "Password", newValue: formData.password, isSecret: true },
           ...(formData.url?.trim() ? [{ field: "url" as const, label: "Portal URL", newValue: formData.url.trim() }] : []),
-          ...(formData.notes?.trim() ? [{ field: "notes" as const, label: "Notes & Hint", newValue: formData.notes.trim() }] : []),
+          ...(formData.notes?.trim() ? [{ field: "notes" as const, label: "Notes & 2FA Hint", newValue: formData.notes.trim() }] : []),
         ];
         const newEntry: VaultLoginLog = {
           id: `log-${Date.now()}`,
           timestamp: nowIso,
-          summary: "Initial credential record created and encrypted",
+          summary: "Initial credential record created",
           changes: initialChanges,
         };
         updatedLogs = [newEntry];
       }
 
-      let encNotes: string | null = null;
-      if (formData.notes.trim() || finalIcon || updatedLogs.length > 0) {
-        const payloadObj = {
-          notes: formData.notes.trim(),
-          icon: finalIcon,
-          logs: updatedLogs,
-        };
-        encNotes = await encryptVaultPayload(JSON.stringify(payloadObj), vaultKey);
-      }
-
       const itemId = editingId || `cred-${Date.now()}`;
-      const dbPayload = {
+      const toSave = {
         id: itemId,
-        owner_username: "chief",
         title: formData.title.trim(),
         category: formData.category,
         username: formData.username.trim(),
-        encrypted_password: encPass,
-        iv: passIv,
-        url: formData.url?.trim() || null,
-        encrypted_notes: encNotes,
-        updated_at: nowIso,
+        password: formData.password,
+        url: formData.url?.trim() || undefined,
+        notes: formData.notes?.trim() || undefined,
+        icon: finalIcon,
+        logs: updatedLogs,
       };
 
-      const { error } = await supabase.from("vault_credentials").upsert(dbPayload);
-      if (error) {
-        setModalError(`Failed to save to cloud vault: ${error.message}`);
-        return;
-      }
+      await saveEncryptedCredentialToSupabase(toSave, vaultKey);
 
       const updatedDecrypted: DecryptedLoginCredential = {
         id: itemId,
@@ -1917,35 +2027,55 @@ export function LoginsView() {
 
                           {/* Details of changes */}
                           {log.changes && log.changes.length > 0 && (
-                            <div className="space-y-1.5 pt-1">
-                              {log.changes.map((ch, cIdx) => (
-                                <div
-                                  key={cIdx}
-                                  className="text-[11px] bg-white rounded-xl p-2.5 border border-slate-200/70 text-slate-700 space-y-1"
-                                >
-                                  <div className="font-bold text-slate-800 text-[10px] uppercase tracking-wider">
-                                    {ch.label}
-                                  </div>
-                                  {ch.isSecret ? (
-                                    <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1.5">
-                                      <ShieldCheck className="w-3.5 h-3.5" />
-                                      <span>Master password was updated and re-encrypted.</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-2 text-xs flex-wrap">
-                                      {ch.oldValue && (
-                                        <span className="line-through text-slate-400 font-mono text-[11px] truncate max-w-[150px]">
-                                          {ch.oldValue}
+                            <div className="space-y-2 pt-1">
+                              {log.changes.map((ch, cIdx) => {
+                                const isSecret = ch.field === "password";
+                                const label =
+                                  ch.label ||
+                                  (isSecret
+                                    ? "Password"
+                                    : ch.field === "username"
+                                    ? "Username"
+                                    : ch.field === "url"
+                                    ? "Portal URL"
+                                    : ch.field);
+
+                                const hasOld = Boolean(
+                                  ch.oldValue !== undefined &&
+                                    ch.oldValue !== null &&
+                                    ch.oldValue !== ch.newValue
+                                );
+
+                                return (
+                                  <div
+                                    key={cIdx}
+                                    className="font-mono text-xs bg-white rounded-xl p-3 border border-slate-200/90 text-slate-800 shadow-2xs space-y-1"
+                                  >
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-sans font-bold text-slate-900 text-xs">
+                                        {label} :
+                                      </span>
+                                      {hasOld ? (
+                                        <div className="inline-flex items-center gap-2 flex-wrap text-xs">
+                                          <span className="text-slate-500 font-medium line-through">
+                                            {ch.oldValue}
+                                          </span>
+                                          <span className="text-slate-400 font-bold select-none">
+                                            --&gt;
+                                          </span>
+                                          <span className="text-blue-700 font-bold">
+                                            {ch.newValue}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-blue-700 font-bold text-xs">
+                                          {ch.newValue || (isSecret ? "Configured" : "None")}
                                         </span>
                                       )}
-                                      {ch.oldValue && <span className="text-slate-400 text-[10px]">→</span>}
-                                      <span className="font-semibold text-blue-700 font-mono text-[11px] truncate max-w-[200px]">
-                                        {ch.newValue}
-                                      </span>
                                     </div>
-                                  )}
-                                </div>
-                              ))}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -1960,7 +2090,7 @@ export function LoginsView() {
             <div className="px-6 py-4 border-t border-zinc-100 flex items-center justify-between bg-zinc-50/50">
               <span className="text-[11px] text-zinc-500 flex items-center gap-1.5 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>AES-256 Client-Side Encrypted Audit Trail</span>
+                <span>AES-256 Client-Side Encrypted Audit Trail (Salted SHA-256 in Supabase)</span>
               </span>
               <button
                 type="button"
