@@ -50,6 +50,10 @@ import {
   TOAST_POSITION_CLASSES,
   ToastPosition,
 } from "@/components/ui/ExecutiveToast";
+import {
+  recordNoteOpened,
+  isNoteOverdueUnresolved,
+} from "@/lib/urgentNotes";
 
 export interface NoteAttachment {
   id: string;
@@ -881,6 +885,7 @@ export function NotesView() {
 
   // Open modal for Edit
   const handleOpenEdit = (note: NoteItem) => {
+    recordNoteOpened(note.id);
     setEditingNote(note);
     setFormContent(note.content || note.title || "");
     setFormCategory(normalizeCategory(note.category));
@@ -1917,14 +1922,20 @@ export function NotesView() {
               const attachments = note.attachments || [];
               const isUrgent = note.priority === "urgent";
               const isHigh = note.priority === "high";
+              const isOverdue = isNoteOverdueUnresolved(note);
 
               return (
                 <div
                   key={note.id}
-                  onClick={() => setViewingNote(note)}
+                  onClick={() => {
+                    recordNoteOpened(note.id);
+                    setViewingNote(note);
+                  }}
                   className={`group relative rounded-2xl border p-5 transition-all duration-200 flex flex-col justify-between cursor-pointer ${
                     note.is_completed
                       ? "bg-slate-50/70 border-slate-200/90 hover:border-slate-300 opacity-80 hover:opacity-100 shadow-2xs"
+                      : isOverdue
+                      ? "bg-rose-50/40 border-rose-400 hover:border-rose-500 shadow-md ring-2 ring-rose-500 animate-pulse"
                       : isUrgent
                       ? "bg-rose-50/10 border-rose-300 hover:border-rose-400 shadow-xs ring-1 ring-rose-500/10"
                       : isHigh
@@ -1938,7 +1949,7 @@ export function NotesView() {
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${catConfig.color} shrink-0 whitespace-nowrap`}
                       >
-                        <CatIcon className="w-3 h-3" />
+                        <CatIcon className="w-3.5 h-3.5" />
                         <span>{normalizedCat}</span>
                       </span>
 
@@ -1947,6 +1958,11 @@ export function NotesView() {
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
                           <Check className="w-3 h-3 text-emerald-600" />
                           <span>Done</span>
+                        </span>
+                      ) : isOverdue ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow-xs shrink-0 whitespace-nowrap border border-rose-700 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
+                          <span>UNRESOLVED &gt;12h</span>
                         </span>
                       ) : isUrgent ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0 whitespace-nowrap">
@@ -2629,6 +2645,11 @@ export function NotesView() {
                       <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs shrink-0">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Completed</span>
+                      </span>
+                    ) : isNoteOverdueUnresolved(viewingNote) ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-black px-3 py-1 rounded-full bg-rose-600 text-white shadow-xs shrink-0 animate-pulse border border-rose-700">
+                        <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
+                        <span>Unresolved &gt; 12h 🔥</span>
                       </span>
                     ) : viewingNote.priority === "urgent" ? (
                       <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0">

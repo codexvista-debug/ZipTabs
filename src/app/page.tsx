@@ -21,6 +21,14 @@ import { WorkspaceLoadingScreen } from "@/components/ui/WorkspaceLoadingScreen";
 import { MobileBottomBar, MobileBottomBarStyle } from "@/components/layout/MobileBottomBar";
 import { PullToRefresh } from "@/components/ui/PullToRefresh";
 import { Menu, Loader2 } from "lucide-react";
+import { ExecutiveToast } from "@/components/ui/ExecutiveToast";
+import {
+  getOverdueUnresolvedNotes,
+  isNoteOverdueUnresolved,
+  MinimalNote,
+  STORAGE_KEY_NOTES,
+} from "@/lib/urgentNotes";
+import { supabase } from "@/lib/supabase";
 
 type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "directory" | "drive" | "resources" | "logins" | "master-control" | "lab" | "usage";
 const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "directory", "drive", "resources", "logins", "master-control", "lab", "usage"];
@@ -35,6 +43,47 @@ export default function Home() {
   // Mobile Header Mode & Bottom Bar state (defaults to Cockpit Bottom Bar on mobile)
   const [isMobileTopHeaderHidden, setIsMobileTopHeaderHidden] = useState(true);
   const [mobileBottomBarStyle, setMobileBottomBarStyle] = useState<MobileBottomBarStyle>("bottom-style-02");
+
+  // Overdue Unresolved Urgent Notes Tracking (>12h)
+  const [overdueUrgentNotes, setOverdueUrgentNotes] = useState<MinimalNote[]>([]);
+  const [isUrgentAlertDismissed, setIsUrgentAlertDismissed] = useState(false);
+
+  useEffect(() => {
+    const scanNotes = () => {
+      const overdue = getOverdueUnresolvedNotes();
+      setOverdueUrgentNotes(overdue);
+    };
+
+    scanNotes();
+
+    // Fallback: If no notes in localStorage, query Supabase for urgent unresolved notes
+    if (typeof window !== "undefined" && !localStorage.getItem(STORAGE_KEY_NOTES) && supabase) {
+      supabase
+        .from("app_notes")
+        .select("id, title, priority, is_completed, created_at, updated_at")
+        .in("priority", ["urgent", "high"])
+        .eq("is_completed", false)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            const overdue = data.filter((n: any) => isNoteOverdueUnresolved(n));
+            if (overdue.length > 0) {
+              setOverdueUrgentNotes(overdue);
+            }
+          }
+        });
+    }
+
+    const interval = setInterval(scanNotes, 15000);
+    const handleUpdate = () => scanNotes();
+    window.addEventListener("ziptabs-note-opened", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("ziptabs-note-opened", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -250,6 +299,32 @@ export default function Home() {
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
         />
+
+        {/* Global Overdue Urgent Note Alert (Across All Tabs) */}
+        {overdueUrgentNotes.length > 0 && !isUrgentAlertDismissed && (
+          <ExecutiveToast
+            type="error"
+            title={
+              overdueUrgentNotes.length === 1
+                ? `Unresolved: "${overdueUrgentNotes[0].title || "Urgent Note"}"`
+                : `${overdueUrgentNotes.length} Urgent Notes Unresolved (>12h)`
+            }
+            description="High-priority item has not been reviewed for over 12 hours. Tap to review in Notes."
+            headerMeta="Executive Priority Alert"
+            metric="Unresolved >12h"
+            position="top-center"
+            variant="monolith"
+            durationMs={0}
+            action={{
+              label: "Jump to Notes",
+              onClick: () => {
+                handleTabChange("notes");
+                setIsUrgentAlertDismissed(true);
+              },
+            }}
+            onClose={() => setIsUrgentAlertDismissed(true)}
+          />
+        )}
       </div>
     </PullToRefresh>
   );
