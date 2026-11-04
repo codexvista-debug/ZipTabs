@@ -631,20 +631,36 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             </div>
 
             {/* Gauge Description & Key Details */}
-            <div className="min-w-0 flex-1">
-              <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-snug">
-                {cycleName}: {cycleTotalHours}h total <span className="text-slate-300 mx-1">•</span> Day {cycleCurrentDay} of {cycleTotalDays} <span className="text-slate-300 mx-1">•</span> <span className="text-indigo-600 font-extrabold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">{workingDaysRemaining} working day{workingDaysRemaining !== 1 ? "s" : ""} remaining</span> until cutoff
-              </h3>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                  {cycleName}
+                </span>
+                <span className="text-slate-300">•</span>
+                <span className="text-xs font-semibold text-slate-600">
+                  Day {cycleCurrentDay} of {cycleTotalDays}
+                </span>
+                <span className="text-slate-300 hidden sm:inline">•</span>
+                <span className="hidden sm:inline text-xs font-medium text-slate-500">
+                  {cycleTotalHours}h total
+                </span>
+              </div>
 
-              <div className="text-[11px] sm:text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
-                <Clock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                <span>Cutoff deadline: <strong className="text-slate-800">{cutoffDateLabel}</strong> ({workingDaysRemaining} workdays to submit approvals)</span>
+              {/* Working Days Pill Badge & Cutoff Info */}
+              <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold text-xs border border-indigo-200/80 shadow-2xs">
+                  <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
+                  <span>{workingDaysRemaining} working day{workingDaysRemaining !== 1 ? "s" : ""} left</span>
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Cutoff: <strong className="text-slate-800">{cutoffDateLabel}</strong>
+                </span>
               </div>
             </div>
           </div>
 
           {/* Animated Linear Progress Bar Gauge with Milestone Ticks */}
-          <div className="pt-3 border-t border-slate-100">
+          <div className="pt-2 sm:pt-3 border-t border-slate-100">
             <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60 p-0.5">
               <div
                 className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 h-full rounded-full transition-all duration-1000 ease-out shadow-xs"
@@ -655,8 +671,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             {/* Linear Gauge Markers */}
             <div className="flex items-center justify-between mt-1.5 text-[10px] sm:text-[11px] text-slate-400 font-semibold">
               <span>{isP1 ? "Day 1 (Start)" : "Day 16 (Start)"}</span>
-              <span className="hidden sm:inline">Mid-Cycle ({Math.round(cycleTotalDays / 2)}d)</span>
-              <span className="text-indigo-600 font-bold">Cutoff: {cutoffDateLabel} ({workingDaysRemaining} workdays left)</span>
+              <span className="hidden sm:inline text-slate-400">Mid-Cycle ({Math.round(cycleTotalDays / 2)}d)</span>
+              <span className="text-indigo-600 font-bold truncate ml-2">
+                Cutoff: {cutoffDateLabel} ({workingDaysRemaining}d remaining)
+              </span>
             </div>
           </div>
         </div>

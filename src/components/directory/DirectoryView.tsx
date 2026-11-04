@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import {
   DirectoryRecord,
@@ -62,7 +63,7 @@ const ALPHABET = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
 export function DirectoryView() {
   const [records, setRecords] = useState<DirectoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeDivision, setActiveDivision] = useState<"employee" | "vendor" | "all">("employee");
+  const [activeDivision, setActiveDivision] = useState<"employee" | "vendor" | "all">("vendor");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<string>("ALL");
   const [selectedLetter, setSelectedLetter] = useState<string>("ALL");
@@ -1354,9 +1355,9 @@ export function DirectoryView() {
       />
 
       {/* 5. Delete Confirmation Modal */}
-      {recordToDelete && (
+      {recordToDelete && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto overscroll-contain animate-in fade-in duration-150"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto overscroll-contain animate-in fade-in duration-150"
           onClick={() => setRecordToDelete(null)}
         >
           <div
@@ -1399,7 +1400,8 @@ export function DirectoryView() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

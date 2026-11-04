@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { DirectoryRecord } from "@/lib/directoryCrypto";
 import {
   Search,
@@ -136,11 +137,17 @@ export function DirectorySearchPalette({
     }, 1800);
   };
 
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center pt-8 sm:pt-20 px-3 sm:px-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-8 sm:pt-20 px-3 sm:px-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
@@ -288,7 +295,8 @@ export function DirectorySearchPalette({
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

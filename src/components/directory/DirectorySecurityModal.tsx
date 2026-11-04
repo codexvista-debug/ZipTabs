@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { DirectoryRecord } from "@/lib/directoryCrypto";
 import {
   ShieldCheck,
@@ -29,8 +30,13 @@ export function DirectorySecurityModal({
 }: DirectorySecurityModalProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "rawDb">("overview");
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   // Generate simulated or real hash/encrypted representation
   const sampleName = sampleRecord?.name || "Sarah Jenkins";
@@ -65,13 +71,13 @@ export function DirectorySecurityModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto overscroll-contain animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto overscroll-contain animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)] my-auto animate-in zoom-in-95 duration-150"
+        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100dvh-4rem)] sm:max-h-[85vh] my-auto animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -229,6 +235,7 @@ export function DirectorySecurityModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
