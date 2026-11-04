@@ -315,7 +315,7 @@ export function FullAttachmentViewer({
 
   return (
     <aside
-      className="fixed inset-y-0 right-0 left-0 lg:left-[260px] z-50 flex flex-col bg-slate-950/70 backdrop-blur-md border-l border-white/10 shadow-2xl text-slate-200 animate-in fade-in duration-200 select-none"
+      className="fixed inset-0 z-[100] flex flex-col bg-slate-950/85 backdrop-blur-md shadow-2xl text-slate-200 animate-in fade-in duration-200 select-none"
       aria-label="Attachment Preview Canvas"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
