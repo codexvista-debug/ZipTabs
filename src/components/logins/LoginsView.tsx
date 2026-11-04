@@ -44,6 +44,7 @@ import {
   Tag,
   User,
   History,
+  ArrowRight,
 } from "lucide-react";
 import {
   ExecutiveToast,
@@ -2046,6 +2047,9 @@ export function LoginsView() {
                                     ch.oldValue !== ch.newValue
                                 );
 
+                                const oldCopyKey = `log-old-${log.id || idx}-${cIdx}`;
+                                const newCopyKey = `log-new-${log.id || idx}-${cIdx}`;
+
                                 return (
                                   <div
                                     key={cIdx}
@@ -2056,21 +2060,97 @@ export function LoginsView() {
                                         {label} :
                                       </span>
                                       {hasOld ? (
-                                        <div className="inline-flex items-center gap-2 flex-wrap text-xs">
-                                          <span className="text-slate-500 font-medium line-through">
-                                            {ch.oldValue}
-                                          </span>
-                                          <span className="text-slate-400 font-bold select-none">
-                                            --&gt;
-                                          </span>
-                                          <span className="text-blue-700 font-bold">
-                                            {ch.newValue}
-                                          </span>
+                                        <div className="inline-flex items-center gap-1.5 flex-wrap text-xs">
+                                          {/* Old Striked-out Value with Copy Button */}
+                                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100/80 border border-slate-200/70 text-slate-500 font-mono text-xs">
+                                            <span className="font-medium line-through select-all break-all">
+                                              {ch.oldValue}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                copyToClipboard(ch.oldValue || "", oldCopyKey, isSecret);
+                                              }}
+                                              className={`p-1 -mr-0.5 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center shrink-0 ${
+                                                copiedKey === oldCopyKey
+                                                  ? "bg-emerald-100 text-emerald-700"
+                                                  : "hover:bg-slate-200/80 text-slate-400 hover:text-slate-700"
+                                              }`}
+                                              title={isSecret ? "Copy old password (auto-wipes in 30s)" : "Copy old value"}
+                                              aria-label="Copy old value"
+                                            >
+                                              {copiedKey === oldCopyKey ? (
+                                                <Check className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in-50 duration-150" />
+                                              ) : (
+                                                <Copy className="w-3.5 h-3.5" />
+                                              )}
+                                            </button>
+                                          </div>
+
+                                          {/* Sleek Transition Arrow */}
+                                          <div
+                                            className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 text-slate-400 border border-slate-200/80 shrink-0 shadow-2xs"
+                                            title="Updated to"
+                                          >
+                                            <ArrowRight className="w-3 h-3 text-slate-500" />
+                                          </div>
+
+                                          {/* New Value with Copy Button */}
+                                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50/90 border border-blue-200/70 text-blue-700 font-mono text-xs">
+                                            <span className="font-bold select-all break-all">
+                                              {ch.newValue}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                copyToClipboard(ch.newValue || "", newCopyKey, isSecret);
+                                              }}
+                                              className={`p-1 -mr-0.5 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center shrink-0 ${
+                                                copiedKey === newCopyKey
+                                                  ? "bg-emerald-100 text-emerald-700"
+                                                  : "hover:bg-blue-100 text-blue-500 hover:text-blue-800"
+                                              }`}
+                                              title={isSecret ? "Copy new password (auto-wipes in 30s)" : "Copy new value"}
+                                              aria-label="Copy new value"
+                                            >
+                                              {copiedKey === newCopyKey ? (
+                                                <Check className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in-50 duration-150" />
+                                              ) : (
+                                                <Copy className="w-3.5 h-3.5" />
+                                              )}
+                                            </button>
+                                          </div>
                                         </div>
                                       ) : (
-                                        <span className="text-blue-700 font-bold text-xs">
-                                          {ch.newValue || (isSecret ? "Configured" : "None")}
-                                        </span>
+                                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50/90 border border-blue-200/70 text-blue-700 font-mono text-xs">
+                                          <span className="font-bold select-all break-all text-xs">
+                                            {ch.newValue || (isSecret ? "Configured" : "None")}
+                                          </span>
+                                          {ch.newValue && ch.newValue !== "None" && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                copyToClipboard(ch.newValue || "", newCopyKey, isSecret);
+                                              }}
+                                              className={`p-1 -mr-0.5 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center shrink-0 ${
+                                                copiedKey === newCopyKey
+                                                  ? "bg-emerald-100 text-emerald-700"
+                                                  : "hover:bg-blue-100 text-blue-500 hover:text-blue-800"
+                                              }`}
+                                              title={isSecret ? "Copy password (auto-wipes in 30s)" : "Copy value"}
+                                              aria-label="Copy value"
+                                            >
+                                              {copiedKey === newCopyKey ? (
+                                                <Check className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in-50 duration-150" />
+                                              ) : (
+                                                <Copy className="w-3.5 h-3.5" />
+                                              )}
+                                            </button>
+                                          )}
+                                        </div>
                                       )}
                                     </div>
                                   </div>
