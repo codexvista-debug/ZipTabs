@@ -40,7 +40,7 @@ export function DirectorySecurityModal({
 
   // Generate simulated or real hash/encrypted representation
   const sampleName = sampleRecord?.name || "Sarah Jenkins";
-  const samplePhone = sampleRecord?.phone || "(555) 392-8192";
+  const samplePhone = sampleRecord?.phone || "1 (555) 392-8192";
   const sampleEmail = sampleRecord?.email || "sjenkins@acmelogistics.com";
   const sampleCompany = sampleRecord?.company || "Acme Logistics Inc.";
 

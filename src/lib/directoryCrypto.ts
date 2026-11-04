@@ -40,6 +40,97 @@ export async function sha256SaltedHex(text: string, salt = DIRECTORY_SALT): Prom
 export const sha256Hex = sha256SaltedHex;
 
 /**
+ * Normalizes and formats any US phone number into:
+ * 1 (XXX) XXX-XXXX [Ext. YYY]
+ *
+ * Guaranteed uniform style across the entire application:
+ * Starts with '1 ', 3 numbers in brackets, space, 3 numbers, dash, 4 numbers.
+ */
+export function formatUSAPhone(raw: string): string {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+
+  // Extract extension if present (e.g. ext, ext., x, #, extension)
+  let extension = "";
+  const extMatch = trimmed.match(/(?:ext|ext\.|x|#|extension)[\s.:]*(\d+)/i);
+  if (extMatch) {
+    extension = ` Ext. ${extMatch[1]}`;
+  }
+
+  // Remove extension portion before extracting core digits
+  const mainPart = extMatch ? trimmed.substring(0, extMatch.index) : trimmed;
+  let digits = mainPart.replace(/\D/g, "");
+
+  // If 11 digits starting with 1, strip country code for uniform parsing
+  if (digits.length === 11 && digits.startsWith("1")) {
+    digits = digits.substring(1);
+  }
+
+  // Standard 10-digit US number -> 1 (XXX) XXX-XXXX
+  if (digits.length === 10) {
+    const area = digits.substring(0, 3);
+    const prefix = digits.substring(3, 6);
+    const line = digits.substring(6, 10);
+    return `1 (${area}) ${prefix}-${line}${extension}`;
+  }
+
+  // More than 10 digits without explicit ext keyword -> extra digits become Ext.
+  if (digits.length > 10) {
+    const area = digits.substring(0, 3);
+    const prefix = digits.substring(3, 6);
+    const line = digits.substring(6, 10);
+    const extra = digits.substring(10);
+    return `1 (${area}) ${prefix}-${line}${extension || ` Ext. ${extra}`}`;
+  }
+
+  // Partial digits (e.g. 7 digits local or partial input)
+  if (digits.length === 7) {
+    return `1 (555) ${digits.substring(0, 3)}-${digits.substring(3, 7)}${extension}`;
+  }
+
+  // If already formatted or fallback
+  if (digits.length > 0) {
+    return trimmed.startsWith("1 ") ? trimmed : `1 ${trimmed}`;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Interactive input formatter for USA phone numbers as the user types:
+ * Automatically formats digits into `1 (XXX) XXX-XXXX`.
+ */
+export function formatAsYouTypeUSAPhone(value: string): string {
+  if (!value) return "";
+  let extension = "";
+  const extMatch = value.match(/(?:ext|ext\.|x|#|extension)[\s.:]*(\d*)/i);
+  if (extMatch) {
+    extension = " Ext. " + extMatch[1];
+  }
+  const mainPart = extMatch ? value.substring(0, extMatch.index) : value;
+  let digits = mainPart.replace(/\D/g, "");
+
+  if (digits.length === 0) return "";
+  if (digits.length === 1 && digits === "1") return "1 ";
+  if (digits.startsWith("1")) {
+    digits = digits.substring(1);
+  }
+
+  if (digits.length === 0) return "1 ";
+  if (digits.length <= 3) {
+    return `1 (${digits}`;
+  }
+  if (digits.length <= 6) {
+    return `1 (${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  }
+  if (digits.length <= 10) {
+    return `1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}${extension}`;
+  }
+  return `1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}${extension || ` Ext. ${digits.slice(10)}`}`;
+}
+
+/**
  * Encrypts arbitrary text into iv:ciphertext base64 string.
  */
 export async function encryptField(plaintext: string, key: CryptoKey): Promise<string> {
@@ -77,6 +168,7 @@ export interface DirectoryRecord {
   email: string;
   phone: string;
   notes?: string;
+  _phoneNeedsUpgrade?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -120,7 +212,8 @@ export async function encryptDirectoryRecordForDb(
 ): Promise<Omit<RawSupabaseDirectoryRow, "created_at" | "updated_at">> {
   // Generate a primary IV for this row
   const rowIv = bufferToBase64(crypto.getRandomValues(new Uint8Array(12)));
-  const cleanPhone = record.phone.replace(/\D/g, "") || record.phone.trim();
+  const formattedPhone = formatUSAPhone(record.phone);
+  const cleanPhone = formattedPhone.replace(/\D/g, "") || formattedPhone.trim();
   const trimmedNotes = record.notes?.trim() || "";
 
   const [
@@ -138,7 +231,7 @@ export async function encryptDirectoryRecordForDb(
     encryptField(record.company.trim(), key),
     encryptField(record.name.trim(), key),
     encryptField(record.email.trim(), key),
-    encryptField(record.phone.trim(), key),
+    encryptField(formattedPhone, key),
     trimmedNotes ? encryptField(trimmedNotes, key) : Promise.resolve(null),
     sha256SaltedHex(record.company),
     sha256SaltedHex(record.name),
@@ -187,14 +280,19 @@ export async function decryptSupabaseDirectoryRow(
       : Promise.resolve(row.notes || ""),
   ]);
 
+  const rawTrimmedPhone = phone.trim();
+  const formattedPhone = formatUSAPhone(rawTrimmedPhone);
+  const _phoneNeedsUpgrade = Boolean(rawTrimmedPhone && rawTrimmedPhone !== formattedPhone);
+
   return {
     id: row.id,
     division: row.division,
     company: company.trim(),
     name: name.trim(),
     email: email.trim(),
-    phone: phone.trim(),
+    phone: formattedPhone,
     notes: decryptedNotes?.trim() || undefined,
+    _phoneNeedsUpgrade,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { DirectoryRecord } from "@/lib/directoryCrypto";
+import { DirectoryRecord, formatUSAPhone, formatAsYouTypeUSAPhone } from "@/lib/directoryCrypto";
 import {
   User,
   Building2,
@@ -80,7 +80,7 @@ export function DirectoryContactModal({
       setCompany(initialRecord.company || "");
       setName(initialRecord.name || "");
       setEmail(initialRecord.email || "");
-      setPhone(initialRecord.phone || "");
+      setPhone(formatUSAPhone(initialRecord.phone || ""));
       setNotes(initialRecord.notes || "");
     } else {
       setDivision(defaultDivision);
@@ -153,7 +153,7 @@ export function DirectoryContactModal({
         company: company.trim() || (division === "employee" ? "ZipTabs Corp" : "Vendor Partner"),
         name: name.trim(),
         email: email.trim(),
-        phone: phone.trim(),
+        phone: formatUSAPhone(phone),
         notes: notes.trim() || undefined,
       });
       onClose();
@@ -441,9 +441,9 @@ export function DirectoryContactModal({
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="(555) 000-0000"
-                  className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white"
+                  onChange={(e) => setPhone(formatAsYouTypeUSAPhone(e.target.value))}
+                  placeholder="1 (555) 000-0000"
+                  className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white font-mono"
                 />
               </div>
             </div>

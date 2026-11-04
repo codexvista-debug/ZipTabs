@@ -145,6 +145,21 @@ export function DirectoryView() {
           }
         }
         setRecords(decryptedList);
+
+        // Quietly upgrade any unformatted legacy phone records in Supabase in the background
+        const recordsToUpgrade = decryptedList.filter((r) => r._phoneNeedsUpgrade);
+        if (recordsToUpgrade.length > 0 && supabase) {
+          (async () => {
+            for (const r of recordsToUpgrade) {
+              try {
+                const payload = await encryptDirectoryRecordForDb(r, key);
+                await supabase.from("phone_directory").update(payload).eq("id", r.id);
+              } catch (upgradeErr) {
+                console.debug("Silent phone upgrade skipped for", r.id, upgradeErr);
+              }
+            }
+          })();
+        }
       } else {
         setRecords([]);
       }
@@ -399,7 +414,7 @@ export function DirectoryView() {
         company: "ZipTabs Corp",
         name: "Chief Executive Officer",
         email: "chief@ziptabs.com",
-        phone: "(555) 100-2000",
+        phone: "1 (555) 100-2000",
         notes: "Executive Suite - Ext 100",
         raw: {},
       },
@@ -408,7 +423,7 @@ export function DirectoryView() {
         company: "ZipTabs Corp",
         name: "Sarah Jenkins",
         email: "sjenkins@ziptabs.com",
-        phone: "(555) 392-8192",
+        phone: "1 (555) 392-8192",
         notes: "Operations & Fleet Director - Ext 104",
         raw: {},
       },
@@ -417,7 +432,7 @@ export function DirectoryView() {
         company: "ZipTabs Corp",
         name: "David Miller",
         email: "dmiller@ziptabs.com",
-        phone: "(555) 748-2194",
+        phone: "1 (555) 748-2194",
         notes: "Senior Dispatcher - Ext 208",
         raw: {},
       },
@@ -426,7 +441,7 @@ export function DirectoryView() {
         company: "ZipTabs Corp",
         name: "Rachel Hayes",
         email: "rhayes@ziptabs.com",
-        phone: "(555) 240-3918",
+        phone: "1 (555) 240-3918",
         notes: "Accounting & AP Specialist - Ext 312",
         raw: {},
       },
@@ -438,7 +453,7 @@ export function DirectoryView() {
         company: "Penske Truck Leasing",
         name: "Marcus Vance",
         email: "mvance@penske.com",
-        phone: "(800) 526-0798",
+        phone: "1 (800) 526-0798",
         notes: "National Fleet Account Executive",
         raw: {},
       },
@@ -447,7 +462,7 @@ export function DirectoryView() {
         company: "Pilot Flying J Fuel Services",
         name: "Commercial Dispatch Desk",
         email: "fleetbilling@pilotflyingj.com",
-        phone: "(877) 866-7378",
+        phone: "1 (877) 866-7378",
         notes: "24/7 Priority Fleet Desk",
         raw: {},
       },
@@ -456,7 +471,7 @@ export function DirectoryView() {
         company: "QuickBooks Enterprise Support",
         name: "Enterprise Billing Desk",
         email: "support@intuit.com",
-        phone: "(800) 446-8848",
+        phone: "1 (800) 446-8848",
         notes: "Corporate Account Rep",
         raw: {},
       },
@@ -465,7 +480,7 @@ export function DirectoryView() {
         company: "Leopard TMS Solutions",
         name: "Dispatch Help Desk",
         email: "support@leopardtms.com",
-        phone: "(888) 920-4100",
+        phone: "1 (888) 920-4100",
         notes: "Logistics TMS Integration Support",
         raw: {},
       },

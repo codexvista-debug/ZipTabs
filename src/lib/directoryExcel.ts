@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
-import { DirectoryRecord } from "./directoryCrypto";
+import { DirectoryRecord, formatUSAPhone } from "./directoryCrypto";
 
 /**
  * Intelligent column matching for spreadsheets.
@@ -172,7 +172,7 @@ export async function parseSpreadsheetFile(
         company: company || "Corporate",
         name: name || "Unknown Contact",
         email: email || "",
-        phone: phone || "",
+        phone: formatUSAPhone(phone || ""),
         notes: notes || undefined,
         raw: row,
       });
