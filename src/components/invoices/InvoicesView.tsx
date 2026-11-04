@@ -1485,7 +1485,9 @@ export function InvoicesView() {
 
         {/* Table Footer with Pinned Pagination Controls (Single clean line on mobile with padding) */}
         {filteredInvoices.length > 0 && (
-          <div className="px-3 py-2 sm:px-4 sm:py-3.5 border-t border-slate-200/70 bg-slate-50/50 flex flex-row items-center justify-between gap-2 text-xs text-slate-500 rounded-b-2xl shrink-0">
+          <div className={`px-3 py-2 sm:px-4 sm:py-3.5 border-t border-slate-200/70 bg-slate-50/50 flex flex-row items-center justify-between gap-2 text-xs text-slate-500 rounded-b-2xl shrink-0 ${
+            selectedIds.size > 0 ? "pb-24 sm:pb-3.5" : ""
+          }`}>
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="truncate">
                 <span className="sm:hidden font-medium">
@@ -1631,27 +1633,27 @@ export function InvoicesView() {
         )}
       </div>
 
-      {/* Floating Bottom Action Bar when Rows are Selected (Slim & horizontal on PC) */}
+      {/* Floating Bottom Action Bar when Rows are Selected (Sleek Horizontal Executive Capsule) */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-18 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#0c1427]/95 backdrop-blur-md text-white p-1.5 px-2.5 sm:px-4 sm:py-2 rounded-full shadow-2xl border border-slate-700/80 flex items-center gap-2.5 sm:gap-3.5 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#0c1427]/95 backdrop-blur-md text-white p-1.5 px-3 sm:px-4 sm:py-2 rounded-full shadow-2xl border border-slate-700/80 flex items-center gap-2 sm:gap-3.5 animate-in fade-in zoom-in-95 duration-150 max-w-[calc(100vw-24px)] whitespace-nowrap">
           {/* Row Count Badge */}
-          <div className="flex items-center gap-2 pr-0.5 text-xs font-bold text-slate-200 select-none shrink-0">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200 select-none shrink-0">
             <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse ring-2 ring-blue-400/20" />
             <span>
               <strong>{selectedIds.size}</strong>{" "}
               <span className="hidden sm:inline font-semibold text-slate-300">
-                {selectedIds.size === 1 ? "invoice selected" : "invoices selected"}
+                {selectedIds.size === 1 ? "selected" : "selected"}
               </span>
             </span>
           </div>
 
-          <div className="h-4 w-px bg-slate-700/80" />
+          <div className="h-4 w-px bg-slate-700/80 shrink-0" />
 
-          {/* Copy Button with Text on PC */}
+          {/* Copy Button with Single-Line Horizontal Layout */}
           <button
             type="button"
             onClick={() => copyFormattedForZoho(selectedRowsList)}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-md active:scale-95 ${
+            className={`inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-md active:scale-95 whitespace-nowrap shrink-0 ${
               isCopiedRecently
                 ? "bg-emerald-600 text-white shadow-emerald-900/40"
                 : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/30"
@@ -1661,13 +1663,14 @@ export function InvoicesView() {
           >
             {isCopiedRecently ? (
               <>
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Copied for Zoho Mail!</span>
+                <Check className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
+                <span>Copied!</span>
               </>
             ) : (
               <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy for Zoho Mail</span>
+                <Copy className="w-3.5 h-3.5 shrink-0" />
+                <span className="sm:hidden">Copy for Zoho</span>
+                <span className="hidden sm:inline">Copy for Zoho Mail</span>
               </>
             )}
           </button>
@@ -1679,12 +1682,11 @@ export function InvoicesView() {
               setSelectedIds(new Set());
               setLastSelectedIndex(null);
             }}
-            className="flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer text-xs font-medium active:scale-95"
+            className="flex items-center justify-center w-7 h-7 rounded-full text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer text-xs font-medium active:scale-95 shrink-0"
             title="Clear selection (Esc)"
             aria-label="Clear selection"
           >
             <X className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Clear</span>
           </button>
         </div>
       )}

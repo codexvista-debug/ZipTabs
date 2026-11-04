@@ -568,21 +568,22 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         <div className="relative z-10 flex flex-col gap-4">
           {/* Top Header Row with Category Tag & Navigation Action */}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-2xs">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <span className="px-2 sm:px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-2xs">
                 Payroll Cycle
               </span>
-              <span className="text-slate-300">•</span>
-              <span className="text-xs font-bold text-slate-600 truncate">
-                {currentMonthName} {currentYear}
+              <span className="text-slate-300 shrink-0">•</span>
+              <span className="text-xs font-bold text-slate-600 whitespace-nowrap shrink-0">
+                <span className="sm:hidden">{MONTH_NAMES[currentMonthIdx].slice(0, 3)} {currentYear}</span>
+                <span className="hidden sm:inline">{currentMonthName} {currentYear}</span>
               </span>
             </div>
 
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 group-hover:bg-indigo-600 text-slate-600 group-hover:text-white border border-slate-200 group-hover:border-indigo-600 text-xs font-bold transition-all shrink-0 shadow-2xs">
-              <CalendarCheck className="w-3.5 h-3.5 text-indigo-600 group-hover:text-white" />
+            <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-slate-50 group-hover:bg-indigo-600 text-slate-600 group-hover:text-white border border-slate-200 group-hover:border-indigo-600 text-xs font-bold transition-all shrink-0 shadow-2xs">
+              <CalendarCheck className="w-3.5 h-3.5 text-indigo-600 group-hover:text-white shrink-0" />
               <span className="hidden sm:inline">Open US Calendar</span>
-              <span className="sm:hidden">Calendar</span>
-              <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              <span className="sm:hidden text-[11px]">Calendar</span>
+              <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform shrink-0" />
             </span>
           </div>
 
@@ -632,27 +633,27 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
             {/* Gauge Description & Key Details */}
             <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
                   {cycleName}
                 </span>
                 <span className="text-slate-300">•</span>
-                <span className="text-xs font-semibold text-slate-600">
+                <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">
                   Day {cycleCurrentDay} of {cycleTotalDays}
                 </span>
                 <span className="text-slate-300 hidden sm:inline">•</span>
-                <span className="hidden sm:inline text-xs font-medium text-slate-500">
+                <span className="hidden sm:inline text-xs font-medium text-slate-500 whitespace-nowrap">
                   {cycleTotalHours}h total
                 </span>
               </div>
 
               {/* Working Days Pill Badge & Cutoff Info */}
               <div className="flex items-center gap-2 flex-wrap pt-0.5">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold text-xs border border-indigo-200/80 shadow-2xs">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold text-xs border border-indigo-200/80 shadow-2xs whitespace-nowrap">
                   <Clock className="w-3 h-3 text-indigo-500 shrink-0" />
                   <span>{workingDaysRemaining} working day{workingDaysRemaining !== 1 ? "s" : ""} left</span>
                 </span>
-                <span className="text-[11px] text-slate-500 font-medium">
+                <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap hidden sm:inline">
                   Cutoff: <strong className="text-slate-800">{cutoffDateLabel}</strong>
                 </span>
               </div>
