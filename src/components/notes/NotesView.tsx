@@ -2929,9 +2929,9 @@ export function NotesView() {
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
-            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200 my-auto">
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[calc(100dvh-2rem)] flex flex-col">
               {/* Creative Top: Sculpted Dynamic Island Notch */}
-              <div className="flex justify-center -mt-px">
+              <div className="flex justify-center -mt-px shrink-0">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
                   <span>IRREVERSIBLE PURGE</span>
@@ -2942,7 +2942,7 @@ export function NotesView() {
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
               <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
-              <div className="p-6 sm:p-7 pt-5">
+              <div className="p-5 sm:p-7 pt-5 overflow-y-auto max-h-[calc(100dvh-4rem)] scrollbar-thin">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
                     <h3 className="text-lg font-black text-zinc-900 tracking-tight">
@@ -2962,26 +2962,109 @@ export function NotesView() {
                   </button>
                 </div>
 
-                {/* Spotlight Note Card */}
-                <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-4 flex items-center gap-3.5 mb-4 shadow-2xs">
-                  <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center text-zinc-800 shrink-0 shadow-2xs">
-                    <NotebookPen className="w-5 h-5 text-zinc-800" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-zinc-900 truncate" title={confirmDeleteNote.title}>
-                      {confirmDeleteNote.title}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
-                        {normalizeCategory(confirmDeleteNote.category)}
-                      </span>
-                      {confirmDeleteNote.attachments && confirmDeleteNote.attachments.length > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-600 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
-                          {confirmDeleteNote.attachments.length} file{confirmDeleteNote.attachments.length === 1 ? "" : "s"}
+                {/* Spotlight Note Card with Content Excerpt & Compact Attachment Thumbnails */}
+                <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-3.5 sm:p-4 mb-4 shadow-2xs space-y-3">
+                  {/* Header: Icon, Subject, Category & Date */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200 flex items-center justify-center text-zinc-800 shrink-0 shadow-2xs mt-0.5">
+                      <NotebookPen className="w-5 h-5 text-zinc-800" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-zinc-900 leading-snug break-words" title={confirmDeleteNote.title}>
+                        {confirmDeleteNote.title}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
+                          {normalizeCategory(confirmDeleteNote.category)}
                         </span>
-                      )}
+                        {confirmDeleteNote.priority && confirmDeleteNote.priority !== "normal" && (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs ${
+                              confirmDeleteNote.priority === "urgent"
+                                ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                : "bg-amber-100 text-amber-800 border border-amber-200"
+                            }`}
+                          >
+                            <Flame className="w-3 h-3" />
+                            <span className="capitalize">{confirmDeleteNote.priority}</span>
+                          </span>
+                        )}
+                        {confirmDeleteNote.created_at && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-zinc-500 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
+                            <Clock className="w-2.5 h-2.5" />
+                            <span>
+                              {new Date(confirmDeleteNote.created_at).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  {/* Note Content / Description snippet */}
+                  {confirmDeleteNote.content && (
+                    <div className="rounded-xl bg-white border border-zinc-200/90 p-2.5 shadow-2xs">
+                      <div className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <FileText className="w-3 h-3" />
+                        <span>Note Content</span>
+                      </div>
+                      <p className="text-xs text-zinc-700 leading-relaxed max-h-24 overflow-y-auto whitespace-pre-wrap break-words scrollbar-thin">
+                        {confirmDeleteNote.content}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Attachment Thumbnails Strip */}
+                  {confirmDeleteNote.attachments && confirmDeleteNote.attachments.length > 0 && (
+                    <div className="pt-2 border-t border-zinc-200/70">
+                      <div className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Paperclip className="w-3 h-3 text-zinc-500" />
+                          <span>Attachments ({confirmDeleteNote.attachments.length})</span>
+                        </span>
+                        <span className="text-[10px] text-zinc-400 font-mono">
+                          {formatFileSize(
+                            confirmDeleteNote.attachments.reduce((acc, a) => acc + (a.size || 0), 0)
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                        {confirmDeleteNote.attachments.map((att) => {
+                          const isImg =
+                            att.type?.startsWith("image/") ||
+                            /\.(png|jpe?g|webp|gif|svg|bmp)$/i.test(att.name);
+                          return (
+                            <div
+                              key={att.id || att.name}
+                              className="relative w-12 h-12 rounded-xl border border-zinc-200 bg-white overflow-hidden shrink-0 flex items-center justify-center shadow-2xs"
+                              title={`${att.name} (${formatFileSize(att.size)})`}
+                            >
+                              {isImg && att.url ? (
+                                <img
+                                  src={att.url}
+                                  alt={att.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <FileBrandIcon
+                                  fileName={att.name}
+                                  mimeType={att.type}
+                                  size="sm"
+                                  className="w-6 h-6 shrink-0"
+                                />
+                              )}
+                              <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] font-mono text-white text-center truncate px-0.5 pointer-events-none">
+                                {att.name.split(".").pop()?.toUpperCase() || "FILE"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-600 leading-relaxed mb-6 shadow-2xs">
