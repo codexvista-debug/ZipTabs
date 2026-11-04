@@ -449,6 +449,38 @@ export function DirectoryView() {
     return Array.from(set).sort();
   }, [records]);
 
+  // Vendor company list with usage counts (for autocomplete suggestions)
+  const vendorCompanies = useMemo(() => {
+    const map = new Map<string, number>();
+    records
+      .filter((r) => r.division === "vendor")
+      .forEach((r) => {
+        if (r.company && r.company.trim()) {
+          const comp = r.company.trim();
+          map.set(comp, (map.get(comp) || 0) + 1);
+        }
+      });
+    return Array.from(map.entries())
+      .map(([company, count]) => ({ company, count }))
+      .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company));
+  }, [records]);
+
+  // Employee company list with usage counts (for autocomplete suggestions)
+  const employeeCompanies = useMemo(() => {
+    const map = new Map<string, number>();
+    records
+      .filter((r) => r.division === "employee")
+      .forEach((r) => {
+        if (r.company && r.company.trim()) {
+          const comp = r.company.trim();
+          map.set(comp, (map.get(comp) || 0) + 1);
+        }
+      });
+    return Array.from(map.entries())
+      .map(([company, count]) => ({ company, count }))
+      .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company));
+  }, [records]);
+
   // Filtered and Sorted Records
   const filteredRecords = useMemo(() => {
     return records
@@ -579,17 +611,27 @@ export function DirectoryView() {
             <span>Import Excel</span>
           </button>
 
-          {/* Add Contact Button */}
+          {/* Add Contact / Employee / Vendor Button */}
           <button
             type="button"
             onClick={() => {
               setEditingRecord(null);
               setIsContactModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+            className={`flex items-center gap-1.5 px-4 py-2 text-white rounded-xl text-xs font-bold shadow-md active:scale-98 transition-all cursor-pointer ${
+              activeDivision === "vendor"
+                ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20"
+                : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+            }`}
           >
             <Plus className="w-4 h-4" />
-            <span>Add Contact</span>
+            <span>
+              {activeDivision === "employee"
+                ? "Add Employee"
+                : activeDivision === "vendor"
+                ? "Add Vendor"
+                : "Add Contact"}
+            </span>
           </button>
         </div>
       </div>
@@ -1160,7 +1202,19 @@ export function DirectoryView() {
         }}
         onSave={handleSaveContact}
         initialRecord={editingRecord}
-        defaultDivision={activeDivision === "vendor" ? "vendor" : "employee"}
+        defaultDivision={
+          editingRecord
+            ? editingRecord.division
+            : activeDivision === "vendor"
+            ? "vendor"
+            : "employee"
+        }
+        isDivisionLocked={Boolean(editingRecord) || activeDivision !== "all"}
+        existingCompanies={
+          (editingRecord?.division || (activeDivision === "vendor" ? "vendor" : "employee")) === "vendor"
+            ? vendorCompanies
+            : employeeCompanies
+        }
       />
 
       {/* 3. Excel Import Modal */}

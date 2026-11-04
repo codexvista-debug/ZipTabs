@@ -1,8 +1,8 @@
 /**
  * Cryptographic utility for Phone Directory.
  * Ensures zero plaintext storage in Supabase:
- * - All sensitive fields (Company, Name, Email, Phone) are encrypted with AES-256-GCM.
- * - Cryptographic SHA-256 hashes are stored for each field and for the full record.
+ * - All sensitive fields (Company, Name, Email, Phone, Notes) are encrypted with AES-256-GCM.
+ * - Cryptographic salted SHA-256 hashes are stored for each field.
  */
 
 import {
@@ -13,8 +13,8 @@ import {
   decryptVaultData,
 } from "./crypto";
 
-const DIRECTORY_MASTER_SECRET = "ziptabs_directory_vault_secure_pepper_2026_v1";
-const DIRECTORY_SALT = "ziptabs_dir_kdf_salt_c814b7e_2026";
+export const DIRECTORY_MASTER_SECRET = "ziptabs_directory_vault_secure_pepper_2026_v1";
+export const DIRECTORY_SALT = "ziptabs_dir_kdf_salt_c814b7e_2026";
 
 let cachedDirectoryKey: CryptoKey | null = null;
 
@@ -25,16 +25,19 @@ export async function getDirectoryKey(): Promise<CryptoKey> {
 }
 
 /**
- * Computes a SHA-256 hex digest of any string.
+ * Computes a salted SHA-256 hex digest of any string.
  */
-export async function sha256Hex(text: string): Promise<string> {
+export async function sha256SaltedHex(text: string, salt = DIRECTORY_SALT): Promise<string> {
   const normalized = (text || "").trim().toLowerCase();
   const encoder = new TextEncoder();
-  const data = encoder.encode(normalized);
+  const data = encoder.encode(normalized + ":" + salt);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+// Backward-compatible alias
+export const sha256Hex = sha256SaltedHex;
 
 /**
  * Encrypts arbitrary text into iv:ciphertext base64 string.
@@ -85,10 +88,12 @@ export interface RawSupabaseDirectoryRow {
   encrypted_name: string;
   encrypted_email: string;
   encrypted_phone: string;
+  encrypted_notes?: string | null;
   company_hash: string;
   name_hash: string;
   email_hash: string;
   phone_hash: string;
+  notes_hash?: string | null;
   iv: string;
   notes?: string | null;
   metadata?: Record<string, any>;
@@ -98,7 +103,8 @@ export interface RawSupabaseDirectoryRow {
 
 /**
  * Prepares a directory record for Supabase insertion/updating:
- * Encrypts fields with AES-256-GCM and generates SHA-256 hashes.
+ * Encrypts all fields (including Notes & Phone) with AES-256-GCM
+ * and generates salted SHA-256 hashes.
  */
 export async function encryptDirectoryRecordForDb(
   record: {
@@ -114,25 +120,31 @@ export async function encryptDirectoryRecordForDb(
 ): Promise<Omit<RawSupabaseDirectoryRow, "created_at" | "updated_at">> {
   // Generate a primary IV for this row
   const rowIv = bufferToBase64(crypto.getRandomValues(new Uint8Array(12)));
+  const cleanPhone = record.phone.replace(/\D/g, "") || record.phone.trim();
+  const trimmedNotes = record.notes?.trim() || "";
 
   const [
     encrypted_company,
     encrypted_name,
     encrypted_email,
     encrypted_phone,
+    encrypted_notes,
     company_hash,
     name_hash,
     email_hash,
     phone_hash,
+    notes_hash,
   ] = await Promise.all([
     encryptField(record.company.trim(), key),
     encryptField(record.name.trim(), key),
     encryptField(record.email.trim(), key),
     encryptField(record.phone.trim(), key),
-    sha256Hex(record.company),
-    sha256Hex(record.name),
-    sha256Hex(record.email),
-    sha256Hex(record.phone.replace(/\D/g, "") || record.phone),
+    trimmedNotes ? encryptField(trimmedNotes, key) : Promise.resolve(null),
+    sha256SaltedHex(record.company),
+    sha256SaltedHex(record.name),
+    sha256SaltedHex(record.email),
+    sha256SaltedHex(cleanPhone),
+    trimmedNotes ? sha256SaltedHex(trimmedNotes) : Promise.resolve(null),
   ]);
 
   return {
@@ -142,15 +154,17 @@ export async function encryptDirectoryRecordForDb(
     encrypted_name,
     encrypted_email,
     encrypted_phone,
+    encrypted_notes,
     company_hash,
     name_hash,
     email_hash,
     phone_hash,
+    notes_hash,
     iv: rowIv,
-    notes: record.notes?.trim() || null,
+    notes: null, // Keep plaintext notes column null for zero plaintext
     metadata: {
       secured: true,
-      crypto_algo: "AES-256-GCM + SHA-256",
+      crypto_algo: "AES-256-GCM + Salted SHA-256",
       timestamp: new Date().toISOString(),
     },
   } as Omit<RawSupabaseDirectoryRow, "created_at" | "updated_at">;
@@ -163,11 +177,14 @@ export async function decryptSupabaseDirectoryRow(
   row: RawSupabaseDirectoryRow,
   key: CryptoKey
 ): Promise<DirectoryRecord> {
-  const [company, name, email, phone] = await Promise.all([
+  const [company, name, email, phone, decryptedNotes] = await Promise.all([
     decryptField(row.encrypted_company, key, row.iv),
     decryptField(row.encrypted_name, key, row.iv),
     decryptField(row.encrypted_email, key, row.iv),
     decryptField(row.encrypted_phone, key, row.iv),
+    row.encrypted_notes
+      ? decryptField(row.encrypted_notes, key, row.iv)
+      : Promise.resolve(row.notes || ""),
   ]);
 
   return {
@@ -177,7 +194,7 @@ export async function decryptSupabaseDirectoryRow(
     name: name.trim(),
     email: email.trim(),
     phone: phone.trim(),
-    notes: row.notes || undefined,
+    notes: decryptedNotes?.trim() || undefined,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

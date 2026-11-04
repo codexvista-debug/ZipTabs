@@ -45,14 +45,17 @@ export function DirectorySecurityModal({
     encrypted_company: "gK9+vX7L:2N9pL8zQ1vX9k0mP...[AES-256-GCM Ciphertext]",
     name_hash: "a4c281039d918273645192837461928374619283746192837461928374619283",
     encrypted_name: "vQ1xP8mK:7A1bC2dE3fG4hI5...[AES-256-GCM Ciphertext]",
-    phone_hash: "3182fc94a0283746192837461928374619283746192837461928374619283746",
+    phone_hash: "3182fc94a0283746192837461928374619283746192837461928374619283746 (Salted SHA-256)",
     encrypted_phone: "wZ4+rT9Y:9K8jH7gF6eD5cB4...[AES-256-GCM Ciphertext]",
     email_hash: "d9e8c7b6a5049382716253412938475610293847561029384756102938475610",
     encrypted_email: "mN2+bV8C:1A2sD3fG4hJ5kL6...[AES-256-GCM Ciphertext]",
+    notes_hash: "7f4c91a0b3847162534192837465019283746501928374650192837465019283 (Salted SHA-256)",
+    encrypted_notes: "pL9+qR2T:5V8bN3mK1jH...[AES-256-GCM Ciphertext]",
     iv: "tY7+kL9/vP2=",
+    notes: null,
     metadata: {
       secured: true,
-      crypto_algo: "AES-256-GCM + SHA-256",
+      crypto_algo: "AES-256-GCM + Salted SHA-256",
     },
   };
 
