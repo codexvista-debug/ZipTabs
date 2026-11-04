@@ -423,8 +423,13 @@ function SearchContactRow({
         {record.phone && (
           <div className="flex items-center gap-1">
             <div className="flex items-center bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
-              <span className="hidden sm:inline text-xs font-mono font-medium text-slate-700 mr-1">
-                {record.phone}
+              <span className="hidden sm:inline-flex items-baseline gap-0.5 text-xs font-mono font-medium text-slate-700 mr-1 select-all">
+                <span>{record.phone}</span>
+                {record.extension && (
+                  <sup className="text-[8.5px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1 py-0.5 rounded leading-none -top-1 ml-0.5">
+                    ext.{record.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
+                  </sup>
+                )}
               </span>
               <button
                 type="button"
@@ -439,11 +444,6 @@ function SearchContactRow({
                 )}
               </button>
             </div>
-            {record.extension && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs select-all shrink-0">
-                Ext: {record.extension}
-              </span>
-            )}
           </div>
         )}
 
