@@ -24,6 +24,7 @@ interface DirectorySearchPaletteProps {
   onClose: () => void;
   records: DirectoryRecord[];
   onSelectRecord?: (record: DirectoryRecord) => void;
+  onSearchFilter?: (query: string, record?: DirectoryRecord) => void;
 }
 
 export function DirectorySearchPalette({
@@ -31,6 +32,7 @@ export function DirectorySearchPalette({
   onClose,
   records,
   onSelectRecord,
+  onSearchFilter,
 }: DirectorySearchPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -122,7 +124,11 @@ export function DirectorySearchPalette({
     } else if (e.key === "Enter") {
       e.preventDefault();
       const rec = flatList[selectedIndex] || flatList[0];
-      if (rec) {
+      const filterTerm = query.trim() || (rec ? rec.name : "");
+      if (onSearchFilter && filterTerm) {
+        onSearchFilter(filterTerm, rec);
+        onClose();
+      } else if (rec) {
         if (onSelectRecord) {
           onSelectRecord(rec);
         }
@@ -149,17 +155,17 @@ export function DirectorySearchPalette({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-8 sm:pt-20 px-3 sm:px-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-1.5 sm:pt-16 px-2 sm:px-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100dvh-4rem)] my-auto sm:my-0 animate-in zoom-in-95 duration-150"
+        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[calc(100dvh-0.75rem)] sm:max-h-[calc(100dvh-4rem)] my-0 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDownList}
       >
         {/* Command Search Header */}
-        <div className="flex items-center px-4 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <Search className="w-5 h-5 text-blue-600 shrink-0 mr-3" />
+        <div className="flex items-center px-3 sm:px-4 py-3 sm:py-3.5 border-b border-slate-100 bg-slate-50/70">
+          <Search className="w-5 h-5 text-blue-600 shrink-0 mr-2.5 sm:mr-3" />
           <input
             ref={inputRef}
             type="text"
@@ -191,27 +197,43 @@ export function DirectorySearchPalette({
         </div>
 
         {/* Division Search Summary & Hotkey Info */}
-        <div className="px-4 py-2 bg-blue-50/50 border-b border-blue-100/60 flex items-center justify-between text-xs text-blue-900">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Searching Across Both Divisions:</span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100/80 text-blue-800 text-[11px] font-medium">
+        <div className="px-3 sm:px-4 py-2 bg-blue-50/70 border-b border-blue-100/80 flex items-center justify-between text-xs text-blue-900 gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+            <span className="font-semibold text-[11px] sm:text-xs">Results:</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100/90 text-blue-800 text-[10px] sm:text-[11px] font-semibold">
               <Users className="w-3 h-3" />
               {searchResults.employees.length} Employees
             </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100/80 text-indigo-800 text-[11px] font-medium">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100/90 text-indigo-800 text-[10px] sm:text-[11px] font-semibold">
               <Building2 className="w-3 h-3" />
               {searchResults.vendors.length} Vendors
             </span>
           </div>
-          <span className="hidden md:inline text-[11px] text-slate-500">
-            Use <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[10px]">↑</kbd> <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[10px]">↓</kbd> to navigate, <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[10px]">↵</kbd> to open
-          </span>
+          {query.trim() && (
+            <button
+              type="button"
+              onClick={() => {
+                const rec = flatList[0];
+                const filterTerm = query.trim() || (rec ? rec.name : "");
+                if (onSearchFilter && filterTerm) {
+                  onSearchFilter(filterTerm, rec);
+                } else if (rec && onSelectRecord) {
+                  onSelectRecord(rec);
+                }
+                onClose();
+              }}
+              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-[10px] sm:text-xs flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs active:scale-95"
+            >
+              <span>Filter View</span>
+              <CornerDownLeft className="w-3 h-3" />
+            </button>
+          )}
         </div>
 
         {/* Results List */}
         <div
           ref={resultsContainerRef}
-          className="flex-1 overflow-y-auto p-2 space-y-4 max-h-[60vh] scrollbar-thin scrollbar-thumb-slate-200"
+          className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3 max-h-[48vh] sm:max-h-[60vh] scrollbar-thin scrollbar-thumb-slate-200 overscroll-contain"
         >
           {searchResults.totalMatches === 0 ? (
             <div className="py-12 text-center text-slate-500">
@@ -242,7 +264,12 @@ export function DirectorySearchPalette({
                           copiedField={copiedField}
                           onCopy={copyToClipboard}
                           onSelect={() => {
-                            if (onSelectRecord) onSelectRecord(rec);
+                            const filterTerm = query.trim() || rec.name;
+                            if (onSearchFilter && filterTerm) {
+                              onSearchFilter(filterTerm, rec);
+                            } else if (onSelectRecord) {
+                              onSelectRecord(rec);
+                            }
                             onClose();
                           }}
                         />
@@ -271,7 +298,12 @@ export function DirectorySearchPalette({
                           copiedField={copiedField}
                           onCopy={copyToClipboard}
                           onSelect={() => {
-                            if (onSelectRecord) onSelectRecord(rec);
+                            const filterTerm = query.trim() || rec.name;
+                            if (onSearchFilter && filterTerm) {
+                              onSearchFilter(filterTerm, rec);
+                            } else if (onSelectRecord) {
+                              onSelectRecord(rec);
+                            }
                             onClose();
                           }}
                         />

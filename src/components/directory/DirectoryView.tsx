@@ -62,6 +62,7 @@ export function DirectoryView() {
   const [records, setRecords] = useState<DirectoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeDivision, setActiveDivision] = useState<"employee" | "vendor" | "all">("vendor");
+  const [activeSearchFilter, setActiveSearchFilter] = useState<string>("");
 
   // Selection & quick actions
   const [copiedField, setCopiedField] = useState<{ id: string; type: "phone" | "email" } | null>(null);
@@ -524,16 +525,51 @@ export function DirectoryView() {
       .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company));
   }, [records]);
 
-  // Filtered and Sorted Records (Vendor, Employee, All)
+  // Filtered and Sorted Records (Vendor, Employee, All + Search Filter)
   const filteredRecords = useMemo(() => {
     return records
       .filter((r) => {
+        if (activeSearchFilter) {
+          const q = activeSearchFilter.toLowerCase();
+          const cleanNum = q.replace(/\D/g, "");
+          const nameMatch = r.name.toLowerCase().includes(q);
+          const compMatch = r.company.toLowerCase().includes(q);
+          const emailMatch = r.email ? r.email.toLowerCase().includes(q) : false;
+          const notesMatch = r.notes ? r.notes.toLowerCase().includes(q) : false;
+          const phoneMatch =
+            r.phone.toLowerCase().includes(q) ||
+            (cleanNum.length >= 3 && r.phone.replace(/\D/g, "").includes(cleanNum));
+          if (!nameMatch && !compMatch && !emailMatch && !notesMatch && !phoneMatch) {
+            return false;
+          }
+        }
         if (activeDivision === "vendor") return r.division === "vendor";
         if (activeDivision === "employee") return r.division === "employee";
         return true;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [records, activeDivision]);
+  }, [records, activeDivision, activeSearchFilter]);
+
+  // Filter directory to show ONLY searched records (replaces broken jumping on mobile)
+  const handleSearchFilter = useCallback(
+    (filterTerm: string, record?: DirectoryRecord) => {
+      setActiveSearchFilter(filterTerm.trim());
+      if (record) {
+        setActiveDivision(record.division);
+        setFocusedRecordId(record.id);
+        setTimeout(() => setFocusedRecordId(null), 3500);
+      } else {
+        setActiveDivision("all");
+      }
+      setToast({
+        title: "Directory Filtered",
+        description: `Showing only records matching "${filterTerm.trim()}".`,
+        type: "info",
+        metric: "Filtered",
+      });
+    },
+    []
+  );
 
   // Jump to selected record and scroll it into view with smooth highlight
   const handleJumpToRecord = useCallback(
@@ -719,6 +755,32 @@ export function DirectoryView() {
           </span>
         </button>
       </div>
+
+      {/* Active Search Filter Banner */}
+      {activeSearchFilter && (
+        <div className="flex items-center justify-between bg-blue-50/90 border border-blue-200/90 rounded-2xl px-3.5 sm:px-4 py-2.5 text-xs text-blue-950 shadow-2xs animate-in fade-in slide-in-from-top-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <Search className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1 truncate">
+              <span>Showing search results for: </span>
+              <strong className="font-bold underline decoration-blue-400">"{activeSearchFilter}"</strong>
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-blue-200/80 text-blue-900 font-mono text-[11px] font-bold">
+                {filteredRecords.length} found
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveSearchFilter("")}
+            className="ml-2 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs active:scale-95"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Clear Filter</span>
+          </button>
+        </div>
+      )}
 
       {/* CONTACTS DATA TABLE */}
       <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
@@ -1144,6 +1206,7 @@ export function DirectoryView() {
         onClose={() => setIsSearchPaletteOpen(false)}
         records={records}
         onSelectRecord={handleJumpToRecord}
+        onSearchFilter={handleSearchFilter}
       />
 
       {/* 2. Add / Edit Contact Modal */}
