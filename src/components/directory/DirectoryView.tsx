@@ -16,15 +16,9 @@ import {
   DirectoryContactModal,
 } from "./DirectoryContactModal";
 import {
-  DirectoryImportModal,
-} from "./DirectoryImportModal";
-import {
   DirectorySecurityModal,
 } from "./DirectorySecurityModal";
-import {
-  exportDirectoryToExcel,
-  ParsedSpreadsheetContact,
-} from "@/lib/directoryExcel";
+import { ParsedSpreadsheetContact } from "@/lib/directoryExcel";
 import {
   ExecutiveToast,
   getToastPosition,
@@ -39,8 +33,6 @@ import {
   Users,
   Search,
   Plus,
-  Upload,
-  Download,
   ShieldCheck,
   Lock,
   Edit2,
@@ -53,7 +45,6 @@ import {
   Filter,
   ArrowUpDown,
   BookUser,
-  RefreshCw,
   SlidersHorizontal,
   ChevronDown,
   Info,
@@ -62,6 +53,8 @@ import {
   Hash,
   Database,
   Eye,
+  FileText,
+  Loader2,
 } from "lucide-react";
 
 const ALPHABET = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
@@ -83,7 +76,6 @@ export function DirectoryView() {
   const [isSearchPaletteOpen, setIsSearchPaletteOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DirectoryRecord | null>(null);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState<DirectoryRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -170,6 +162,60 @@ export function DirectoryView() {
   useEffect(() => {
     fetchDirectory();
   }, [fetchDirectory]);
+
+  // Real-time synchronization via Supabase postgres_changes
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel("phone_directory_realtime_sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "phone_directory",
+        },
+        async (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deletedId = (payload.old as any)?.id;
+            if (deletedId) {
+              setRecords((prev) => prev.filter((r) => r.id !== deletedId));
+            }
+          } else if (payload.eventType === "INSERT") {
+            const newRow = payload.new as RawSupabaseDirectoryRow;
+            try {
+              const key = await getDirectoryKey();
+              const dec = await decryptSupabaseDirectoryRow(newRow, key);
+              setRecords((prev) => {
+                if (prev.some((r) => r.id === dec.id)) return prev;
+                return [dec, ...prev];
+              });
+            } catch (err) {
+              console.warn("Could not decrypt realtime inserted row:", err);
+            }
+          } else if (payload.eventType === "UPDATE") {
+            const updatedRow = payload.new as RawSupabaseDirectoryRow;
+            try {
+              const key = await getDirectoryKey();
+              const dec = await decryptSupabaseDirectoryRow(updatedRow, key);
+              setRecords((prev) =>
+                prev.map((r) => (r.id === dec.id ? dec : r))
+              );
+            } catch (err) {
+              console.warn("Could not decrypt realtime updated row:", err);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
 
   // Copy to clipboard helper with checkmark animation
   const copyToClipboard = (text: string, id: string, type: "phone" | "email") => {
@@ -601,16 +647,6 @@ export function DirectoryView() {
             <span>Hashed &amp; Encrypted</span>
           </button>
 
-          {/* Import Excel */}
-          <button
-            type="button"
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-2xs hover:border-slate-300 transition-all cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5 text-blue-600" />
-            <span>Import Excel</span>
-          </button>
-
           {/* Add Contact / Employee / Vendor Button */}
           <button
             type="button"
@@ -846,26 +882,6 @@ export function DirectoryView() {
               <option value="company_asc">Company (A → Z)</option>
               <option value="recent">Recently Added</option>
             </select>
-
-            {/* Export Excel Button */}
-            <button
-              type="button"
-              onClick={() => exportDirectoryToExcel(records, activeDivision)}
-              title="Export Current Directory to Excel"
-              className="p-2 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-
-            {/* Refresh Button */}
-            <button
-              type="button"
-              onClick={() => fetchDirectory()}
-              title="Refresh from Supabase"
-              className="p-2 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer"
-            >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-blue-600" : ""}`} />
-            </button>
           </div>
         </div>
 
@@ -898,7 +914,7 @@ export function DirectoryView() {
       <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
         {isLoading ? (
           <div className="py-20 text-center text-slate-500">
-            <RefreshCw className="w-8 h-8 mx-auto text-blue-600 animate-spin mb-3" />
+            <Loader2 className="w-8 h-8 mx-auto text-blue-600 animate-spin mb-3" />
             <p className="font-bold text-sm text-slate-800">
               Deriving Key &amp; Decrypting Phone Directory...
             </p>
@@ -923,23 +939,14 @@ export function DirectoryView() {
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsImportModalOpen(true)}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all cursor-pointer"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Import via Excel</span>
-                  </button>
-
+                <div className="flex items-center justify-center pt-2">
                   <button
                     type="button"
                     onClick={() => {
                       setEditingRecord(null);
                       setIsContactModalOpen(true);
                     }}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-all cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add First Contact</span>
@@ -981,103 +988,105 @@ export function DirectoryView() {
             )}
           </div>
         ) : (
-          /* Table of Contacts */
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
-                  <th className="py-3 px-4">Contact</th>
-                  <th className="py-3 px-4">Division</th>
-                  <th className="py-3 px-4">Company</th>
-                  <th className="py-3 px-4">Phone Number</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredRecords.map((contact) => {
-                  const isEmployee = contact.division === "employee";
-                  const initials = contact.name
-                    ? contact.name
-                        .split(" ")
-                        .map((p) => p[0])
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .join("")
-                        .toUpperCase()
-                    : "??";
+          <div>
+            {/* 1. MOBILE CARD VIEW (Elements appear in one go without horizontal scrolling) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {filteredRecords.map((contact) => {
+                const isEmployee = contact.division === "employee";
+                const initials = contact.name
+                  ? contact.name
+                      .split(" ")
+                      .map((p) => p[0])
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()
+                  : "??";
 
-                  return (
-                    <tr
-                      key={contact.id}
-                      className="hover:bg-slate-50/80 transition-colors group"
-                    >
-                      {/* Name & Title */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-2xs ${
-                              isEmployee
-                                ? "bg-gradient-to-br from-blue-600 to-blue-700"
-                                : "bg-gradient-to-br from-indigo-600 to-indigo-700"
-                            }`}
-                          >
-                            {initials}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-900 truncate">
-                              {contact.name}
-                            </p>
-                            {contact.notes && (
-                              <p className="text-[11px] text-slate-400 truncate max-w-[200px]">
-                                {contact.notes}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Division Badge */}
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                return (
+                  <div
+                    key={contact.id}
+                    className="p-3.5 space-y-2.5 hover:bg-slate-50/70 transition-colors"
+                  >
+                    {/* Top Row: Avatar + Name + Division Badge + Edit/Delete */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-2xs ${
                             isEmployee
-                              ? "bg-blue-50 text-blue-700 border-blue-200"
-                              : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                              ? "bg-gradient-to-br from-blue-600 to-blue-700"
+                              : "bg-gradient-to-br from-indigo-600 to-indigo-700"
                           }`}
                         >
-                          {isEmployee ? (
-                            <User className="w-3 h-3" />
-                          ) : (
-                            <Building2 className="w-3 h-3" />
-                          )}
-                          {isEmployee ? "Employee" : "Vendor"}
-                        </span>
-                      </td>
+                          {initials}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900 text-sm truncate">
+                              {contact.name}
+                            </span>
+                            <span
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                isEmployee
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                              }`}
+                            >
+                              {isEmployee ? "Employee" : "Vendor"}
+                            </span>
+                          </div>
+                          <div className="text-xs font-medium text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                            <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span className="truncate">{contact.company || "Corporate"}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                      {/* Company */}
-                      <td className="py-3 px-4">
-                        <span className="font-semibold text-slate-800">
-                          {contact.company || "—"}
-                        </span>
-                      </td>
+                      {/* Quick Actions (Edit, Delete) */}
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRecord(contact);
+                            setIsContactModalOpen(true);
+                          }}
+                          title="Edit Record"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRecordToDelete(contact)}
+                          title="Delete Record"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
 
-                      {/* Phone Number with Click-to-Call & Copy */}
-                      <td className="py-3 px-4">
-                        {contact.phone ? (
-                          <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800">
+                    {/* Middle: Phone & Email in one view */}
+                    <div className="space-y-1.5 pt-0.5 text-xs">
+                      {contact.phone && (
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/70">
+                          <div className="flex items-center gap-2 font-mono font-semibold text-slate-800 text-xs truncate">
+                            <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span className="select-all truncate">{contact.phone}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
                             <a
                               href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}
-                              title={`Call ${contact.phone}`}
-                              className="p-1 rounded-md text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                              className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition-all"
                             >
-                              <Phone className="w-3.5 h-3.5" />
+                              <Phone className="w-3 h-3" />
+                              Call
                             </a>
                             <button
                               type="button"
                               onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
-                              title="Copy Phone Number"
-                              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                              title="Copy Phone"
                             >
                               {copiedField?.id === contact.id && copiedField?.type === "phone" ? (
                                 <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -1085,31 +1094,29 @@ export function DirectoryView() {
                                 <Copy className="w-3.5 h-3.5" />
                               )}
                             </button>
-                            <span className="font-semibold select-all">
-                              {contact.phone}
-                            </span>
                           </div>
-                        ) : (
-                          <span className="text-slate-400 italic text-xs">No phone</span>
-                        )}
-                      </td>
+                        </div>
+                      )}
 
-                      {/* Email with Click-to-Mail & Copy */}
-                      <td className="py-3 px-4">
-                        {contact.email ? (
-                          <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                      {contact.email && (
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/70">
+                          <div className="flex items-center gap-2 text-slate-700 text-xs truncate">
+                            <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="select-all truncate">{contact.email}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
                             <a
                               href={`mailto:${contact.email}`}
-                              title={`Email ${contact.email}`}
-                              className="p-1 rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                              className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition-all"
                             >
-                              <Mail className="w-3.5 h-3.5" />
+                              <Mail className="w-3 h-3" />
+                              Email
                             </a>
                             <button
                               type="button"
                               onClick={() => copyToClipboard(contact.email, contact.id, "email")}
-                              title="Copy Email Address"
-                              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                              title="Copy Email"
                             >
                               {copiedField?.id === contact.id && copiedField?.type === "email" ? (
                                 <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -1117,44 +1124,197 @@ export function DirectoryView() {
                                 <Copy className="w-3.5 h-3.5" />
                               )}
                             </button>
-                            <span className="truncate max-w-[180px] select-all">
-                              {contact.email}
-                            </span>
                           </div>
-                        ) : (
-                          <span className="text-slate-400 italic text-xs">No email</span>
-                        )}
-                      </td>
-
-                      {/* Actions: Edit, Delete */}
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingRecord(contact);
-                              setIsContactModalOpen(true);
-                            }}
-                            title="Edit Record"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setRecordToDelete(contact)}
-                            title="Delete Record"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      )}
+
+                      {contact.notes && (
+                        <div className="px-2.5 py-1.5 text-[11px] text-slate-600 bg-slate-50 rounded-xl border border-slate-200/60 flex items-start gap-1.5">
+                          <FileText className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                          <span className="break-words leading-relaxed">{contact.notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 2. DESKTOP / TABLET MULTI-COLUMN TABLE (Visible on md and above) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                    <th className="py-3 px-4">Contact</th>
+                    <th className="py-3 px-4">Division</th>
+                    <th className="py-3 px-4">Company</th>
+                    <th className="py-3 px-4">Phone Number</th>
+                    <th className="py-3 px-4">Email</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredRecords.map((contact) => {
+                    const isEmployee = contact.division === "employee";
+                    const initials = contact.name
+                      ? contact.name
+                          .split(" ")
+                          .map((p) => p[0])
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase()
+                      : "??";
+
+                    return (
+                      <tr
+                        key={contact.id}
+                        className="hover:bg-slate-50/80 transition-colors group"
+                      >
+                        {/* Name & Title */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-2xs ${
+                                isEmployee
+                                  ? "bg-gradient-to-br from-blue-600 to-blue-700"
+                                  : "bg-gradient-to-br from-indigo-600 to-indigo-700"
+                              }`}
+                            >
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 truncate">
+                                {contact.name}
+                              </p>
+                              {contact.notes && (
+                                <p className="text-[11px] text-slate-400 truncate max-w-[200px]">
+                                  {contact.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Division Badge */}
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                              isEmployee
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                            }`}
+                          >
+                            {isEmployee ? (
+                              <User className="w-3 h-3" />
+                            ) : (
+                              <Building2 className="w-3 h-3" />
+                            )}
+                            {isEmployee ? "Employee" : "Vendor"}
+                          </span>
+                        </td>
+
+                        {/* Company */}
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-slate-800">
+                            {contact.company || "—"}
+                          </span>
+                        </td>
+
+                        {/* Phone Number with Click-to-Call & Copy */}
+                        <td className="py-3 px-4">
+                          {contact.phone ? (
+                            <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800">
+                              <a
+                                href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}
+                                title={`Call ${contact.phone}`}
+                                className="p-1 rounded-md text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
+                                title="Copy Phone Number"
+                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                              >
+                                {copiedField?.id === contact.id && copiedField?.type === "phone" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              <span className="font-semibold select-all">
+                                {contact.phone}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">No phone</span>
+                          )}
+                        </td>
+
+                        {/* Email with Click-to-Mail & Copy */}
+                        <td className="py-3 px-4">
+                          {contact.email ? (
+                            <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                              <a
+                                href={`mailto:${contact.email}`}
+                                title={`Email ${contact.email}`}
+                                className="p-1 rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(contact.email, contact.id, "email")}
+                                title="Copy Email Address"
+                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                              >
+                                {copiedField?.id === contact.id && copiedField?.type === "email" ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              <span className="truncate max-w-[180px] select-all">
+                                {contact.email}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">No email</span>
+                          )}
+                        </td>
+
+                        {/* Actions: Edit, Delete */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingRecord(contact);
+                                setIsContactModalOpen(true);
+                              }}
+                              title="Edit Record"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRecordToDelete(contact)}
+                              title="Delete Record"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1217,15 +1377,7 @@ export function DirectoryView() {
         }
       />
 
-      {/* 3. Excel Import Modal */}
-      <DirectoryImportModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onImport={handleImportSpreadsheet}
-        defaultDivision={activeDivision === "vendor" ? "vendor" : "employee"}
-      />
-
-      {/* 4. Security & Cryptographic Inspector Modal */}
+      {/* 3. Security & Cryptographic Inspector Modal */}
       <DirectorySecurityModal
         isOpen={isSecurityModalOpen}
         onClose={() => setIsSecurityModalOpen(false)}

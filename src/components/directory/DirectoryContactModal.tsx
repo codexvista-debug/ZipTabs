@@ -455,9 +455,9 @@ export function DirectoryContactModal({
             </div>
           </div>
 
-          {/* Notes / Department / Title (Now securely encrypted and salted-hashed) */}
+          {/* Notes / Department / Title (Bigger Text Area) */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
               <span>Title / Extension / Notes <span className="text-slate-400 font-normal">(Optional)</span></span>
               <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
                 <Lock className="w-2.5 h-2.5" />
@@ -465,13 +465,13 @@ export function DirectoryContactModal({
               </span>
             </label>
             <div className="relative">
-              <FileText className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
+              <FileText className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <textarea
+                rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Senior Dispatcher - Ext 204 / Direct Support"
-                className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white"
+                placeholder="e.g. Senior Dispatcher - Ext 204 / Direct Support / Delivery Instructions"
+                className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white resize-y min-h-[88px] leading-relaxed"
               />
             </div>
           </div>
