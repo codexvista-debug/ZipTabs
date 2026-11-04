@@ -58,16 +58,10 @@ import {
   Loader2,
 } from "lucide-react";
 
-const ALPHABET = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
-
 export function DirectoryView() {
   const [records, setRecords] = useState<DirectoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeDivision, setActiveDivision] = useState<"employee" | "vendor" | "all">("vendor");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCompany, setSelectedCompany] = useState<string>("ALL");
-  const [selectedLetter, setSelectedLetter] = useState<string>("ALL");
-  const [sortBy, setSortBy] = useState<"name_asc" | "name_desc" | "company_asc" | "recent">("name_asc");
 
   // Selection & quick actions
   const [copiedField, setCopiedField] = useState<{ id: string; type: "phone" | "email" } | null>(null);
@@ -88,8 +82,6 @@ export function DirectoryView() {
     description?: string;
     metric?: string;
   } | null>(null);
-
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Ctrl + K Global Hotkey Handler (Scoped to this Directory tab)
   useEffect(() => {
@@ -500,17 +492,6 @@ export function DirectoryView() {
   );
   const totalCount = records.length;
 
-  // Extract all unique company names for dropdown filter
-  const companyList = useMemo(() => {
-    const set = new Set<string>();
-    records.forEach((r) => {
-      if (r.company && r.company.trim()) {
-        set.add(r.company.trim());
-      }
-    });
-    return Array.from(set).sort();
-  }, [records]);
-
   // Vendor company list with usage counts (for autocomplete suggestions)
   const vendorCompanies = useMemo(() => {
     const map = new Map<string, number>();
@@ -543,61 +524,16 @@ export function DirectoryView() {
       .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company));
   }, [records]);
 
-  // Filtered and Sorted Records
+  // Filtered and Sorted Records (Vendor, Employee, All)
   const filteredRecords = useMemo(() => {
     return records
       .filter((r) => {
-        // 1. Division filter
-        if (activeDivision !== "all" && r.division !== activeDivision) {
-          return false;
-        }
-
-        // 2. Company filter
-        if (selectedCompany !== "ALL" && r.company !== selectedCompany) {
-          return false;
-        }
-
-        // 3. Alphabet letter filter
-        if (selectedLetter !== "ALL") {
-          const firstLetter = (r.name || "").trim().charAt(0).toUpperCase();
-          if (firstLetter !== selectedLetter) {
-            return false;
-          }
-        }
-
-        // 4. In-page search query
-        if (searchQuery.trim()) {
-          const q = searchQuery.trim().toLowerCase();
-          const cleanNum = q.replace(/\D/g, "");
-          const nameMatch = r.name.toLowerCase().includes(q);
-          const compMatch = r.company.toLowerCase().includes(q);
-          const emailMatch = r.email.toLowerCase().includes(q);
-          const notesMatch = r.notes ? r.notes.toLowerCase().includes(q) : false;
-          const phoneMatch =
-            r.phone.toLowerCase().includes(q) ||
-            (cleanNum.length >= 3 && r.phone.replace(/\D/g, "").includes(cleanNum));
-
-          return nameMatch || compMatch || emailMatch || notesMatch || phoneMatch;
-        }
-
+        if (activeDivision === "vendor") return r.division === "vendor";
+        if (activeDivision === "employee") return r.division === "employee";
         return true;
       })
-      .sort((a, b) => {
-        if (sortBy === "name_asc") {
-          return a.name.localeCompare(b.name);
-        }
-        if (sortBy === "name_desc") {
-          return b.name.localeCompare(a.name);
-        }
-        if (sortBy === "company_asc") {
-          return a.company.localeCompare(b.company);
-        }
-        if (sortBy === "recent") {
-          return (b.created_at || "").localeCompare(a.created_at || "");
-        }
-        return 0;
-      });
-  }, [records, activeDivision, selectedCompany, selectedLetter, searchQuery, sortBy]);
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [records, activeDivision]);
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-200">
@@ -614,305 +550,136 @@ export function DirectoryView() {
         />
       )}
 
-      {/* TOP HEADER & ACTION BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200/80 pb-3 sm:pb-5">
-        <div>
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
-              <BookUser className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight whitespace-nowrap">
-                  Phone Directory
-                </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
-                  Employees &amp; Vendors
-                </span>
-              </div>
-              <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
-                Secure communications registry • Single-source telephone and direct contact book
-              </p>
-            </div>
+      {/* 1. TOP HEADER & ACTION BAR */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+            <BookUser className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+              Phone Directory
+            </h1>
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
+              Secure communications registry • Single-source telephone and direct contact book
+            </p>
           </div>
         </div>
 
-        {/* Header Right Actions */}
-        <div className="flex items-center gap-2">
-          {/* Quick Ctrl+K Search Pill */}
-          <button
-            type="button"
-            onClick={() => setIsSearchPaletteOpen(true)}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 transition-all cursor-pointer group"
-          >
-            <Search className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform shrink-0" />
-            <span>Search All</span>
-            <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-mono font-bold text-slate-500 border border-slate-200">
-              Ctrl K
-            </span>
-          </button>
+        {/* Dynamic Add Button (replaces 'Employees & Vendors' badge) */}
+        <button
+          type="button"
+          onClick={() => {
+            setEditingRecord(null);
+            setIsContactModalOpen(true);
+          }}
+          className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md active:scale-95 transition-all cursor-pointer shrink-0 ${
+            activeDivision === "vendor"
+              ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20"
+              : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+          }`}
+        >
+          <Plus className="w-4 h-4 shrink-0" />
+          <span className="whitespace-nowrap font-bold">
+            {activeDivision === "employee"
+              ? "Add Employee"
+              : activeDivision === "vendor"
+              ? "Add Vendor"
+              : "Add Record"}
+          </span>
+        </button>
+      </div>
 
-          {/* Add Contact / Employee / Vendor Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setEditingRecord(null);
-              setIsContactModalOpen(true);
-            }}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 text-white rounded-xl text-xs font-bold shadow-md active:scale-98 transition-all cursor-pointer ${
+      {/* 2. GLOBAL SEARCH ALL BAR (Clean full-width trigger) */}
+      <div className="w-full">
+        <button
+          type="button"
+          onClick={() => setIsSearchPaletteOpen(true)}
+          className="w-full flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-blue-400 rounded-2xl text-xs sm:text-sm text-slate-500 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Search className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform shrink-0" />
+            <span className="font-medium text-slate-600 truncate">
+              Search All across employees, vendors, phone numbers, emails...
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] sm:text-[11px] font-mono font-bold border border-blue-200">
+              Global Search
+            </span>
+            <span className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg bg-slate-100 text-[10px] sm:text-[11px] font-mono font-bold text-slate-500 border border-slate-200">
+              Ctrl + K
+            </span>
+          </div>
+        </button>
+      </div>
+
+      {/* 3. DIVISION SEGMENTED SWITCHER (Vendors on left, Employees middle, All right) */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl w-full">
+        <button
+          type="button"
+          onClick={() => setActiveDivision("vendor")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeDivision === "vendor"
+              ? "bg-white text-indigo-700 shadow-xs border border-indigo-200/60"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <Building2 className="w-4 h-4 shrink-0" />
+          <span>Vendors</span>
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
               activeDivision === "vendor"
-                ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20"
-                : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                ? "bg-indigo-100 text-indigo-800"
+                : "bg-slate-200 text-slate-600"
             }`}
           >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span className="whitespace-nowrap">
-              {activeDivision === "employee"
-                ? "Add Employee"
-                : activeDivision === "vendor"
-                ? "Add Vendor"
-                : "Add Contact"}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* STAT SUMMARY CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        {/* Total Directory Contacts */}
-        <div className="bg-white border border-slate-200/80 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
-              Total Directory
-            </p>
-            <p className="text-base sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
-              {totalCount}
-            </p>
-            <p className="hidden sm:block text-[11px] text-slate-400 mt-0.5">Across all divisions</p>
-          </div>
-          <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <BookUser className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-          </div>
-        </div>
-
-        {/* Vendors (Default landing division) */}
-        <div
-          onClick={() => setActiveDivision("vendor")}
-          className={`bg-white border rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between cursor-pointer transition-all ${
-            activeDivision === "vendor"
-              ? "border-indigo-500 ring-2 ring-indigo-500/10 bg-indigo-50/20"
-              : "border-slate-200/80 hover:border-slate-300"
-          }`}
-        >
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] font-bold text-indigo-600 uppercase tracking-wider truncate">
-              Vendors
-            </p>
-            <p className="text-base sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
-              {vendorCount}
-            </p>
-            <p className="hidden sm:block text-[11px] text-slate-400 mt-0.5">External business partners</p>
-          </div>
-          <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-            <Building2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-          </div>
-        </div>
-
-        {/* Employees */}
-        <div
-          onClick={() => setActiveDivision("employee")}
-          className={`bg-white border rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between cursor-pointer transition-all ${
-            activeDivision === "employee"
-              ? "border-blue-500 ring-2 ring-blue-500/10 bg-blue-50/20"
-              : "border-slate-200/80 hover:border-slate-300"
-          }`}
-        >
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] font-bold text-blue-600 uppercase tracking-wider truncate">
-              Employees
-            </p>
-            <p className="text-base sm:text-2xl font-black text-slate-900 mt-0.5 sm:mt-1">
-              {employeeCount}
-            </p>
-            <p className="hidden sm:block text-[11px] text-slate-400 mt-0.5">Internal team directory</p>
-          </div>
-          <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-          </div>
-        </div>
-
-        {/* Security & Cloud Hashing */}
-        <div
-          onClick={() => setIsSecurityModalOpen(true)}
-          className="bg-white border border-slate-200/80 hover:border-emerald-300 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between cursor-pointer transition-all group"
-        >
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1 truncate">
-              <Lock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-600 shrink-0" />
-              Supabase Security
-            </p>
-            <p className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5 sm:mt-1 truncate">
-              Hashed &amp; Encrypted
-            </p>
-            <p className="hidden sm:block text-[11px] text-emerald-600 font-medium mt-0.5 group-hover:underline">
-              Inspect Cloud Row →
-            </p>
-          </div>
-          <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-            <ShieldCheck className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* TWO DIVISIONS TAB SELECTOR + FILTER CONTROLS */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-xs space-y-3.5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Main Division Segmented Switcher (Vendors default on left) */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setActiveDivision("vendor")}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeDivision === "vendor"
-                  ? "bg-white text-indigo-700 shadow-xs border border-indigo-200/60"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Building2 className="w-4 h-4" />
-              <span>Vendors</span>
-              <span
-                className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  activeDivision === "vendor"
-                    ? "bg-indigo-100 text-indigo-800"
-                    : "bg-slate-200 text-slate-600"
-                }`}
-              >
-                {vendorCount}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveDivision("employee")}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeDivision === "employee"
-                  ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Employees</span>
-              <span
-                className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  activeDivision === "employee"
-                    ? "bg-blue-100 text-blue-800"
-                    : "bg-slate-200 text-slate-600"
-                }`}
-              >
-                {employeeCount}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveDivision("all")}
-              className={`hidden sm:inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeDivision === "all"
-                  ? "bg-white text-slate-900 shadow-xs border border-slate-300/60"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <span>All</span>
-              <span className="text-[10px] text-slate-400">({totalCount})</span>
-            </button>
-          </div>
-
-          {/* Right Filter Actions: Search, Company Dropdown, Sort, Export */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search Input */}
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search phone, name, email..."
-                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-              />
-              {searchQuery ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsSearchPaletteOpen(true)}
-                  title="Open Spotlight Search (Ctrl + K)"
-                  className="hidden sm:inline-flex absolute right-2 top-2 px-1 py-0.5 rounded text-[9px] font-mono text-slate-400 bg-slate-200/60"
-                >
-                  ⌘K
-                </button>
-              )}
-            </div>
-
-            {/* Company Dropdown Filter */}
-            {companyList.length > 0 && (
-              <select
-                value={selectedCompany}
-                onChange={(e) => setSelectedCompany(e.target.value)}
-                className="text-xs font-medium py-2 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-blue-500 cursor-pointer max-w-[140px] truncate"
-              >
-                <option value="ALL">All Companies</option>
-                {companyList.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* Sort Dropdown */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="text-xs font-medium py-2 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-blue-500 cursor-pointer"
-            >
-              <option value="name_asc">Name (A → Z)</option>
-              <option value="name_desc">Name (Z → A)</option>
-              <option value="company_asc">Company (A → Z)</option>
-              <option value="recent">Recently Added</option>
-            </select>
-          </div>
-        </div>
-
-        {/* ALPHABET JUMP BAR */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none pt-1 border-t border-slate-100 text-[11px]">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 shrink-0">
-            Jump:
+            {vendorCount}
           </span>
-          {ALPHABET.map((letter) => {
-            const isSelected = selectedLetter === letter;
-            return (
-              <button
-                key={letter}
-                type="button"
-                onClick={() => setSelectedLetter(letter)}
-                className={`px-1.5 py-0.5 rounded font-mono font-semibold transition-colors shrink-0 cursor-pointer ${
-                  isSelected
-                    ? "bg-blue-600 text-white shadow-2xs"
-                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                }`}
-              >
-                {letter}
-              </button>
-            );
-          })}
-        </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveDivision("employee")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeDivision === "employee"
+              ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <Users className="w-4 h-4 shrink-0" />
+          <span>Employees</span>
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              activeDivision === "employee"
+                ? "bg-blue-100 text-blue-800"
+                : "bg-slate-200 text-slate-600"
+            }`}
+          >
+            {employeeCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveDivision("all")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeDivision === "all"
+              ? "bg-white text-slate-900 shadow-xs border border-slate-300/60"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <span>All</span>
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              activeDivision === "all"
+                ? "bg-slate-200 text-slate-900 font-black"
+                : "bg-slate-200 text-slate-600"
+            }`}
+          >
+            {totalCount}
+          </span>
+        </button>
       </div>
 
       {/* CONTACTS DATA TABLE */}
@@ -980,14 +747,10 @@ export function DirectoryView() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSelectedCompany("ALL");
-                    setSelectedLetter("ALL");
-                  }}
-                  className="px-3 py-1 text-xs font-semibold text-blue-600 hover:underline"
+                  onClick={() => setActiveDivision("all")}
+                  className="px-3 py-1 text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
                 >
-                  Clear all filters
+                  Show all contacts
                 </button>
               </div>
             )}
@@ -1334,7 +1097,7 @@ export function DirectoryView() {
         records={records}
         onSelectRecord={(rec) => {
           setActiveDivision(rec.division);
-          setSearchQuery(rec.name);
+          setFocusedRecordId(rec.id);
         }}
       />
 
