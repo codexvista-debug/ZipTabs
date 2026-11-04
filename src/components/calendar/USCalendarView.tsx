@@ -454,9 +454,9 @@ export function USCalendarView() {
 
   return (
     <div className="space-y-4 sm:space-y-6 relative pb-16">
-      {/* Toast Notification (Top-Right Placement) */}
+      {/* Toast Notification (Top-Center Placement) */}
       {toast && (
-        <div className={TOAST_POSITION_CLASSES["top-right"]}>
+        <div className={TOAST_POSITION_CLASSES["top-center"]}>
           <ExecutiveToast
             type={toast.type}
             title={toast.title}

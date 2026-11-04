@@ -28,20 +28,20 @@ export function getToastPosition(
     lower.includes("purge") ||
     lower.includes("trash")
   ) {
-    return "bottom-right";
+    return "bottom-center";
   }
   return "top-center";
 }
 
 export const TOAST_POSITION_CLASSES: Record<ToastPosition, string> = {
   "top-center":
-    "fixed top-3 sm:top-6 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-top-3 duration-200 flex justify-center",
+    "fixed top-4 sm:top-5 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-300 flex justify-center",
   "top-right":
-    "fixed top-3 sm:top-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-top-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
+    "fixed top-4 sm:top-5 right-4 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl pointer-events-auto animate-in fade-in slide-in-from-top-4 sm:slide-in-from-right-4 duration-300 flex justify-center sm:justify-end",
   "bottom-right":
-    "fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
+    "fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
   "bottom-center":
-    "fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
+    "fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
   none: "",
 };
 
@@ -68,7 +68,7 @@ export function ExecutiveToast({
   headerMeta,
   metric,
   position,
-  variant = "monolith",
+  variant = "capsule",
   action,
   onClose,
   durationMs = 3500,
@@ -170,28 +170,34 @@ export function ExecutiveToast({
   };
 
   // ----------------------------------------------------
-  // VARIANT B: Executive Precision Capsule (Single-line)
-  // Short, compact, horizontal single-line capsule
+  // VARIANT B (Default): Executive Precision Dynamic Capsule
+  // Ultra-sleek, horizontal floating island capsule
   // ----------------------------------------------------
   const renderCapsuleCard = (extraClasses = "") => (
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative bg-white/95 backdrop-blur-md rounded-full shadow-xl border border-zinc-200/90 pl-1.5 pr-2.5 py-1.5 flex items-center gap-2 sm:gap-2.5 max-w-full sm:max-w-md ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
+      className={`relative bg-white/95 backdrop-blur-xl rounded-full shadow-[0_14px_36px_-6px_rgba(0,0,0,0.16)] border border-slate-200/90 pl-1.5 pr-2.5 sm:pr-3 py-1.5 flex items-center gap-2 sm:gap-2.5 max-w-full ring-1 ring-slate-950/5 pointer-events-auto transition-all duration-200 hover:scale-[1.01] overflow-hidden ${extraClasses}`}
     >
-      {/* Dark Capsule Notch Tag */}
-      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-zinc-950 text-white rounded-full text-[9px] font-mono tracking-wider font-bold shrink-0 shadow-xs border border-zinc-800">
+      {/* Dark Capsule Notch Tag with Pulsing LED Beacon */}
+      <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-zinc-950 text-white rounded-full text-[9px] sm:text-[10px] font-mono tracking-wider font-bold shrink-0 shadow-xs border border-zinc-800">
         <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse`} />
-        <span className="truncate max-w-[85px] sm:max-w-[100px]">{defaultMetric.toUpperCase()}</span>
+        <span className="truncate max-w-[90px] sm:max-w-[130px]">{defaultMetric.toUpperCase()}</span>
       </div>
 
-      {/* Title & Info - Safe Intrinsic Sizing */}
-      <div className="flex items-center gap-1.5 min-w-0 max-w-[200px] sm:max-w-xs shrink pr-1">
-        <span className="text-xs font-bold text-zinc-900 tracking-tight truncate whitespace-nowrap block">
+      {/* Precision Icon Badge */}
+      <div className="hidden sm:flex items-center justify-center shrink-0 w-6 h-6 rounded-full bg-slate-50 border border-slate-200/80 shadow-2xs">
+        {renderIcon("w-3.5 h-3.5")}
+      </div>
+
+      {/* Title & Description Content */}
+      <div className="flex items-center gap-1.5 min-w-0 max-w-[220px] sm:max-w-xl shrink pr-1">
+        <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight truncate whitespace-nowrap block">
           {title}
         </span>
         {description && (
-          <span className="text-[11px] text-zinc-500 font-medium hidden sm:inline truncate whitespace-nowrap">
+          <span className="text-[11px] sm:text-xs text-slate-500 font-medium hidden md:inline truncate whitespace-nowrap">
+            <span className="text-slate-300 mx-1">•</span>
             {description}
           </span>
         )}
@@ -202,7 +208,7 @@ export function ExecutiveToast({
         <button
           type="button"
           onClick={action.onClick}
-          className="px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-black text-white text-[10px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer whitespace-nowrap"
+          className="px-2.5 sm:px-3 py-1 rounded-full bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer whitespace-nowrap active:scale-95"
         >
           {action.label}
         </button>
@@ -213,11 +219,21 @@ export function ExecutiveToast({
         <button
           type="button"
           onClick={onClose}
-          className="w-5 h-5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-400 hover:text-zinc-800 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+          className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-800 transition-colors flex items-center justify-center cursor-pointer shrink-0 ml-0.5"
           aria-label="Close"
         >
-          <X className="w-3 h-3" />
+          <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
         </button>
+      )}
+
+      {/* Hairline Countdown Progress Line along bottom arc */}
+      {durationMs > 0 && (
+        <div className="absolute bottom-0 left-3 right-3 h-[2px] bg-slate-100/90 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${getAccentColor()} transition-all duration-75 ease-linear rounded-full`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
       )}
     </div>
   );
@@ -391,33 +407,27 @@ export function ExecutiveToast({
   }
 
   // ----------------------------------------------------
-  // 2. Explicit Capsule Mode (forced capsule on mobile and desktop)
+  // 2. Standard Universal Toast (Sleek Executive Precision Dynamic Capsule)
+  // Default across all tabs for a unified, modern, high-tier executive feel.
   // ----------------------------------------------------
-  if (variant === "capsule") {
-    const card = renderCapsuleCard();
-    return position ? <div className={TOAST_POSITION_CLASSES[position]}>{card}</div> : card;
-  }
-
-  // ----------------------------------------------------
-  // 3. Adaptive Mode (Standard across all tabs):
-  // - Mobile (< sm / < 640px): STYLE 02 // Executive Precision Capsule
-  // - Desktop (>= sm / >= 640px): Monolith Command Bar (or sculpted-notch)
-  // ----------------------------------------------------
-  const desktopCard =
-    variant === "sculpted-notch"
-      ? renderSculptedCard("hidden sm:block")
-      : renderMonolithCard("hidden sm:block");
-
-  const responsiveToast = (
-    <>
-      {renderCapsuleCard("sm:hidden")}
-      {desktopCard}
-    </>
-  );
+  const finalContent =
+    variant === "sculpted-notch" ? (
+      <>
+        {renderCapsuleCard("sm:hidden")}
+        {renderSculptedCard("hidden sm:block")}
+      </>
+    ) : variant === "monolith" ? (
+      <>
+        {renderCapsuleCard("sm:hidden")}
+        {renderMonolithCard("hidden sm:block")}
+      </>
+    ) : (
+      renderCapsuleCard()
+    );
 
   if (position) {
-    return <div className={TOAST_POSITION_CLASSES[position]}>{responsiveToast}</div>;
+    return <div className={TOAST_POSITION_CLASSES[position]}>{finalContent}</div>;
   }
 
-  return responsiveToast;
+  return finalContent;
 }

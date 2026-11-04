@@ -313,7 +313,7 @@ export default function Home() {
             headerMeta="Executive Priority Alert"
             metric="Unresolved >12h"
             position="top-center"
-            variant="monolith"
+            variant="capsule"
             durationMs={0}
             action={{
               label: "Jump to Notes",

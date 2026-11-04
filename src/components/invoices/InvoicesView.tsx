@@ -872,7 +872,7 @@ export function InvoicesView() {
       )}
 
       {copiedNotification && (
-        <div className={TOAST_POSITION_CLASSES["top-right"]}>
+        <div className={TOAST_POSITION_CLASSES["top-center"]}>
           <ExecutiveToast
             type="success"
             title={copiedNotification}
