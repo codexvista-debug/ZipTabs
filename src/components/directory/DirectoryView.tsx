@@ -535,6 +535,45 @@ export function DirectoryView() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [records, activeDivision]);
 
+  // Jump to selected record and scroll it into view with smooth highlight
+  const handleJumpToRecord = useCallback(
+    (record: DirectoryRecord) => {
+      // 1. Ensure the record is visible in the active division tab
+      setActiveDivision((current) => {
+        if (current !== "all" && current !== record.division) {
+          return record.division;
+        }
+        return current;
+      });
+
+      setFocusedRecordId(record.id);
+
+      // 2. Perform smooth scroll after state update/DOM render
+      setTimeout(() => {
+        const el =
+          document.getElementById(`contact-row-${record.id}`) ||
+          document.getElementById(`contact-card-${record.id}`);
+
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 100);
+
+      // 3. Clear the glowing highlight after 3.5s
+      setTimeout(() => {
+        setFocusedRecordId((prev) => (prev === record.id ? null : prev));
+      }, 3500);
+
+      setToast({
+        title: record.name,
+        description: `Jumped to ${record.division === "vendor" ? "Vendor" : "Employee"} record`,
+        type: "info",
+        metric: "Focused",
+      });
+    },
+    []
+  );
+
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-200">
       {/* Toast Notification */}
@@ -615,20 +654,20 @@ export function DirectoryView() {
       </div>
 
       {/* 3. DIVISION SEGMENTED SWITCHER (Vendors on left, Employees middle, All right) */}
-      <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl w-full">
+      <div className="w-full max-w-full overflow-hidden flex items-center gap-1 sm:gap-1.5 p-1 bg-slate-100 rounded-xl sm:rounded-2xl">
         <button
           type="button"
           onClick={() => setActiveDivision("vendor")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
             activeDivision === "vendor"
               ? "bg-white text-indigo-700 shadow-xs border border-indigo-200/60"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          <Building2 className="w-4 h-4 shrink-0" />
-          <span>Vendors</span>
+          <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span className="truncate">Vendors</span>
           <span
-            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+            className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
               activeDivision === "vendor"
                 ? "bg-indigo-100 text-indigo-800"
                 : "bg-slate-200 text-slate-600"
@@ -641,16 +680,16 @@ export function DirectoryView() {
         <button
           type="button"
           onClick={() => setActiveDivision("employee")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
             activeDivision === "employee"
               ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          <Users className="w-4 h-4 shrink-0" />
-          <span>Employees</span>
+          <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span className="truncate">Employees</span>
           <span
-            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+            className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
               activeDivision === "employee"
                 ? "bg-blue-100 text-blue-800"
                 : "bg-slate-200 text-slate-600"
@@ -663,15 +702,15 @@ export function DirectoryView() {
         <button
           type="button"
           onClick={() => setActiveDivision("all")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
             activeDivision === "all"
               ? "bg-white text-slate-900 shadow-xs border border-slate-300/60"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          <span>All</span>
+          <span className="truncate">All</span>
           <span
-            className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+            className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
               activeDivision === "all"
                 ? "bg-slate-200 text-slate-900 font-black"
                 : "bg-slate-200 text-slate-600"
@@ -774,7 +813,12 @@ export function DirectoryView() {
                 return (
                   <div
                     key={contact.id}
-                    className="p-3.5 space-y-2.5 hover:bg-slate-50/70 transition-colors"
+                    id={`contact-card-${contact.id}`}
+                    className={`p-3.5 space-y-2.5 transition-all duration-300 rounded-2xl ${
+                      focusedRecordId === contact.id
+                        ? "bg-indigo-50/90 ring-2 ring-indigo-500 shadow-md"
+                        : "hover:bg-slate-50/70"
+                    }`}
                   >
                     {/* Top Row: Avatar + Name + Division Badge + Edit/Delete */}
                     <div className="flex items-center justify-between gap-2">
@@ -931,7 +975,12 @@ export function DirectoryView() {
                     return (
                       <tr
                         key={contact.id}
-                        className="hover:bg-slate-50/80 transition-colors group"
+                        id={`contact-row-${contact.id}`}
+                        className={`transition-all duration-300 group ${
+                          focusedRecordId === contact.id
+                            ? "bg-indigo-50/90 ring-2 ring-indigo-500 shadow-md"
+                            : "hover:bg-slate-50/80"
+                        }`}
                       >
                         {/* Name & Title */}
                         <td className="py-3 px-4">
@@ -1095,10 +1144,7 @@ export function DirectoryView() {
         isOpen={isSearchPaletteOpen}
         onClose={() => setIsSearchPaletteOpen(false)}
         records={records}
-        onSelectRecord={(rec) => {
-          setActiveDivision(rec.division);
-          setFocusedRecordId(rec.id);
-        }}
+        onSelectRecord={handleJumpToRecord}
       />
 
       {/* 2. Add / Edit Contact Modal */}

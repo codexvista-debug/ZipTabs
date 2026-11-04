@@ -119,13 +119,15 @@ export function DirectorySearchPalette({
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedIndex((prev) => (prev - 1 >= 0 ? prev - 1 : 0));
-    } else if (e.key === "Enter" && flatList[selectedIndex]) {
+    } else if (e.key === "Enter") {
       e.preventDefault();
-      const rec = flatList[selectedIndex];
-      if (onSelectRecord) {
-        onSelectRecord(rec);
+      const rec = flatList[selectedIndex] || flatList[0];
+      if (rec) {
+        if (onSelectRecord) {
+          onSelectRecord(rec);
+        }
+        onClose();
       }
-      onClose();
     }
   };
 
@@ -166,6 +168,7 @@ export function DirectorySearchPalette({
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
+            onKeyDown={handleKeyDownList}
             placeholder="Search across Employees & Vendors (name, company, phone, email)..."
             className="w-full text-sm sm:text-base bg-transparent text-slate-800 placeholder-slate-400 focus:outline-none"
           />
