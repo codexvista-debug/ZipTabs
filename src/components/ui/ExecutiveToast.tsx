@@ -116,13 +116,15 @@ export function ExecutiveToast({
   const defaultMetric =
     metric ||
     (type === "error"
-      ? "Attention Required"
+      ? "Alert"
       : type === "destructive"
       ? "Purged"
-      : type === "warning" || type === "security"
+      : type === "warning"
+      ? "Warning"
+      : type === "security"
       ? "Protected"
       : type === "info"
-      ? "Active Process"
+      ? "Info"
       : "Synced");
 
   // Icon renderer based on type
@@ -163,149 +165,135 @@ export function ExecutiveToast({
 
   // ----------------------------------------------------
   // VARIANT B: Executive Precision Capsule (Single-line)
+  // Short, compact, horizontal single-line capsule
   // ----------------------------------------------------
-  if (variant === "capsule") {
-    const capsuleCard = (
-      <div
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="relative bg-white/95 backdrop-blur-md rounded-full shadow-xl border border-zinc-200/90 pl-1.5 pr-2.5 py-1.5 flex items-center gap-2.5 max-w-full sm:max-w-md ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01]"
-      >
-        {/* Dark Capsule Notch Tag */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-zinc-950 text-white rounded-full text-[9px] font-mono tracking-wider font-bold shrink-0 shadow-xs border border-zinc-800">
-          <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse`} />
-          <span className="truncate max-w-[90px]">{defaultMetric.toUpperCase()}</span>
-        </div>
+  const renderCapsuleCard = (extraClasses = "") => (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`relative bg-white/95 backdrop-blur-md rounded-full shadow-xl border border-zinc-200/90 pl-1.5 pr-2.5 py-1.5 flex items-center gap-2 sm:gap-2.5 max-w-full sm:max-w-md ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
+    >
+      {/* Dark Capsule Notch Tag */}
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-zinc-950 text-white rounded-full text-[9px] font-mono tracking-wider font-bold shrink-0 shadow-xs border border-zinc-800">
+        <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse`} />
+        <span className="truncate max-w-[85px] sm:max-w-[100px]">{defaultMetric.toUpperCase()}</span>
+      </div>
 
-        {/* Title */}
-        <div className="min-w-0 flex-1 truncate pr-1">
-          <span className="text-xs font-black text-zinc-900 tracking-tight">{title}</span>
-          {description && (
-            <span className="text-[11px] text-zinc-500 ml-1.5 font-medium hidden sm:inline truncate">
-              {description}
-            </span>
+      {/* Title */}
+      <div className="min-w-0 flex-1 truncate pr-1">
+        <span className="text-xs font-black text-zinc-900 tracking-tight truncate block">{title}</span>
+        {description && (
+          <span className="text-[11px] text-zinc-500 ml-1.5 font-medium hidden sm:inline truncate">
+            {description}
+          </span>
+        )}
+      </div>
+
+      {/* Action Button */}
+      {action && (
+        <button
+          type="button"
+          onClick={action.onClick}
+          className="px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-black text-white text-[10px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer"
+        >
+          {action.label}
+        </button>
+      )}
+
+      {/* Close Button */}
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-5 h-5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-400 hover:text-zinc-800 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+          aria-label="Close"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+
+  // ----------------------------------------------------
+  // VARIANT C: Monolith Command Bar (Default Desktop)
+  // Slim, high-density HUD profile scaled for desktop
+  // ----------------------------------------------------
+  const renderMonolithCard = (extraClasses = "") => (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-32px)] sm:max-w-md ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
+    >
+      {/* Monolith Dark Header Bar - Ultra-compact on mobile */}
+      <div className="bg-zinc-950 text-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 flex items-center justify-between border-b border-zinc-800 gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse shrink-0`} />
+          <span className="text-[9px] sm:text-[10px] font-mono tracking-wider font-semibold truncate text-zinc-200 uppercase">
+            {defaultMeta}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+            {defaultMetric}
+          </span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-4 h-4 rounded text-zinc-400 hover:text-white transition-colors flex items-center justify-center cursor-pointer ml-0.5"
+              aria-label="Close"
+            >
+              <X className="w-3 h-3" />
+            </button>
           )}
         </div>
+      </div>
 
-        {/* Action or Close */}
+      {/* Card Body - Slim executive profile */}
+      <div className="px-2.5 sm:px-3.5 py-2 sm:py-3 flex items-center gap-2.5 sm:gap-3">
+        <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
+          {renderIcon("w-3.5 h-3.5 sm:w-4 sm:h-4")}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight leading-snug truncate">
+            {title}
+          </h4>
+          {description && (
+            <p className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 leading-tight truncate">
+              {description}
+            </p>
+          )}
+        </div>
         {action && (
           <button
             type="button"
             onClick={action.onClick}
-            className="px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-black text-white text-[10px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer"
+            className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-xs"
           >
             {action.label}
           </button>
         )}
-
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-5 h-5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-400 hover:text-zinc-800 transition-colors flex items-center justify-center cursor-pointer shrink-0"
-            aria-label="Close"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        )}
       </div>
-    );
 
-    return position && position !== "none" ? (
-      <div className={TOAST_POSITION_CLASSES[position]}>{capsuleCard}</div>
-    ) : (
-      capsuleCard
-    );
-  }
-
-  // ----------------------------------------------------
-  // VARIANT C: Monolith Command Bar (Default & Executive)
-  // Slim, high-density HUD profile scaled for mobile & desktop
-  // ----------------------------------------------------
-  if (variant === "monolith") {
-    const monolithCard = (
-      <div
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-32px)] sm:max-w-md ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01]"
-      >
-        {/* Monolith Dark Header Bar - Ultra-compact on mobile */}
-        <div className="bg-zinc-950 text-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 flex items-center justify-between border-b border-zinc-800 gap-2">
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse shrink-0`} />
-            <span className="text-[9px] sm:text-[10px] font-mono tracking-wider font-semibold truncate text-zinc-200 uppercase">
-              {defaultMeta}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
-              {defaultMetric}
-            </span>
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-4 h-4 rounded text-zinc-400 hover:text-white transition-colors flex items-center justify-center cursor-pointer ml-0.5"
-                aria-label="Close"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Card Body - Slim executive profile */}
-        <div className="px-2.5 sm:px-3.5 py-2 sm:py-3 flex items-center gap-2.5 sm:gap-3">
-          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
-            {renderIcon("w-3.5 h-3.5 sm:w-4 sm:h-4")}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h4 className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight leading-snug truncate">
-              {title}
-            </h4>
-            {description && (
-              <p className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 leading-tight truncate">
-                {description}
-              </p>
-            )}
-          </div>
-          {action && (
-            <button
-              type="button"
-              onClick={action.onClick}
-              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-xs"
-            >
-              {action.label}
-            </button>
-          )}
-        </div>
-
-        {/* Bottom Progress Countdown Bar (Extended 3.5s) */}
-        <div className="h-0.5 bg-zinc-100 overflow-hidden w-full">
-          <div
-            className={`h-full ${getAccentColor()} transition-all duration-75 ease-linear`}
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
+      {/* Bottom Progress Countdown Bar (Extended 3.5s) */}
+      <div className="h-0.5 bg-zinc-100 overflow-hidden w-full">
+        <div
+          className={`h-full ${getAccentColor()} transition-all duration-75 ease-linear`}
+          style={{ width: `${progressPercent}%` }}
+        />
       </div>
-    );
-
-    return position && position !== "none" ? (
-      <div className={TOAST_POSITION_CLASSES[position]}>{monolithCard}</div>
-    ) : (
-      monolithCard
-    );
-  }
+    </div>
+  );
 
   // ----------------------------------------------------
-  // VARIANT A (Default): Sculpted Dynamic Island Notch
-  // Matches the black/gray/white modal language user praised
+  // VARIANT A: Sculpted Dynamic Island Notch
+  // Matches the black/gray/white modal language
   // ----------------------------------------------------
-  const sculptedCard = (
+  const renderSculptedCard = (extraClasses = "") => (
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 overflow-hidden w-full max-w-[calc(100vw-24px)] sm:max-w-md transition-all duration-200 ring-1 ring-zinc-950/10 pointer-events-auto"
+      className={`relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 overflow-hidden w-full max-w-[calc(100vw-24px)] sm:max-w-md transition-all duration-200 ring-1 ring-zinc-950/10 pointer-events-auto ${extraClasses}`}
     >
       {/* Creative Top: Sculpted Dynamic Island Notch */}
       <div className="flex justify-center -mt-px">
@@ -384,9 +372,44 @@ export function ExecutiveToast({
     </div>
   );
 
-  if (position && position !== "none") {
-    return <div className={TOAST_POSITION_CLASSES[position]}>{sculptedCard}</div>;
+  // ----------------------------------------------------
+  // RENDER PIPELINE:
+  // 1. Static Showcase Preview Mode (Design Lab position="none")
+  // ----------------------------------------------------
+  if (position === "none") {
+    if (variant === "capsule") return renderCapsuleCard();
+    if (variant === "sculpted-notch") return renderSculptedCard();
+    return renderMonolithCard();
   }
 
-  return sculptedCard;
+  // ----------------------------------------------------
+  // 2. Explicit Capsule Mode (forced capsule on mobile and desktop)
+  // ----------------------------------------------------
+  if (variant === "capsule") {
+    const card = renderCapsuleCard();
+    return position ? <div className={TOAST_POSITION_CLASSES[position]}>{card}</div> : card;
+  }
+
+  // ----------------------------------------------------
+  // 3. Adaptive Mode (Standard across all tabs):
+  // - Mobile (< sm / < 640px): STYLE 02 // Executive Precision Capsule
+  // - Desktop (>= sm / >= 640px): Monolith Command Bar (or sculpted-notch)
+  // ----------------------------------------------------
+  const desktopCard =
+    variant === "sculpted-notch"
+      ? renderSculptedCard("hidden sm:block")
+      : renderMonolithCard("hidden sm:block");
+
+  const responsiveToast = (
+    <>
+      {renderCapsuleCard("sm:hidden")}
+      {desktopCard}
+    </>
+  );
+
+  if (position) {
+    return <div className={TOAST_POSITION_CLASSES[position]}>{responsiveToast}</div>;
+  }
+
+  return responsiveToast;
 }
