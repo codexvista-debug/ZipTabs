@@ -2817,7 +2817,54 @@ export function NotesView() {
             </div>
 
             {/* Modal Bottom Actions */}
-            <div className="mt-8 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            {/* 1. Mobile View Action Bar (Single sleek row: Edit Note (text) -> Mark Done (icon) -> Close (icon)) */}
+            <div className="mt-6 pt-3 border-t border-slate-100 flex sm:hidden items-center gap-2">
+              {/* Edit Note (as text button) */}
+              <button
+                type="button"
+                onClick={() => {
+                  const noteToEdit = viewingNote;
+                  setViewingNote(null);
+                  handleOpenEdit(noteToEdit);
+                }}
+                className="flex-1 h-10 inline-flex items-center justify-center gap-1.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                <span>Edit Note</span>
+              </button>
+
+              {/* Mark as done (icon) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  handleToggleCompleted(viewingNote, e);
+                  setViewingNote({ ...viewingNote, is_completed: !viewingNote.is_completed });
+                }}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all cursor-pointer active:scale-95 shadow-2xs ${
+                  viewingNote.is_completed
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-500/20"
+                    : "bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 border-slate-200"
+                }`}
+                title={viewingNote.is_completed ? "Completed (Click to uncomplete)" : "Mark as Done"}
+                aria-label="Mark as Done"
+              >
+                <CheckCircle2 className={`w-4 h-4 ${viewingNote.is_completed ? "stroke-[2.5]" : ""}`} />
+              </button>
+
+              {/* Close (icon on the right, easy to tap via right finger) */}
+              <button
+                type="button"
+                onClick={() => setViewingNote(null)}
+                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center justify-center shrink-0 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                title="Close note"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 2. Desktop View Action Bar (Expanded layout with text buttons) */}
+            <div className="hidden sm:flex mt-8 pt-4 border-t border-slate-100 items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -2862,7 +2909,7 @@ export function NotesView() {
                     setViewingNote(null);
                     handleOpenEdit(noteToEdit);
                   }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>Edit Note</span>
