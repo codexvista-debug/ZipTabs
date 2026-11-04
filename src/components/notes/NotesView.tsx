@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import {
@@ -482,6 +482,36 @@ export function NotesView() {
   // Read-Only View Note Modal State
   const [viewingNote, setViewingNote] = useState<NoteItem | null>(null);
 
+  // Visual Delight & Fluid Animation States
+  const [isClosingViewModal, setIsClosingViewModal] = useState(false);
+  const [isClosingEditModal, setIsClosingEditModal] = useState(false);
+  const [isClosingDeleteModal, setIsClosingDeleteModal] = useState(false);
+  const [celebratingNoteId, setCelebratingNoteId] = useState<string | null>(null);
+
+  const handleCloseViewModal = useCallback(() => {
+    setIsClosingViewModal(true);
+    setTimeout(() => {
+      setViewingNote(null);
+      setIsClosingViewModal(false);
+    }, 190);
+  }, []);
+
+  const handleCloseEditModal = useCallback(() => {
+    setIsClosingEditModal(true);
+    setTimeout(() => {
+      setIsModalOpen(false);
+      setIsClosingEditModal(false);
+    }, 190);
+  }, []);
+
+  const handleCloseDeleteModal = useCallback(() => {
+    setIsClosingDeleteModal(true);
+    setTimeout(() => {
+      setConfirmDeleteNote(null);
+      setIsClosingDeleteModal(false);
+    }, 190);
+  }, []);
+
   // Full-Space Attachment Viewer State
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentViewerFile | null>(null);
 
@@ -514,6 +544,23 @@ export function NotesView() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Keyboard Escape listener for silky-smooth modal closing animations
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (confirmDeleteNote) {
+          handleCloseDeleteModal();
+        } else if (viewingNote) {
+          handleCloseViewModal();
+        } else if (isModalOpen && !isSaving) {
+          handleCloseEditModal();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [confirmDeleteNote, viewingNote, isModalOpen, isSaving, handleCloseDeleteModal, handleCloseViewModal, handleCloseEditModal]);
 
   const renderPortal = (children: React.ReactNode) => {
     if (!isMounted || typeof document === "undefined") return null;
@@ -1237,7 +1284,7 @@ export function NotesView() {
     const pendingUploadFiles = [...newFilesToUpload];
 
     // Smooth & Instant: Close the modal immediately so user never has to wait!
-    setIsModalOpen(false);
+    handleCloseEditModal();
     setNewFilesToUpload([]);
     setUploadProgressText(null);
 
@@ -1344,6 +1391,15 @@ export function NotesView() {
   const handleToggleCompleted = async (note: NoteItem, e: React.MouseEvent) => {
     e.stopPropagation();
     const nextStatus = !note.is_completed;
+
+    // Trigger celebratory confetti burst and bounce animation on completion!
+    if (nextStatus) {
+      setCelebratingNoteId(note.id);
+      setTimeout(() => {
+        setCelebratingNoteId((curr) => (curr === note.id ? null : curr));
+      }, 1500);
+    }
+
     const updatedList = notes.map((n) => (n.id === note.id ? { ...n, is_completed: nextStatus } : n));
     saveNotesList(updatedList);
     setViewingNote((prev) => (prev && prev.id === note.id ? { ...prev, is_completed: nextStatus } : prev));
@@ -1376,8 +1432,8 @@ export function NotesView() {
     // 2. Remove immediately from UI state & localStorage
     const updatedList = notes.filter((n) => n.id !== note.id);
     saveNotesList(updatedList);
-    setConfirmDeleteNote(null);
-    if (viewingNote?.id === note.id) setViewingNote(null);
+    handleCloseDeleteModal();
+    if (viewingNote?.id === note.id) handleCloseViewModal();
 
     // 3. Remove attachments and delete row from Supabase
     if (supabase) {
@@ -1484,7 +1540,7 @@ export function NotesView() {
   const liveSubjectPreview = extractKeywordsSubject(formContent);
 
   return (
-    <div className="space-y-6 relative pb-16">
+    <div className="space-y-6 relative pb-16 animate-page-enter">
       {/* Toast Notification (Architectural Executive Chassis with Semantic Spatial Placement) */}
       {toastNotification &&
         renderPortal(
@@ -1529,10 +1585,10 @@ export function NotesView() {
             setQuickFiles((prev) => [...prev, ...droppedFiles]);
           }
         }}
-        className={`bg-white rounded-2xl border p-4 sm:p-5 shadow-xs transition-all duration-200 ${
+        className={`bg-white rounded-2xl border p-4 sm:p-5 shadow-xs transition-all duration-300 hover:shadow-md hover:border-slate-300 focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-400 ${
           isQuickDragging
-            ? "border-blue-500 ring-4 ring-blue-500/10 bg-blue-50/20"
-            : "border-slate-200/90 hover:border-slate-300"
+            ? "border-blue-500 ring-4 ring-blue-500/15 bg-blue-50/30 scale-[1.005]"
+            : "border-slate-200/90"
         }`}
       >
         {/* Composer Header Strip */}
@@ -1932,7 +1988,7 @@ export function NotesView() {
           </div>
         ) : (
           <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {filteredNotes.map((note) => {
+            {filteredNotes.map((note, idx) => {
               const normalizedCat = normalizeCategory(note.category);
               const catConfig =
                 allCategories.find(
@@ -1947,11 +2003,16 @@ export function NotesView() {
               return (
                 <div
                   key={note.id}
+                  style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
                   onClick={() => {
                     recordNoteOpened(note.id);
                     setViewingNote(note);
                   }}
-                  className={`group relative rounded-2xl border p-5 transition-all duration-200 flex flex-col justify-between cursor-pointer ${
+                  className={`group relative rounded-2xl border p-5 transition-all duration-300 ease-out flex flex-col justify-between cursor-pointer animate-note-card hover:-translate-y-1.5 hover:shadow-xl hover:shadow-slate-200/60 active:scale-[0.985] ${
+                    celebratingNoteId === note.id
+                      ? "animate-celebration-pulse ring-2 ring-emerald-500 shadow-lg"
+                      : ""
+                  } ${
                     note.is_completed
                       ? "bg-slate-50/70 border-slate-200/90 hover:border-slate-300 opacity-80 hover:opacity-100 shadow-2xs"
                       : isOverdue
@@ -2074,16 +2135,34 @@ export function NotesView() {
                     <button
                       type="button"
                       onClick={(e) => handleToggleCompleted(note, e)}
-                      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg transition-colors ${
+                      className={`relative inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-all duration-200 active:scale-90 cursor-pointer ${
                         note.is_completed
                           ? "text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                           : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
                       }`}
                     >
                       <CheckCircle2
-                        className={`w-4 h-4 ${note.is_completed ? "text-emerald-600" : "text-slate-400"}`}
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          celebratingNoteId === note.id
+                            ? "text-emerald-600 animate-checkmark-pop scale-125"
+                            : note.is_completed
+                            ? "text-emerald-600 stroke-[2.5]"
+                            : "text-slate-400 group-hover:text-slate-600"
+                        }`}
                       />
                       <span>{note.is_completed ? "Done" : "Mark Done"}</span>
+
+                      {/* Confetti Particle Sparkles on completion */}
+                      {celebratingNoteId === note.id && (
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-particle-1 absolute" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-particle-2 absolute" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-particle-3 absolute" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-particle-4 absolute" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-particle-5 absolute" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-particle-6 absolute" />
+                        </div>
+                      )}
                     </button>
 
                     {/* Quick Tools */}
@@ -2092,7 +2171,7 @@ export function NotesView() {
                         type="button"
                         onClick={(e) => handleCopyNote(note, e)}
                         title="Copy note"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:scale-110 active:scale-90 transition-all cursor-pointer"
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
@@ -2104,7 +2183,7 @@ export function NotesView() {
                           handleOpenEdit(note);
                         }}
                         title="Edit note"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 hover:scale-110 active:scale-90 transition-all cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
@@ -2113,7 +2192,7 @@ export function NotesView() {
                         type="button"
                         onClick={(e) => requestDeleteNote(note, e)}
                         title="Delete note"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:scale-110 active:scale-90 transition-all cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -2134,8 +2213,10 @@ export function NotesView() {
         renderPortal(
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain">
             <div
-              onClick={() => !isSaving && setIsModalOpen(false)}
-              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+              onClick={() => !isSaving && handleCloseEditModal()}
+              className={`fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity ${
+                isClosingEditModal ? "animate-backdrop-exit" : "animate-backdrop-enter"
+              }`}
             />
 
             <div
@@ -2154,7 +2235,9 @@ export function NotesView() {
                   setNewFilesToUpload((prev) => [...prev, ...droppedFiles]);
                 }
               }}
-              className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-xl w-full max-h-[calc(100dvh-2rem)] my-auto flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200"
+              className={`relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-xl w-full max-h-[calc(100dvh-2rem)] my-auto flex flex-col overflow-hidden z-10 transition-transform ${
+                isClosingEditModal ? "animate-modal-exit" : "animate-modal-enter"
+              }`}
             >
               {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px">
@@ -2181,8 +2264,8 @@ export function NotesView() {
                 <button
                   type="button"
                   disabled={isSaving}
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer disabled:opacity-40 shrink-0"
+                  onClick={handleCloseEditModal}
+                  className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer disabled:opacity-40 shrink-0 active:scale-90"
                   aria-label="Close"
                 >
                   <X className="w-4 h-4" />
@@ -2593,7 +2676,7 @@ export function NotesView() {
                   <button
                     type="button"
                     disabled={isSaving}
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={handleCloseEditModal}
                     className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 font-bold text-xs transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     Cancel
@@ -2618,11 +2701,19 @@ export function NotesView() {
         renderPortal(
           <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 overflow-y-auto overscroll-contain transition-all duration-200">
             <div
-              onClick={() => setViewingNote(null)}
-              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+              onClick={handleCloseViewModal}
+              className={`fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity ${
+                isClosingViewModal ? "animate-backdrop-exit" : "animate-backdrop-enter"
+              }`}
             />
 
-            <div className="relative bg-white rounded-t-[28px] sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-2xl w-full p-5 sm:p-7 pt-0 z-10 max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col justify-between overflow-hidden my-auto sm:my-auto">
+            <div
+              className={`relative bg-white rounded-t-[28px] sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-2xl w-full p-5 sm:p-7 pt-0 z-10 max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 flex flex-col justify-between overflow-hidden my-auto sm:my-auto transition-transform ${
+                isClosingViewModal
+                  ? "animate-sheet-exit-mobile sm:animate-modal-exit"
+                  : "animate-sheet-enter-mobile sm:animate-modal-enter"
+              }`}
+            >
               {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px mb-4">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
@@ -2690,8 +2781,8 @@ export function NotesView() {
 
                   <button
                     type="button"
-                    onClick={() => setViewingNote(null)}
-                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                    onClick={handleCloseViewModal}
+                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
                     aria-label="Close"
                   >
                     <X className="w-4 h-4" />
@@ -2824,8 +2915,10 @@ export function NotesView() {
                 type="button"
                 onClick={() => {
                   const noteToEdit = viewingNote;
-                  setViewingNote(null);
-                  handleOpenEdit(noteToEdit);
+                  handleCloseViewModal();
+                  setTimeout(() => {
+                    handleOpenEdit(noteToEdit);
+                  }, 190);
                 }}
                 className="flex-1 h-10 inline-flex items-center justify-center gap-1.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
               >
@@ -2840,7 +2933,7 @@ export function NotesView() {
                   handleToggleCompleted(viewingNote, e);
                   setViewingNote({ ...viewingNote, is_completed: !viewingNote.is_completed });
                 }}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all cursor-pointer active:scale-95 shadow-2xs ${
+                className={`relative w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all cursor-pointer active:scale-90 shadow-2xs ${
                   viewingNote.is_completed
                     ? "bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-500/20"
                     : "bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 border-slate-200"
@@ -2848,14 +2941,28 @@ export function NotesView() {
                 title={viewingNote.is_completed ? "Completed (Click to uncomplete)" : "Mark as Done"}
                 aria-label="Mark as Done"
               >
-                <CheckCircle2 className={`w-4 h-4 ${viewingNote.is_completed ? "stroke-[2.5]" : ""}`} />
+                <CheckCircle2
+                  className={`w-4 h-4 ${viewingNote.is_completed ? "stroke-[2.5]" : ""} ${
+                    celebratingNoteId === viewingNote.id ? "animate-checkmark-pop text-emerald-600 scale-125" : ""
+                  }`}
+                />
+                {celebratingNoteId === viewingNote.id && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-particle-1 absolute" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-particle-2 absolute" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-particle-3 absolute" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-particle-4 absolute" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-particle-5 absolute" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-particle-6 absolute" />
+                  </div>
+                )}
               </button>
 
               {/* Close (icon on the right, easy to tap via right finger) */}
               <button
                 type="button"
-                onClick={() => setViewingNote(null)}
-                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center justify-center shrink-0 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                onClick={handleCloseViewModal}
+                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center justify-center shrink-0 transition-all cursor-pointer active:scale-90 shadow-2xs"
                 title="Close note"
                 aria-label="Close"
               >
@@ -2872,20 +2979,34 @@ export function NotesView() {
                     handleToggleCompleted(viewingNote, e);
                     setViewingNote({ ...viewingNote, is_completed: !viewingNote.is_completed });
                   }}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                  className={`relative inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95 ${
                     viewingNote.is_completed
                       ? "text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200"
                       : "text-slate-700 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 hover:border-emerald-200"
                   }`}
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <CheckCircle2
+                    className={`w-3.5 h-3.5 ${
+                      celebratingNoteId === viewingNote.id ? "animate-checkmark-pop text-emerald-600 scale-125" : ""
+                    }`}
+                  />
                   <span>{viewingNote.is_completed ? "Completed ✓" : "Mark as Done"}</span>
+                  {celebratingNoteId === viewingNote.id && (
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-particle-1 absolute" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-particle-2 absolute" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-particle-3 absolute" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-particle-4 absolute" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-particle-5 absolute" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-particle-6 absolute" />
+                    </div>
+                  )}
                 </button>
 
                 <button
                   type="button"
                   onClick={(e) => handleCopyNote(viewingNote, e)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer shadow-2xs active:scale-95"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>Copy</span>
@@ -2895,8 +3016,8 @@ export function NotesView() {
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setViewingNote(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
+                  onClick={handleCloseViewModal}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
                 >
                   Close
                 </button>
@@ -2906,10 +3027,12 @@ export function NotesView() {
                   type="button"
                   onClick={() => {
                     const noteToEdit = viewingNote;
-                    setViewingNote(null);
-                    handleOpenEdit(noteToEdit);
+                    handleCloseViewModal();
+                    setTimeout(() => {
+                      handleOpenEdit(noteToEdit);
+                    }, 190);
                   }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>Edit Note</span>
@@ -2925,11 +3048,17 @@ export function NotesView() {
         renderPortal(
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
             <div
-              onClick={() => setConfirmDeleteNote(null)}
-              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+              onClick={handleCloseDeleteModal}
+              className={`fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity ${
+                isClosingDeleteModal ? "animate-backdrop-exit" : "animate-backdrop-enter"
+              }`}
             />
 
-            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[calc(100dvh-2rem)] flex flex-col">
+            <div
+              className={`relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 my-auto max-h-[calc(100dvh-2rem)] flex flex-col transition-transform ${
+                isClosingDeleteModal ? "animate-modal-exit" : "animate-modal-enter"
+              }`}
+            >
               {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px shrink-0">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
@@ -2954,8 +3083,8 @@ export function NotesView() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setConfirmDeleteNote(null)}
-                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                    onClick={handleCloseDeleteModal}
+                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0 active:scale-90"
                     aria-label="Close"
                   >
                     <X className="w-4 h-4" />
@@ -3074,8 +3203,8 @@ export function NotesView() {
                 <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100">
                   <button
                     type="button"
-                    onClick={() => setConfirmDeleteNote(null)}
-                    className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+                    onClick={handleCloseDeleteModal}
+                    className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer active:scale-95"
                   >
                     Keep Note
                   </button>
