@@ -164,8 +164,8 @@ export default function Home() {
           excludeTabs={
             isMobileTopHeaderHidden
               ? mobileBottomBarStyle === "bottom-style-01"
-                ? ["dashboard", "invoices", "notes", "drive"]
-                : ["dashboard", "invoices", "notes", "calendar"]
+                ? ["dashboard", "directory", "notes", "drive"]
+                : ["dashboard", "directory", "notes", "calendar"]
               : []
           }
         />

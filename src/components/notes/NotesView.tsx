@@ -2096,7 +2096,7 @@ export function NotesView() {
       {/* ==================================================== */}
       {isModalOpen &&
         renderPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain">
             <div
               onClick={() => !isSaving && setIsModalOpen(false)}
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
@@ -2118,7 +2118,7 @@ export function NotesView() {
                   setNewFilesToUpload((prev) => [...prev, ...droppedFiles]);
                 }
               }}
-              className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200"
+              className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-xl w-full max-h-[calc(100dvh-2rem)] my-auto flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200"
             >
               {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px">
@@ -2580,13 +2580,13 @@ export function NotesView() {
       {/* Read-Only View Note Modal (Sculpted Dynamic Notch Styling) */}
       {viewingNote &&
         renderPortal(
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 transition-all duration-200">
+          <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 overflow-y-auto overscroll-contain transition-all duration-200">
             <div
               onClick={() => setViewingNote(null)}
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
-            <div className="relative bg-white rounded-t-[28px] sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-2xl w-full p-5 sm:p-7 pt-0 z-10 max-h-[92vh] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col justify-between overflow-hidden">
+            <div className="relative bg-white rounded-t-[28px] sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-2xl w-full p-5 sm:p-7 pt-0 z-10 max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-200 animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 flex flex-col justify-between overflow-hidden my-auto sm:my-auto">
               {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px mb-4">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
@@ -2835,13 +2835,13 @@ export function NotesView() {
       {/* Delete Confirmation Modal (Sculpted Dynamic Notch Styling) */}
       {confirmDeleteNote &&
         renderPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
             <div
               onClick={() => setConfirmDeleteNote(null)}
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
-            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200 my-auto">
               {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">

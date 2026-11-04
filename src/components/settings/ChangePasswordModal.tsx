@@ -69,7 +69,7 @@ export function ChangePasswordModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs select-none">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs select-none overflow-y-auto overscroll-contain">
       <div
         onClick={onClose}
         className="fixed inset-0 bg-transparent"

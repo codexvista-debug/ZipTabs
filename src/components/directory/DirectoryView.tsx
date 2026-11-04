@@ -1064,6 +1064,14 @@ export function DirectoryView() {
                             <span className="select-all truncate">{contact.phone}</span>
                           </div>
                           <div className="flex items-center gap-1 shrink-0 ml-2">
+                            <a
+                              href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition-all"
+                              title={`Call ${contact.phone}`}
+                            >
+                              <Phone className="w-3 h-3" />
+                              <span>Call</span>
+                            </a>
                             <button
                               type="button"
                               onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
@@ -1348,11 +1356,11 @@ export function DirectoryView() {
       {/* 5. Delete Confirmation Modal */}
       {recordToDelete && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto overscroll-contain animate-in fade-in duration-150"
           onClick={() => setRecordToDelete(null)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 animate-in zoom-in-95 duration-150"
+            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 my-auto animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto shadow-xs">

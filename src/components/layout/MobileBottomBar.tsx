@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   HardDrive,
   CalendarDays,
+  BookUser,
 } from "lucide-react";
 
 export type MobileBottomBarStyle = "bottom-style-01" | "bottom-style-02";
@@ -107,15 +108,15 @@ export function MobileBottomBar({
 
           <button
             type="button"
-            onClick={() => handleSelectTab("invoices")}
+            onClick={() => handleSelectTab("directory")}
             className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-              activeTab === "invoices"
+              activeTab === "directory"
                 ? "text-blue-400 bg-white/10 shadow-inner"
                 : "hover:text-white"
             }`}
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Invoices</span>
+            <BookUser className="w-4 h-4" />
+            <span>Directory</span>
           </button>
 
           <button
@@ -188,15 +189,15 @@ export function MobileBottomBar({
 
       <button
         type="button"
-        onClick={() => handleSelectTab("invoices")}
+        onClick={() => handleSelectTab("directory")}
         className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
-          activeTab === "invoices"
+          activeTab === "directory"
             ? "text-white bg-blue-600/90 shadow-xs"
             : "hover:text-white text-slate-300"
         }`}
       >
-        <FileSpreadsheet className="w-4 h-4" />
-        <span>Invoices</span>
+        <BookUser className="w-4 h-4" />
+        <span>Directory</span>
       </button>
 
       <button
