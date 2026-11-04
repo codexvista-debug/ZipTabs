@@ -10,7 +10,6 @@ import {
   File as FileIcon,
   FileText,
   FileSpreadsheet,
-  FileCode,
   FileArchive,
   Image as ImageIcon,
   Upload,
@@ -22,16 +21,14 @@ import {
   Download,
   Trash2,
   ExternalLink,
-  Plus,
-  ArrowLeft,
   X,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   Clock,
-  Sparkles,
-  Shield,
   Eye,
+  FolderInput,
+  RotateCcw,
+  Check,
 } from "lucide-react";
 import { UniversalFileViewer } from "./UniversalFileViewer";
 import { downloadFileDirectly } from "@/lib/download";
@@ -96,9 +93,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Storage Retention Category & Filter: 'all' | 'permanent' (Vault) | 'temporary' (Temp Stash)
-  const [storageCategoryFilter, setStorageCategoryFilter] = useState<"all" | "permanent" | "temporary">("all");
-  const [uploadRetention, setUploadRetention] = useState<"permanent" | "temporary">("permanent");
+  // Tab: "files" (Drive Files) | "trash" (Recycle Bin - 7 day auto-purge)
+  const [driveTab, setDriveTab] = useState<"files" | "trash">("files");
 
   // Search & View Toggle
   const [searchQuery, setSearchQuery] = useState("");
@@ -114,14 +110,19 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-  // Delete Confirm Dialog State
-  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<DriveFolder | null>(null);
-  const [confirmDeleteFile, setConfirmDeleteFile] = useState<DriveFile | null>(null);
+  // Move File Modal State
+  const [movingFile, setMovingFile] = useState<DriveFile | null>(null);
+  const [folderSearchQuery, setFolderSearchQuery] = useState("");
 
-  // Universal File Preview Modal (Supports Word, Excel, CSV, PDF, Images, Code, etc.)
+  // Delete & Recycle Bin Modal States
+  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<DriveFolder | null>(null);
+  const [confirmPermanentDeleteFile, setConfirmPermanentDeleteFile] = useState<DriveFile | null>(null);
+  const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
+
+  // Universal File Preview Modal
   const [previewFile, setPreviewFile] = useState<DriveFile | null>(null);
 
-  // Toast Notification with Semantic Spatial Placement
+  // Toast Notification
   const [toast, setToast] = useState<{
     title: string;
     description?: string;
@@ -152,10 +153,11 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Auto-purge any expired temporary files (runs silently in the background)
+  // Auto-purge any expired Recycle Bin files (> 7 days)
   const purgeExpiredFiles = async () => {
     if (!supabase) return;
     try {
+      // 1. Invoke Supabase RPC if present
       const { data: purged } = await supabase.rpc("purge_expired_drive_files");
       if (purged && purged.length > 0) {
         const storagePaths = purged.map((p: any) => p.purged_storage_path).filter(Boolean);
@@ -164,7 +166,29 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         }
       }
     } catch (err) {
-      console.warn("Auto-purge warning:", err);
+      console.warn("Auto-purge RPC notice:", err);
+    }
+
+    // 2. Client-side purge safeguard for any temporary files past their expires_at
+    try {
+      const nowIso = new Date().toISOString();
+      const { data: expired } = await supabase
+        .from("drive_files")
+        .select("id, storage_path")
+        .eq("retention_type", "temporary")
+        .lt("expires_at", nowIso);
+
+      if (expired && expired.length > 0) {
+        const paths = expired.map((e) => e.storage_path).filter(Boolean);
+        const ids = expired.map((e) => e.id);
+        if (paths.length > 0) {
+          await supabase.storage.from("note-attachments").remove(paths);
+        }
+        await supabase.from("drive_files").delete().in("id", ids);
+        setFiles((prev) => prev.filter((f) => !ids.includes(f.id)));
+      }
+    } catch (err) {
+      console.warn("Client safeguard purge notice:", err);
     }
   };
 
@@ -256,6 +280,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   // Clipboard Paste Support (Ctrl+V) for screenshots or copied documents
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
+      if (driveTab === "trash") return; // Don't paste into trash
       const items = e.clipboardData?.items;
       if (!items) return;
 
@@ -266,7 +291,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           const file = item.getAsFile();
           if (file) {
             let finalFile = file;
-            if (file.type.startsWith("image/") && (file.name === "image.png" || !file.name || file.name.startsWith("blob"))) {
+            if (
+              file.type.startsWith("image/") &&
+              (file.name === "image.png" || !file.name || file.name.startsWith("blob"))
+            ) {
               const ext = file.type.split("/")[1] || "png";
               const dateStr = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
               finalFile = new File([file], `screenshot_${dateStr}.${ext}`, { type: file.type });
@@ -283,7 +311,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [currentFolderId]);
+  }, [currentFolderId, driveTab]);
 
   // Create New Folder
   const handleCreateFolder = async (e: React.FormEvent) => {
@@ -315,7 +343,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     }
   };
 
-  // Upload Files Process (Into Supabase bucket 'note-attachments' under drive/)
+  // Upload Files Process: All uploads are permanent
   const handleUploadFilesList = async (filesToUpload: File[]) => {
     if (filesToUpload.length === 0) return;
 
@@ -342,7 +370,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           .from("note-attachments")
           .getPublicUrl(storagePath);
 
-        const isTemp = uploadRetention === "temporary";
         const newFileItem: DriveFile = {
           id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
           user_id: "chief",
@@ -352,8 +379,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           type: file.type || "application/octet-stream",
           storage_path: storagePath,
           public_url: urlData?.publicUrl || "",
-          retention_type: uploadRetention,
-          expires_at: isTemp ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
+          retention_type: "permanent",
+          expires_at: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -372,33 +399,51 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     setUploadProgressText(null);
     showToast(
       "Upload Complete",
-      `${filesToUpload.length} file(s) saved to ${uploadRetention === "temporary" ? "Temp Stash (30 Days)" : "Vault (Permanent)"}.`,
+      `${filesToUpload.length} file(s) saved permanently to Drive.`,
       "success"
     );
   };
 
-  // Toggle File Retention between Vault (Permanent) and Temp Stash (30-day auto-purge)
-  const handleToggleRetention = async (file: DriveFile) => {
-    const isCurrentlyTemp = file.retention_type === "temporary";
-    const newType: "permanent" | "temporary" = isCurrentlyTemp ? "permanent" : "temporary";
-    const newExpiresAt = isCurrentlyTemp
-      ? null
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  // Move File to target folder or Drive Root
+  const handleMoveFile = async (file: DriveFile, targetId: string | null) => {
+    setMovingFile(null);
+    const targetFolder = folders.find((f) => f.id === targetId);
+    const destinationLabel = targetFolder ? `"${targetFolder.name}"` : "Drive Root";
 
-    // Optimistic UI updates
+    // Optimistic state update
     setFiles((prev) =>
-      prev.map((f) => (f.id === file.id ? { ...f, retention_type: newType, expires_at: newExpiresAt } : f))
+      prev.map((f) => (f.id === file.id ? { ...f, folder_id: targetId } : f))
     );
-    if (previewFile && previewFile.id === file.id) {
-      setPreviewFile((prev) =>
-        prev ? { ...prev, retention_type: newType, expires_at: newExpiresAt } : null
-      );
+
+    if (supabase) {
+      try {
+        await supabase
+          .from("drive_files")
+          .update({
+            folder_id: targetId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", file.id);
+      } catch (err) {
+        console.error("Failed to move file:", err);
+      }
     }
 
-    if (isCurrentlyTemp) {
-      showToast("Moved to Vault", `"${file.name}" is now safely in your permanent Vault.`, "success");
-    } else {
-      showToast("Moved to Temp Stash", `"${file.name}" will auto-purge in 30 days.`, "info");
+    showToast("File Moved", `"${file.name}" moved to ${destinationLabel}.`, "success");
+  };
+
+  // Move File to Recycle Bin (Kept for 7 days then auto-purged)
+  const handleMoveToTrash = async (file: DriveFile) => {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === file.id ? { ...f, retention_type: "temporary", expires_at: expiresAt } : f
+      )
+    );
+
+    if (previewFile && previewFile.id === file.id) {
+      setPreviewFile(null);
     }
 
     if (supabase) {
@@ -406,20 +451,48 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         await supabase
           .from("drive_files")
           .update({
-            retention_type: newType,
-            expires_at: newExpiresAt,
+            retention_type: "temporary",
+            expires_at: expiresAt,
             updated_at: new Date().toISOString(),
           })
           .eq("id", file.id);
       } catch (err) {
-        console.error("Failed to update file retention:", err);
+        console.error("Move to trash error:", err);
       }
     }
+
+    showToast("Moved to Recycle Bin", `"${file.name}" will be auto-purged in 7 days.`, "info");
   };
 
-  // Delete File
-  const executeDeleteFile = async (file: DriveFile) => {
-    setConfirmDeleteFile(null);
+  // Restore File from Recycle Bin back to Active Drive
+  const handleRestoreFile = async (file: DriveFile) => {
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === file.id ? { ...f, retention_type: "permanent", expires_at: null } : f
+      )
+    );
+
+    if (supabase) {
+      try {
+        await supabase
+          .from("drive_files")
+          .update({
+            retention_type: "permanent",
+            expires_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", file.id);
+      } catch (err) {
+        console.error("Restore file error:", err);
+      }
+    }
+
+    showToast("File Restored", `"${file.name}" restored to Drive.`, "success");
+  };
+
+  // Permanently Delete Single File Immediately
+  const executePermanentDeleteFile = async (file: DriveFile) => {
+    setConfirmPermanentDeleteFile(null);
     setFiles((prev) => prev.filter((f) => f.id !== file.id));
 
     if (supabase) {
@@ -429,17 +502,41 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         }
         await supabase.from("drive_files").delete().eq("id", file.id);
       } catch (err) {
-        console.error("Delete file error:", err);
+        console.error("Permanent delete file error:", err);
       }
     }
-    showToast("File Deleted", `"${file.name}" deleted. Storage reclaimed.`, "info");
+    showToast("Permanently Deleted", `"${file.name}" purged. Storage reclaimed.`, "info");
   };
 
-  // Delete Folder (Recursively removes all child files & folders)
+  // Empty Entire Recycle Bin Immediately
+  const executeEmptyTrash = async () => {
+    setConfirmEmptyTrash(false);
+    const trashed = files.filter((f) => f.retention_type === "temporary");
+    if (trashed.length === 0) return;
+
+    const storagePaths = trashed.map((f) => f.storage_path).filter(Boolean);
+    const ids = trashed.map((f) => f.id);
+
+    setFiles((prev) => prev.filter((f) => f.retention_type !== "temporary"));
+
+    if (supabase) {
+      try {
+        if (storagePaths.length > 0) {
+          await supabase.storage.from("note-attachments").remove(storagePaths);
+        }
+        await supabase.from("drive_files").delete().in("id", ids);
+      } catch (err) {
+        console.error("Empty trash error:", err);
+      }
+    }
+
+    showToast("Recycle Bin Emptied", `${trashed.length} file(s) permanently purged.`, "info");
+  };
+
+  // Delete Folder (Recursively moves/deletes child items)
   const executeDeleteFolder = async (folder: DriveFolder) => {
     setConfirmDeleteFolder(null);
 
-    // Find all files belonging to this folder
     const filesToDelete = files.filter((f) => f.folder_id === folder.id);
     const storagePaths = filesToDelete.map((f) => f.storage_path).filter(Boolean);
 
@@ -461,10 +558,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       }
     }
 
-    showToast("Folder Deleted", `"${folder.name}" and its contents removed.`, "info");
+    showToast("Folder Deleted", `"${folder.name}" and contents deleted.`, "info");
   };
 
-  // Build Breadcrumbs
+  // Build Breadcrumbs for navigation
   const getBreadcrumbs = () => {
     const crumbs: { id: string | null; name: string }[] = [{ id: null, name: "Drive" }];
     if (!currentFolderId) return crumbs;
@@ -483,36 +580,29 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
   const isSearching = Boolean(searchQuery.trim());
   const normalizedQuery = searchQuery.toLowerCase().trim();
 
-  // Folders to show:
-  const visibleFolders = isSearching
-    ? folders.filter((f) => f.name.toLowerCase().includes(normalizedQuery))
-    : folders.filter((f) => (f.parent_id || null) === currentFolderId);
+  // Active vs Trashed sets
+  const activeFiles = files.filter((f) => f.retention_type !== "temporary");
+  const trashedFiles = files.filter((f) => f.retention_type === "temporary");
 
-  // Category file counts
-  const vaultFilesCount = files.filter((f) => f.retention_type !== "temporary").length;
-  const tempFilesCount = files.filter((f) => f.retention_type === "temporary").length;
+  // Folders to show: only in files tab
+  const visibleFolders =
+    driveTab === "trash"
+      ? []
+      : isSearching
+      ? folders.filter((f) => f.name.toLowerCase().includes(normalizedQuery))
+      : folders.filter((f) => (f.parent_id || null) === currentFolderId);
 
-  // Temp files expiring within 3 days
-  const expiringFilesCount = files.filter((f) => {
-    if (f.retention_type !== "temporary" || !f.expires_at) return false;
-    const diffMs = new Date(f.expires_at).getTime() - Date.now();
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    return diffDays <= 3;
-  }).length;
+  // Files to show based on active tab
+  const visibleFiles =
+    driveTab === "trash"
+      ? isSearching
+        ? trashedFiles.filter((f) => f.name.toLowerCase().includes(normalizedQuery))
+        : trashedFiles
+      : isSearching
+      ? activeFiles.filter((f) => f.name.toLowerCase().includes(normalizedQuery))
+      : activeFiles.filter((f) => (f.folder_id || null) === currentFolderId);
 
-  // Files to show:
-  let candidateFiles = isSearching
-    ? files.filter((f) => f.name.toLowerCase().includes(normalizedQuery))
-    : files.filter((f) => (f.folder_id || null) === currentFolderId);
-
-  if (storageCategoryFilter === "permanent") {
-    candidateFiles = candidateFiles.filter((f) => f.retention_type !== "temporary");
-  } else if (storageCategoryFilter === "temporary") {
-    candidateFiles = candidateFiles.filter((f) => f.retention_type === "temporary");
-  }
-  const visibleFiles = candidateFiles;
-
-  // Overall Drive Storage Metric
+  // Overall Storage Metric
   const totalDriveBytes = files.reduce((acc, f) => acc + (f.size || 0), 0);
   const breadcrumbs = getBreadcrumbs();
   const currentFolder = folders.find((f) => f.id === currentFolderId);
@@ -535,9 +625,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     if (["doc", "docx"].includes(ext)) {
       return { icon: FileText, color: "text-blue-600 bg-blue-50 border-blue-200", label: "WORD" };
     }
-    if (["ppt", "pptx"].includes(ext)) {
-      return { icon: FileText, color: "text-amber-600 bg-amber-50 border-amber-200", label: "PPT" };
-    }
     if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) {
       return { icon: FileArchive, color: "text-amber-600 bg-amber-50 border-amber-200", label: "ARCHIVE" };
     }
@@ -550,12 +637,12 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDraggingOver(true);
+        if (driveTab === "files") setIsDraggingOver(true);
       }}
       onDragEnter={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDraggingOver(true);
+        if (driveTab === "files") setIsDraggingOver(true);
       }}
       onDragLeave={(e) => {
         e.preventDefault();
@@ -566,12 +653,12 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         e.preventDefault();
         e.stopPropagation();
         setIsDraggingOver(false);
-        if (e.dataTransfer.files) {
+        if (driveTab === "files" && e.dataTransfer.files) {
           handleUploadFilesList(Array.from(e.dataTransfer.files));
         }
       }}
     >
-      {/* Toast Notification (Architectural Executive Chassis with Semantic Spatial Placement) */}
+      {/* Toast Notification (Top-Center Executive Precision Dynamic Capsule) */}
       {toast &&
         renderPortal(
           <div className={TOAST_POSITION_CLASSES[toast.position || getToastPosition(toast.title)]}>
@@ -580,14 +667,14 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               title={toast.title}
               description={toast.description}
               headerMeta="Supabase Drive Storage"
-              metric={toast.type === "error" ? "Storage Alert" : "Vault Synced"}
+              metric={toast.type === "error" ? "Storage Alert" : "Drive Synced"}
               onClose={() => setToast(null)}
               durationMs={3500}
             />
           </div>
         )}
 
-      {/* Floating Upload Progress Indicator (Bottom-Center) */}
+      {/* Floating Upload Progress Indicator */}
       {isUploading &&
         renderPortal(
           <div className="fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100vw-24px)] sm:w-80 max-w-sm animate-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
@@ -599,7 +686,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                     {uploadProgressText || "Uploading Files..."}
                   </div>
                   <div className="text-[10px] text-slate-500 truncate">
-                    Encrypting & syncing to Supabase Drive
+                    Storing permanently in Supabase Drive
                   </div>
                 </div>
               </div>
@@ -620,7 +707,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                 Drop files to upload into {currentFolder ? `"${currentFolder.name}"` : "Drive Root"}
               </div>
               <div className="text-xs text-slate-500">
-                Files will be securely stored in your Supabase storage
+                Files will be securely & permanently stored in Supabase
               </div>
             </div>
           </div>
@@ -638,11 +725,11 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 hidden sm:block">
-            OneDrive-style file storage with folders, instant image previews, and automatic quota sync.
+            OneDrive-style permanent file storage with folder hierarchy, file moves, and a 7-day recycle bin.
           </p>
         </div>
 
-        {/* Action Controls: 1 compact clean row on mobile */}
+        {/* Action Controls: Compact row on mobile */}
         <div className="flex items-center gap-1.5 w-full sm:w-auto">
           {/* Hidden File Input */}
           <input
@@ -658,151 +745,132 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
             }}
           />
 
-          {/* Upload Button */}
-          <button
-            type="button"
-            disabled={isUploading}
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer disabled:opacity-50"
-          >
-            {isUploading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Upload className="w-3.5 h-3.5" />
-            )}
-            <span>{isUploading ? (uploadProgressText || "Uploading...") : "Upload"}</span>
-          </button>
+          {driveTab === "files" ? (
+            <>
+              {/* Upload Button */}
+              <button
+                type="button"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isUploading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5" />
+                )}
+                <span>{isUploading ? (uploadProgressText || "Uploading...") : "Upload"}</span>
+              </button>
 
-          {/* New Folder Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setNewFolderName("");
-              setIsFolderModalOpen(true);
-            }}
-            className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer shrink-0"
-          >
-            <FolderPlus className="w-3.5 h-3.5 text-blue-600" />
-            <span className="hidden sm:inline">New </span><span>Folder</span>
-          </button>
-
-          {/* Target Upload Retention Selector Pill */}
-          <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-bold shrink-0">
-            <button
-              type="button"
-              onClick={() => setUploadRetention("permanent")}
-              className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all cursor-pointer text-[11px] sm:text-xs ${
-                uploadRetention === "permanent"
-                  ? "bg-white text-indigo-700 shadow-xs border border-indigo-200"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-              title="Upload files to permanent Vault storage (won't be deleted)"
-            >
-              <Shield className="w-3 h-3 text-indigo-600" />
-              <span>Vault</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setUploadRetention("temporary")}
-              className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all cursor-pointer text-[11px] sm:text-xs ${
-                uploadRetention === "temporary"
-                  ? "bg-white text-amber-700 shadow-xs border border-amber-200"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-              title="Upload files to 30-Day Temp Stash (auto-purged after 30 days)"
-            >
-              <Clock className="w-3 h-3 text-amber-600" />
-              <span>30d</span>
-            </button>
-          </div>
+              {/* New Folder Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setNewFolderName("");
+                  setIsFolderModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer shrink-0"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-blue-600" />
+                <span className="hidden sm:inline">New </span><span>Folder</span>
+              </button>
+            </>
+          ) : (
+            trashedFiles.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setConfirmEmptyTrash(true)}
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Empty Recycle Bin</span>
+              </button>
+            )
+          )}
         </div>
       </div>
 
-      {/* Storage Category Filter Bar & Warning Banner */}
+      {/* Drive Tab Switcher Bar: Drive Files vs Recycle Bin */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-        {/* Category Pills (Single scrollable line on mobile) */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
           <button
             type="button"
-            onClick={() => setStorageCategoryFilter("all")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              storageCategoryFilter === "all"
+            onClick={() => setDriveTab("files")}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              driveTab === "files"
                 ? "bg-slate-900 text-white shadow-xs"
                 : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
             }`}
           >
-            <span className="sm:hidden">All ({files.length})</span>
-            <span className="hidden sm:inline">All Items ({files.length})</span>
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>Drive Files ({activeFiles.length})</span>
           </button>
+
           <button
             type="button"
-            onClick={() => setStorageCategoryFilter("permanent")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              storageCategoryFilter === "permanent"
-                ? "bg-indigo-600 text-white shadow-xs"
+            onClick={() => setDriveTab("trash")}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              driveTab === "trash"
+                ? "bg-rose-600 text-white shadow-xs"
                 : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
             }`}
           >
-            <Shield className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="sm:hidden">Vault ({vaultFilesCount})</span>
-            <span className="hidden sm:inline">Vault · Permanent ({vaultFilesCount})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStorageCategoryFilter("temporary")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              storageCategoryFilter === "temporary"
-                ? "bg-amber-600 text-white shadow-xs"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5 text-amber-500" />
-            <span className="sm:hidden">Temp 30d ({tempFilesCount})</span>
-            <span className="hidden sm:inline">Temp Stash · 30 Days ({tempFilesCount})</span>
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Recycle Bin ({trashedFiles.length})</span>
           </button>
         </div>
 
-        {/* Expiring Soon Alert Pill */}
-        {expiringFilesCount > 0 && (
-          <div
-            onClick={() => setStorageCategoryFilter("temporary")}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold cursor-pointer hover:bg-rose-100 transition-colors"
-            title="Click to view files expiring soon"
-          >
-            <AlertCircle className="w-4 h-4 text-rose-500 animate-pulse shrink-0" />
-            <span>{expiringFilesCount} file(s) auto-purging within 3 days</span>
+        {/* Recycle Bin Notice */}
+        {driveTab === "trash" && (
+          <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>Files are kept for 7 days before being auto-purged permanently.</span>
           </div>
         )}
       </div>
 
-      {/* Breadcrumb Navigation & Stats Bar */}
+      {/* Breadcrumb Navigation & Controls Bar */}
       <div className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Breadcrumb Trail */}
-        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-          {breadcrumbs.map((crumb, idx) => {
-            const isLast = idx === breadcrumbs.length - 1;
-            return (
-              <React.Fragment key={idx}>
-                {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentFolderId(crumb.id);
-                    setSearchQuery("");
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    isLast
-                      ? "text-blue-900 bg-blue-50/80 border border-blue-200/60"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                  }`}
-                >
-                  {idx === 0 && <FolderOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
-                  <span className="truncate max-w-[160px]">{crumb.name}</span>
-                </button>
-              </React.Fragment>
-            );
-          })}
-        </div>
+        {/* Breadcrumb Trail (files mode) or Recycle Bin Banner */}
+        {driveTab === "files" ? (
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            {breadcrumbs.map((crumb, idx) => {
+              const isLast = idx === breadcrumbs.length - 1;
+              return (
+                <React.Fragment key={idx}>
+                  {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentFolderId(crumb.id);
+                      setSearchQuery("");
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                      isLast
+                        ? "text-blue-900 bg-blue-50/80 border border-blue-200/60"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    {idx === 0 && <FolderOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                    <span className="truncate max-w-[160px]">{crumb.name}</span>
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+              <Trash2 className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-slate-900">Recycle Bin</span>
+              <span className="text-[11px] text-slate-500 ml-2 hidden sm:inline">
+                {trashedFiles.length} file{trashedFiles.length === 1 ? "" : "s"} awaiting purge
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Search & View Mode Switcher */}
         <div className="flex items-center gap-2 justify-between md:justify-end">
@@ -813,7 +881,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search in Drive..."
+              placeholder={driveTab === "files" ? "Search in Drive..." : "Search Recycle Bin..."}
               className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition-all font-medium"
             />
             {searchQuery && (
@@ -833,7 +901,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               type="button"
               onClick={() => setViewMode("grid")}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === "grid" ? "bg-white text-slate-900 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-800"
+                viewMode === "grid"
+                  ? "bg-white text-slate-900 shadow-2xs font-bold"
+                  : "text-slate-500 hover:text-slate-800"
               }`}
               title="Grid View"
             >
@@ -843,7 +913,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               type="button"
               onClick={() => setViewMode("list")}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === "list" ? "bg-white text-slate-900 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-800"
+                viewMode === "list"
+                  ? "bg-white text-slate-900 shadow-2xs font-bold"
+                  : "text-slate-500 hover:text-slate-800"
               }`}
               title="List View"
             >
@@ -857,12 +929,12 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       {isLoading ? (
         <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
           <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-          <span className="text-xs font-semibold">Loading Drive folders & documents...</span>
+          <span className="text-xs font-semibold">Loading Drive files & folders...</span>
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Folders Section */}
-          {visibleFolders.length > 0 && (
+          {/* Folders Section (Only in Active Files View) */}
+          {driveTab === "files" && visibleFolders.length > 0 && (
             <div>
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center justify-between">
                 <span>Folders ({visibleFolders.length})</span>
@@ -870,8 +942,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 {visibleFolders.map((folder) => {
-                  const colorConfig = FOLDER_COLORS.find((c) => c.id === folder.color) || FOLDER_COLORS[0];
-                  const childFiles = files.filter((f) => f.folder_id === folder.id);
+                  const colorConfig =
+                    FOLDER_COLORS.find((c) => c.id === folder.color) || FOLDER_COLORS[0];
+                  const childFiles = activeFiles.filter((f) => f.folder_id === folder.id);
 
                   return (
                     <div
@@ -883,7 +956,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                       className="group relative bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-blue-400 rounded-2xl p-3.5 shadow-2xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between select-none"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div className={`w-10 h-10 rounded-xl ${colorConfig.bg} ${colorConfig.text} ${colorConfig.border} border flex items-center justify-center shrink-0`}>
+                        <div
+                          className={`w-10 h-10 rounded-xl ${colorConfig.bg} ${colorConfig.text} ${colorConfig.border} border flex items-center justify-center shrink-0`}
+                        >
                           <Folder className="w-5 h-5 fill-current" />
                         </div>
 
@@ -919,29 +994,45 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           {/* Files Section */}
           <div>
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center justify-between">
-              <span>Files ({visibleFiles.length})</span>
-              {totalDriveBytes > 0 && (
+              <span>
+                {driveTab === "files" ? "Files" : "Recycle Bin Files"} ({visibleFiles.length})
+              </span>
+              {visibleFiles.length > 0 && (
                 <span className="text-[11px] font-semibold text-slate-400 normal-case">
-                  Total in view: {formatBytes(visibleFiles.reduce((acc, f) => acc + (f.size || 0), 0))}
+                  Total: {formatBytes(visibleFiles.reduce((acc, f) => acc + (f.size || 0), 0))}
                 </span>
               )}
             </div>
 
-            {visibleFiles.length === 0 && visibleFolders.length === 0 ? (
-              /* Empty Folder View */
+            {visibleFiles.length === 0 && (driveTab === "trash" || visibleFolders.length === 0) ? (
+              /* Empty View */
               <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center flex flex-col items-center justify-center">
-                <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600 mb-4 shadow-xs">
-                  <FolderOpen className="w-7 h-7" />
+                <div
+                  className={`w-14 h-14 rounded-2xl ${
+                    driveTab === "trash"
+                      ? "bg-rose-50 border-rose-200/60 text-rose-600"
+                      : "bg-blue-50 border-blue-200/60 text-blue-600"
+                  } border flex items-center justify-center mb-4 shadow-xs`}
+                >
+                  {driveTab === "trash" ? <Trash2 className="w-7 h-7" /> : <FolderOpen className="w-7 h-7" />}
                 </div>
                 <h3 className="text-base font-bold text-slate-900">
-                  {isSearching ? "No matching files or folders" : "This folder is empty"}
+                  {driveTab === "trash"
+                    ? isSearching
+                      ? "No matching deleted files"
+                      : "Recycle Bin is empty"
+                    : isSearching
+                    ? "No matching files or folders"
+                    : "This folder is empty"}
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mt-1">
-                  {isSearching
+                  {driveTab === "trash"
+                    ? "Files deleted from Drive are kept here for 7 days before being automatically purged permanently."
+                    : isSearching
                     ? "Try searching for a different file name."
                     : "Drag and drop documents, spreadsheets, or images here to store them safely."}
                 </p>
-                {!isSearching && (
+                {driveTab === "files" && !isSearching && (
                   <div className="mt-5 flex items-center gap-2">
                     <button
                       type="button"
@@ -971,13 +1062,12 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                 {visibleFiles.map((file) => {
                   const iconInfo = getFileIcon(file.name, file.type);
                   const isImage = (file.type || "").startsWith("image/");
-                  const isTemp = file.retention_type === "temporary";
-                  let daysLeft = 30;
-                  let isUrgent = false;
-                  if (isTemp && file.expires_at) {
+                  const isTrash = driveTab === "trash";
+
+                  let daysLeft = 7;
+                  if (file.expires_at) {
                     const diffMs = new Date(file.expires_at).getTime() - Date.now();
-                    daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-                    isUrgent = daysLeft <= 3;
+                    daysLeft = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
                   }
 
                   return (
@@ -1024,62 +1114,52 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                           <span className="font-mono uppercase">{iconInfo.label}</span>
                         </div>
 
-                        {/* Retention Badge */}
+                        {/* Status Badge */}
                         <div className="mt-1.5 flex items-center justify-between">
-                          {isTemp ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleRetention(file);
-                              }}
-                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-colors ${
-                                isUrgent
-                                  ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 animate-pulse"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
-                              }`}
-                              title="30-Day Temp Stash. Click to keep permanently in Vault."
+                          {isTrash ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-200"
+                              title={`Auto-purges in ${daysLeft} day(s)`}
                             >
-                              <Clock className="w-2.5 h-2.5" />
+                              <Clock className="w-2.5 h-2.5 text-rose-500" />
                               <span>{daysLeft}d left</span>
-                            </button>
+                            </span>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleRetention(file);
-                              }}
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors"
-                              title="Permanent Vault. Click to set 30-Day auto-purge."
-                            >
-                              <Shield className="w-2.5 h-2.5" />
-                              <span>Vault</span>
-                            </button>
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              <span>Permanent</span>
+                            </span>
                           )}
                         </div>
 
                         {/* File Action Buttons */}
                         <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                           <div className="flex items-center gap-1">
+                            {/* Preview */}
                             <button
                               type="button"
                               onClick={() => setPreviewFile(file)}
                               className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                              title="Open in Document Viewer"
+                              title="Open Document Viewer"
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleToggleRetention(file)}
-                              className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                              title={isTemp ? "Promote to Vault (Permanent)" : "Move to Temp Stash (30 Days)"}
-                            >
-                              <Shield className="w-3.5 h-3.5" />
-                            </button>
+                            {/* Move File (Active Files Only) */}
+                            {!isTrash && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFolderSearchQuery("");
+                                  setMovingFile(file);
+                                }}
+                                className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                title="Move to folder or root"
+                              >
+                                <FolderInput className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
+                            {/* Download */}
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1093,14 +1173,39 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                             </button>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteFile(file)}
-                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Delete file"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Delete Action: Move to Trash (Active) vs Permanent Delete (Recycle Bin) */}
+                          {isTrash ? (
+                            <div className="flex items-center gap-1">
+                              {/* Restore Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreFile(file)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                                title="Restore file to Drive"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Permanent Delete Button */}
+                              <button
+                                type="button"
+                                onClick={() => setConfirmPermanentDeleteFile(file)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Permanently delete now"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleMoveToTrash(file)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Move to Recycle Bin (7 days)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1115,7 +1220,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                     <thead>
                       <tr className="border-b border-slate-200/70 bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th className="py-3 px-4">Name</th>
-                        <th className="py-3 px-4">Storage Category</th>
+                        <th className="py-3 px-4">{driveTab === "trash" ? "Retention" : "Location"}</th>
                         <th className="py-3 px-4">Size</th>
                         <th className="py-3 px-4">Type</th>
                         <th className="py-3 px-4">Uploaded</th>
@@ -1125,15 +1230,18 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                     <tbody className="divide-y divide-slate-100">
                       {visibleFiles.map((file) => {
                         const iconInfo = getFileIcon(file.name, file.type);
-                        const isTemp = file.retention_type === "temporary";
-                        let daysLeft = 30;
-                        let isUrgent = false;
-                        if (isTemp && file.expires_at) {
+                        const isTrash = driveTab === "trash";
+                        const parentFolder = folders.find((f) => f.id === file.folder_id);
+                        const locationLabel = parentFolder ? parentFolder.name : "Drive Root";
+
+                        let daysLeft = 7;
+                        if (file.expires_at) {
                           const diffMs = new Date(file.expires_at).getTime() - Date.now();
-                          daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-                          isUrgent = daysLeft <= 3;
+                          daysLeft = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
                         }
-                        const dateStr = file.created_at ? new Date(file.created_at).toLocaleDateString() : "-";
+                        const dateStr = file.created_at
+                          ? new Date(file.created_at).toLocaleDateString()
+                          : "-";
 
                         return (
                           <tr key={file.id} className="hover:bg-slate-50/80 transition-colors">
@@ -1150,32 +1258,18 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                               </div>
                             </td>
 
-                            {/* Storage Category Badge */}
+                            {/* Location or Retention Badge */}
                             <td className="py-3 px-4 whitespace-nowrap">
-                              {isTemp ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleRetention(file)}
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                                    isUrgent
-                                      ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 animate-pulse"
-                                      : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
-                                  }`}
-                                  title="30-Day Temp Stash. Click to keep permanently in Vault."
-                                >
-                                  <Clock className="w-3 h-3 text-amber-600" />
-                                  <span>Temp ({daysLeft}d left)</span>
-                                </button>
+                              {isTrash ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  <Clock className="w-3 h-3 text-rose-600" />
+                                  <span>{daysLeft}d left</span>
+                                </span>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleRetention(file)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors"
-                                  title="Permanent Vault. Click to switch to 30-Day Temp Stash."
-                                >
-                                  <Shield className="w-3 h-3 text-indigo-600" />
-                                  <span>Vault</span>
-                                </button>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-slate-600 bg-slate-50 border border-slate-200 truncate max-w-[140px]">
+                                  <FolderOpen className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate">{locationLabel}</span>
+                                </span>
                               )}
                             </td>
 
@@ -1198,14 +1292,21 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                                 >
                                   <Eye className="w-3.5 h-3.5" />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleRetention(file)}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                  title={isTemp ? "Keep in Vault (Permanent)" : "Move to Temp Stash (30 Days)"}
-                                >
-                                  <Shield className="w-3.5 h-3.5" />
-                                </button>
+
+                                {!isTrash && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFolderSearchQuery("");
+                                      setMovingFile(file);
+                                    }}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                    title="Move to folder or root"
+                                  >
+                                    <FolderInput className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1217,14 +1318,36 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                                 >
                                   <Download className="w-3.5 h-3.5" />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmDeleteFile(file)}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+
+                                {isTrash ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRestoreFile(file)}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                                      title="Restore to Drive"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmPermanentDeleteFile(file)}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                      title="Permanently delete now"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveToTrash(file)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    title="Move to Recycle Bin (7 days)"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1239,12 +1362,12 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         </div>
       )}
 
-      {/* Mini Storage Quota Footer Banner */}
+      {/* Storage Quota Footer Banner */}
       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
         <div className="flex items-center gap-2.5">
           <HardDrive className="w-4 h-4 text-blue-600 shrink-0" />
           <span>
-            Drive files are backed by your Supabase Free Plan storage (1 GB limit).
+            Drive files are permanently backed by your Supabase storage (1 GB limit).
           </span>
         </div>
         {onNavigateUsage && (
@@ -1259,6 +1382,197 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         )}
       </div>
 
+      {/* Move File Modal (Sculpted Dynamic Notch Styling) */}
+      {movingFile && (() => {
+        const currentParent = folders.find((f) => f.id === movingFile.folder_id);
+        const currentLocLabel = currentParent ? currentParent.name : "Drive Root";
+        const filteredFolders = folderSearchQuery.trim()
+          ? folders.filter((f) =>
+              f.name.toLowerCase().includes(folderSearchQuery.toLowerCase().trim())
+            )
+          : folders;
+
+        return renderPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              onClick={() => setMovingFile(null)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            />
+
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+              {/* Creative Top: Sculpted Dynamic Island Notch */}
+              <div className="flex justify-center -mt-px shrink-0">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  <span>MOVE FILE · DIRECTORY</span>
+                </div>
+              </div>
+
+              {/* Side Gradient Shadow Rails */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+
+              <div className="p-6 sm:p-7 pt-5 flex flex-col min-h-0 flex-1">
+                {/* Header Row */}
+                <div className="flex items-start justify-between gap-3 mb-4 shrink-0">
+                  <div>
+                    <h3 className="text-lg font-black text-zinc-900 tracking-tight">
+                      Move File
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Select destination folder or return to Drive Root.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMovingFile(null)}
+                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Selected File Spotlight */}
+                <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-3 flex items-center gap-3 mb-4 shrink-0 shadow-2xs">
+                  <FileBrandIcon fileName={movingFile.name} mimeType={movingFile.type} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-zinc-900 truncate" title={movingFile.name}>
+                      {movingFile.name}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-zinc-500">
+                      <span>{formatBytes(movingFile.size)}</span>
+                      <span>•</span>
+                      <span className="truncate">Current: <strong className="text-zinc-800 font-bold">{currentLocLabel}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Search Folders Input */}
+                {folders.length > 4 && (
+                  <div className="relative mb-3 shrink-0">
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={folderSearchQuery}
+                      onChange={(e) => setFolderSearchQuery(e.target.value)}
+                      placeholder="Filter destinations..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:bg-white focus:border-zinc-900 transition-all font-medium"
+                    />
+                  </div>
+                )}
+
+                {/* Destinations List */}
+                <div className="overflow-y-auto no-scrollbar space-y-1.5 flex-1 pr-1">
+                  {/* Option: Drive Root */}
+                  <div
+                    onClick={() => {
+                      if (movingFile.folder_id !== null) {
+                        handleMoveFile(movingFile, null);
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border flex items-center justify-between transition-all ${
+                      movingFile.folder_id === null
+                        ? "bg-blue-50/70 border-blue-200 text-blue-900 cursor-default"
+                        : "bg-white hover:bg-zinc-50 border-zinc-200 hover:border-zinc-300 cursor-pointer shadow-2xs"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                          <span>Drive Root</span>
+                          {movingFile.folder_id === null && (
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-100/80 px-1.5 py-0.2 rounded-md">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">Top-level root directory</div>
+                      </div>
+                    </div>
+
+                    {movingFile.folder_id === null ? (
+                      <Check className="w-4 h-4 text-blue-600 shrink-0" />
+                    ) : (
+                      <span className="text-[11px] font-bold text-blue-600 hover:underline shrink-0">
+                        Move Here
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Folders */}
+                  {filteredFolders.map((folder) => {
+                    const isCurrent = movingFile.folder_id === folder.id;
+                    const colorConfig =
+                      FOLDER_COLORS.find((c) => c.id === folder.color) || FOLDER_COLORS[0];
+                    const folderFileCount = activeFiles.filter((f) => f.folder_id === folder.id).length;
+
+                    return (
+                      <div
+                        key={folder.id}
+                        onClick={() => {
+                          if (!isCurrent) {
+                            handleMoveFile(movingFile, folder.id);
+                          }
+                        }}
+                        className={`p-3 rounded-2xl border flex items-center justify-between transition-all ${
+                          isCurrent
+                            ? "bg-blue-50/70 border-blue-200 text-blue-900 cursor-default"
+                            : "bg-white hover:bg-zinc-50 border-zinc-200 hover:border-zinc-300 cursor-pointer shadow-2xs"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`w-9 h-9 rounded-xl ${colorConfig.bg} ${colorConfig.text} ${colorConfig.border} border flex items-center justify-center shrink-0`}
+                          >
+                            <Folder className="w-4 h-4 fill-current" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                              <span className="truncate">{folder.name}</span>
+                              {isCurrent && (
+                                <span className="text-[10px] font-bold text-blue-600 bg-blue-100/80 px-1.5 py-0.2 rounded-md shrink-0">
+                                  Current
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-zinc-400">
+                              {folderFileCount} file{folderFileCount === 1 ? "" : "s"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {isCurrent ? (
+                          <Check className="w-4 h-4 text-blue-600 shrink-0" />
+                        ) : (
+                          <span className="text-[11px] font-bold text-blue-600 hover:underline shrink-0">
+                            Move Here
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Footer Controls */}
+                <div className="pt-3 mt-3 border-t border-zinc-100 flex items-center justify-end shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setMovingFile(null)}
+                    className="px-4 py-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* New Folder Modal (Sculpted Dynamic Notch Styling) */}
       {isFolderModalOpen &&
         renderPortal(
@@ -1269,7 +1583,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
             />
 
             <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-              {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -1277,7 +1590,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                 </div>
               </div>
 
-              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
               <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
@@ -1328,11 +1640,15 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                           type="button"
                           onClick={() => setNewFolderColor(c.id)}
                           className={`w-7 h-7 rounded-xl ${c.bg} ${c.border} border-2 flex items-center justify-center transition-transform cursor-pointer ${
-                            newFolderColor === c.id ? "scale-110 shadow-xs ring-2 ring-zinc-900/20" : "opacity-70 hover:opacity-100"
+                            newFolderColor === c.id
+                              ? "scale-110 shadow-xs ring-2 ring-zinc-900/20"
+                              : "opacity-70 hover:opacity-100"
                           }`}
                           title={c.label}
                         >
-                          <span className={`w-2.5 h-2.5 rounded-full ${c.text.replace("text-", "bg-")}`} />
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${c.text.replace("text-", "bg-")}`}
+                          />
                         </button>
                       ))}
                     </div>
@@ -1360,11 +1676,12 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           </div>
         )}
 
-      {/* Delete Folder Confirmation Modal (Black, White & Gray Scheme - Precision Vault Styling) */}
+      {/* Delete Folder Confirmation Modal */}
       {confirmDeleteFolder && (() => {
         const folderFiles = files.filter((f) => f.folder_id === confirmDeleteFolder.id);
         const totalSize = folderFiles.reduce((acc, f) => acc + (f.size || 0), 0);
-        const folderColor = FOLDER_COLORS.find((c) => c.id === confirmDeleteFolder.color) || FOLDER_COLORS[0];
+        const folderColor =
+          FOLDER_COLORS.find((c) => c.id === confirmDeleteFolder.color) || FOLDER_COLORS[0];
 
         return renderPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1374,7 +1691,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
             />
 
             <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-              {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
@@ -1382,12 +1698,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                 </div>
               </div>
 
-              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
               <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
               <div className="p-6 sm:p-7 pt-5">
-                {/* Header Row: Badge & Close Button */}
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
                     <h3 className="text-lg font-black text-zinc-900 tracking-tight">
@@ -1397,7 +1711,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                       Action confirmed from authorized Chief workspace.
                     </p>
                   </div>
-
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteFolder(null)}
@@ -1408,9 +1721,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                   </button>
                 </div>
 
-                {/* Folder Spotlight Preview Card */}
                 <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-4 flex items-center gap-3.5 mb-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${folderColor.bg} ${folderColor.text} ${folderColor.border} shadow-2xs`}>
+                  <div
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${folderColor.bg} ${folderColor.text} ${folderColor.border} shadow-2xs`}
+                  >
                     <Folder className="w-6 h-6" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1430,7 +1744,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                   </div>
                 </div>
 
-                {/* Warning & Storage Reclaimed Notice */}
                 <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-2">
@@ -1446,11 +1759,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                     </span>
                   </div>
                   <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
-                    This folder and all <strong className="font-bold text-zinc-900">{folderFiles.length} file(s)</strong> stored inside will be permanently purged from Supabase storage. This action cannot be undone.
+                    This folder and all <strong className="font-bold text-zinc-900">{folderFiles.length} file(s)</strong> inside will be permanently deleted from Supabase.
                   </p>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100">
                   <button
                     type="button"
@@ -1474,47 +1786,39 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         );
       })()}
 
-      {/* Delete File Confirmation Modal (Black, White & Gray Scheme - Precision Vault Styling) */}
-      {confirmDeleteFile && (() => {
-        const parentFolder = folders.find((f) => f.id === confirmDeleteFile.folder_id);
-        const folderLabel = parentFolder ? parentFolder.name : "Root Drive";
-        const isTemp = confirmDeleteFile.retention_type === "temporary";
-
+      {/* Permanent Delete Single File Confirmation Modal */}
+      {confirmPermanentDeleteFile && (() => {
         return renderPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
-              onClick={() => setConfirmDeleteFile(null)}
+              onClick={() => setConfirmPermanentDeleteFile(null)}
               className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
             />
 
             <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-              {/* Creative Top: Sculpted Dynamic Island Notch */}
               <div className="flex justify-center -mt-px">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                  <span>IRREVERSIBLE PURGE</span>
+                  <span>PERMANENT PURGE</span>
                 </div>
               </div>
 
-              {/* Creative Sides: Gradient Shadow Rails on Left & Right Borders */}
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
               <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
 
               <div className="p-6 sm:p-7 pt-5">
-                {/* Header Row: Badge & Close Button */}
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
                     <h3 className="text-lg font-black text-zinc-900 tracking-tight">
-                      Delete File from Drive?
+                      Delete File Permanently?
                     </h3>
                     <p className="text-xs text-zinc-500 mt-0.5">
-                      Action confirmed from authorized Chief workspace.
+                      This file will be completely erased from Supabase storage now.
                     </p>
                   </div>
-
                   <button
                     type="button"
-                    onClick={() => setConfirmDeleteFile(null)}
+                    onClick={() => setConfirmPermanentDeleteFile(null)}
                     className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
                     aria-label="Close"
                   >
@@ -1522,43 +1826,24 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                   </button>
                 </div>
 
-                {/* File Spotlight Preview Card (Highlighted element preserved with monochrome accents) */}
                 <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-4 flex items-center gap-3.5 mb-4 shadow-2xs">
-                  <div className="shrink-0">
-                    <FileBrandIcon
-                      fileName={confirmDeleteFile.name}
-                      mimeType={confirmDeleteFile.type}
-                      size="md"
-                    />
-                  </div>
+                  <FileBrandIcon
+                    fileName={confirmPermanentDeleteFile.name}
+                    mimeType={confirmPermanentDeleteFile.type}
+                    size="md"
+                  />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-zinc-900 truncate" title={confirmDeleteFile.name}>
-                      {confirmDeleteFile.name}
+                    <p className="text-sm font-bold text-zinc-900 truncate" title={confirmPermanentDeleteFile.name}>
+                      {confirmPermanentDeleteFile.name}
                     </p>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
-                        {formatBytes(confirmDeleteFile.size)}
-                      </span>
-                      {isTemp ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-700 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
-                          <Clock className="w-3 h-3 text-zinc-500" />
-                          <span>30d Temp Stash</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
-                          <Shield className="w-3 h-3 text-zinc-600" />
-                          <span>Permanent Vault</span>
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-zinc-600 bg-white border border-zinc-200 px-1.5 py-0.5 rounded-md shadow-2xs truncate max-w-[120px]">
-                        <FolderOpen className="w-3 h-3 shrink-0 text-zinc-400" />
-                        <span className="truncate">{folderLabel}</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="font-mono text-[11px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
+                        {formatBytes(confirmPermanentDeleteFile.size)}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Storage Reclaimed Callout Banner */}
                 <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-2">
@@ -1570,30 +1855,29 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                       </span>
                     </div>
                     <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-black tracking-tight tabular-nums shadow-2xs">
-                      +{formatBytes(confirmDeleteFile.size)}
+                      +{formatBytes(confirmPermanentDeleteFile.size)}
                     </span>
                   </div>
                   <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
-                    Immediately reclaims Supabase cloud storage. This file will be permanently purged and cannot be recovered.
+                    This file cannot be recovered once purged.
                   </p>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100">
                   <button
                     type="button"
-                    onClick={() => setConfirmDeleteFile(null)}
+                    onClick={() => setConfirmPermanentDeleteFile(null)}
                     className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
                   >
-                    Keep File
+                    Keep in Trash
                   </button>
                   <button
                     type="button"
-                    onClick={() => executeDeleteFile(confirmDeleteFile)}
+                    onClick={() => executePermanentDeleteFile(confirmPermanentDeleteFile)}
                     className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-md shadow-zinc-900/20 active:scale-98 transition-all cursor-pointer flex items-center gap-1.5"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-zinc-300" />
-                    <span>Delete File</span>
+                    <span>Delete Permanently</span>
                   </button>
                 </div>
               </div>
@@ -1602,15 +1886,98 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         );
       })()}
 
-      {/* Universal Document & File Viewer Modal (Word, Excel, CSV, PDF, Image, Code) */}
+      {/* Empty Recycle Bin Modal */}
+      {confirmEmptyTrash && (() => {
+        const trashedTotal = trashedFiles.reduce((acc, f) => acc + (f.size || 0), 0);
+
+        return renderPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              onClick={() => setConfirmEmptyTrash(false)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            />
+
+            <div className="relative bg-white rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 max-w-md w-full overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex justify-center -mt-px">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-950 text-white rounded-b-2xl shadow-sm text-[10px] font-mono tracking-wider font-semibold border-x border-b border-zinc-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span>EMPTY RECYCLE BIN</span>
+                </div>
+              </div>
+
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-400 to-transparent pointer-events-none" />
+
+              <div className="p-6 sm:p-7 pt-5">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="text-lg font-black text-zinc-900 tracking-tight">
+                      Empty Entire Recycle Bin?
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Permanently delete all {trashedFiles.length} file(s) currently in the recycle bin.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmEmptyTrash(false)}
+                    className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-zinc-50 border border-zinc-200/90 text-xs text-zinc-700 mb-6 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-zinc-900 text-white flex items-center justify-center shadow-2xs">
+                        <HardDrive className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-[11px] font-bold text-zinc-900 uppercase tracking-wider">
+                        Total Storage Reclaimed
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-900 text-white text-[11px] font-black tracking-tight tabular-nums shadow-2xs">
+                      +{formatBytes(trashedTotal)}
+                    </span>
+                  </div>
+                  <p className="text-[12px] leading-relaxed text-zinc-600 pl-8">
+                    All <strong className="font-bold text-zinc-900">{trashedFiles.length} file(s)</strong> will be completely removed from Supabase storage. This action cannot be reversed.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmEmptyTrash(false)}
+                    className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={executeEmptyTrash}
+                    className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-md shadow-zinc-900/20 active:scale-98 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-zinc-300" />
+                    <span>Empty Bin Now</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Universal Document & File Viewer Modal */}
       {previewFile &&
         renderPortal(
           <UniversalFileViewer
             file={previewFile}
             isOpen={Boolean(previewFile)}
             onClose={() => setPreviewFile(null)}
-            onToggleRetention={handleToggleRetention}
-            onDeleteFile={executeDeleteFile}
+            onDeleteFile={handleMoveToTrash}
           />
         )}
     </div>
