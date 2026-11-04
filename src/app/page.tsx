@@ -8,6 +8,7 @@ import { DashboardView } from "@/components/dashboard/DashboardView";
 import { InvoicesView } from "@/components/invoices/InvoicesView";
 import { NotesView } from "@/components/notes/NotesView";
 import { USCalendarView } from "@/components/calendar/USCalendarView";
+import { DirectoryView } from "@/components/directory/DirectoryView";
 import { DriveView } from "@/components/drive/DriveView";
 import { ResourcesView } from "@/components/resources/ResourcesView";
 import { LoginsView } from "@/components/logins/LoginsView";
@@ -21,8 +22,8 @@ import { MobileBottomBar, MobileBottomBarStyle } from "@/components/layout/Mobil
 import { PullToRefresh } from "@/components/ui/PullToRefresh";
 import { Menu, Loader2 } from "lucide-react";
 
-type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "resources" | "logins" | "master-control" | "lab" | "usage";
-const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "drive", "resources", "logins", "master-control", "lab", "usage"];
+type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "directory" | "drive" | "resources" | "logins" | "master-control" | "lab" | "usage";
+const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "directory", "drive", "resources", "logins", "master-control", "lab", "usage"];
 
 export default function Home() {
   const { user, isAuthenticated, isLoading, lockoutInfo } = useAuth();
@@ -211,6 +212,8 @@ export default function Home() {
                 <NotesView />
               ) : activeTab === "calendar" ? (
                 <USCalendarView />
+              ) : activeTab === "directory" ? (
+                <DirectoryView />
               ) : activeTab === "drive" ? (
                 <DriveView onNavigateUsage={() => handleTabChange("usage")} />
               ) : activeTab === "resources" ? (

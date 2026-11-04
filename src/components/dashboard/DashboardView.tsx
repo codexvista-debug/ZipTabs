@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 
 interface DashboardViewProps {
-  onNavigate: (tab: "dashboard" | "invoices" | "notes" | "calendar" | "drive" | "usage") => void;
+  onNavigate: (tab: any) => void;
 }
 
 interface ExpiringDriveFile {

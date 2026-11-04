@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   NotebookPen,
   CalendarDays,
+  BookUser,
   FolderOpen,
   HardDrive,
   LogOut,
@@ -46,6 +47,7 @@ export function Sidebar({
     { id: "invoices", label: "Invoices", icon: FileSpreadsheet },
     { id: "notes", label: "Notes & Reminders", icon: NotebookPen },
     { id: "calendar", label: "US Calendar", icon: CalendarDays },
+    { id: "directory", label: "Phone Directory", icon: BookUser },
     { id: "drive", label: "Drive", icon: FolderOpen },
     { id: "resources", label: "Resources", icon: Calculator },
     ...(isChief
