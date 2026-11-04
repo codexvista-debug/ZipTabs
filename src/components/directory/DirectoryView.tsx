@@ -56,6 +56,7 @@ import {
   Eye,
   FileText,
   Loader2,
+  Globe,
 } from "lucide-react";
 
 export function DirectoryView() {
@@ -668,43 +669,43 @@ export function DirectoryView() {
         </button>
       </div>
 
-      {/* 2. GLOBAL SEARCH ALL BAR (Clean full-width trigger) */}
+      {/* 2. GLOBAL SEARCH ALL BAR (Clean full-width trigger with Globe icon) */}
       <div className="w-full">
         <button
           type="button"
           onClick={() => setIsSearchPaletteOpen(true)}
           className="w-full flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-blue-400 rounded-2xl text-xs sm:text-sm text-slate-500 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
         >
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <Search className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-medium text-slate-600 truncate">
-              Search All across employees, vendors, phone numbers, emails...
+              Search across employees, vendors, phone numbers, emails...
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-2">
-            <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] sm:text-[11px] font-mono font-bold border border-blue-200">
-              Global Search
-            </span>
             <span className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg bg-slate-100 text-[10px] sm:text-[11px] font-mono font-bold text-slate-500 border border-slate-200">
               Ctrl + K
             </span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 group-hover:bg-blue-100 text-blue-600 border border-blue-200/70 flex items-center justify-center transition-colors shadow-2xs">
+              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
           </div>
         </button>
       </div>
 
-      {/* 3. DIVISION SEGMENTED SWITCHER (Vendors on left, Employees middle, All right) */}
+      {/* 3. DIVISION SEGMENTED SWITCHER (Proportional width for mobile: Vendors, Employees, All) */}
       <div className="w-full max-w-full overflow-hidden flex items-center gap-1 sm:gap-1.5 p-1 bg-slate-100 rounded-xl sm:rounded-2xl">
         <button
           type="button"
           onClick={() => setActiveDivision("vendor")}
-          className={`flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
+          className={`flex-[1.05] sm:flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
             activeDivision === "vendor"
               ? "bg-white text-indigo-700 shadow-xs border border-indigo-200/60"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
           <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-          <span className="truncate">Vendors</span>
+          <span className="whitespace-nowrap">Vendors</span>
           <span
             className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
               activeDivision === "vendor"
@@ -719,14 +720,14 @@ export function DirectoryView() {
         <button
           type="button"
           onClick={() => setActiveDivision("employee")}
-          className={`flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
+          className={`flex-[1.35] sm:flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
             activeDivision === "employee"
               ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
           <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-          <span className="truncate">Employees</span>
+          <span className="whitespace-nowrap">Employees</span>
           <span
             className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
               activeDivision === "employee"
@@ -741,13 +742,13 @@ export function DirectoryView() {
         <button
           type="button"
           onClick={() => setActiveDivision("all")}
-          className={`flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
+          className={`flex-[0.65] sm:flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
             activeDivision === "all"
               ? "bg-white text-slate-900 shadow-xs border border-slate-300/60"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          <span className="truncate">All</span>
+          <span className="whitespace-nowrap">All</span>
           <span
             className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
               activeDivision === "all"
