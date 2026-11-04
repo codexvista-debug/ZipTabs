@@ -585,7 +585,6 @@ export function DirectoryView() {
           metric={toast.metric}
           position={getToastPosition(toast.title)}
           onClose={() => setToast(null)}
-          durationMs={4500}
         />
       )}
 

@@ -40,8 +40,8 @@ interface ActiveToastState {
 
 export function DesignLabView() {
   const [selectedPosition, setSelectedPosition] = useState<ToastPosition>("top-center");
-  const [selectedVariant, setSelectedVariant] = useState<ToastVariant>("sculpted-notch");
-  const [selectedDuration, setSelectedDuration] = useState<number>(2200);
+  const [selectedVariant, setSelectedVariant] = useState<ToastVariant>("monolith");
+  const [selectedDuration, setSelectedDuration] = useState<number>(3500);
   const [activeToast, setActiveToast] = useState<ActiveToastState | null>(null);
   const [lastActionMessage, setLastActionMessage] = useState<string | null>(null);
 

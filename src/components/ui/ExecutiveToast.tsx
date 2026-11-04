@@ -30,18 +30,18 @@ export function getToastPosition(
   ) {
     return "bottom-right";
   }
-  return "top-right";
+  return "top-center";
 }
 
 export const TOAST_POSITION_CLASSES: Record<ToastPosition, string> = {
-  "top-right":
-    "fixed top-4 sm:top-6 right-3 sm:right-6 left-3 sm:left-auto z-50 w-auto max-w-[calc(100vw-24px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-top-3 sm:slide-in-from-right-3 duration-200 flex justify-end",
-  "bottom-right":
-    "fixed bottom-16 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto z-50 w-auto max-w-[calc(100vw-24px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-end",
-  "bottom-center":
-    "fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-24px)] sm:w-auto sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
   "top-center":
-    "fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-24px)] sm:w-auto sm:max-w-lg pointer-events-auto animate-in fade-in slide-in-from-top-3 duration-200 flex justify-center",
+    "fixed top-3 sm:top-6 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-top-3 duration-200 flex justify-center",
+  "top-right":
+    "fixed top-3 sm:top-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-top-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
+  "bottom-right":
+    "fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
+  "bottom-center":
+    "fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-md pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
   none: "",
 };
 
@@ -58,7 +58,7 @@ export interface ExecutiveToastProps {
     onClick: () => void;
   };
   onClose?: () => void;
-  durationMs?: number; // Defaults to snappy 2200ms
+  durationMs?: number; // Defaults to extended 3500ms
 }
 
 export function ExecutiveToast({
@@ -68,10 +68,10 @@ export function ExecutiveToast({
   headerMeta,
   metric,
   position,
-  variant = "sculpted-notch",
+  variant = "monolith",
   action,
   onClose,
-  durationMs = 2200,
+  durationMs = 3500,
 }: ExecutiveToastProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [timeLeft, setTimeLeft] = useState(durationMs);
@@ -219,32 +219,33 @@ export function ExecutiveToast({
   }
 
   // ----------------------------------------------------
-  // VARIANT C: Monolith Command Bar (Docked Toast)
+  // VARIANT C: Monolith Command Bar (Default & Executive)
+  // Slim, high-density HUD profile scaled for mobile & desktop
   // ----------------------------------------------------
   if (variant === "monolith") {
     const monolithCard = (
       <div
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="relative bg-white rounded-2xl shadow-2xl border border-zinc-200/90 overflow-hidden w-full max-w-[calc(100vw-24px)] sm:max-w-md ring-1 ring-zinc-950/10 pointer-events-auto"
+        className="relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-32px)] sm:max-w-md ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01]"
       >
-        {/* Monolith Dark Header Bar */}
-        <div className="bg-zinc-950 text-white px-3.5 py-1.5 flex items-center justify-between border-b border-zinc-800">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse`} />
-            <span className="text-[10px] font-mono tracking-wider font-semibold truncate text-zinc-200">
-              {defaultMeta.toUpperCase()}
+        {/* Monolith Dark Header Bar - Ultra-compact on mobile */}
+        <div className="bg-zinc-950 text-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 flex items-center justify-between border-b border-zinc-800 gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse shrink-0`} />
+            <span className="text-[9px] sm:text-[10px] font-mono tracking-wider font-semibold truncate text-zinc-200 uppercase">
+              {defaultMeta}
             </span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+            <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
               {defaultMetric}
             </span>
             {onClose && (
               <button
                 type="button"
                 onClick={onClose}
-                className="w-4 h-4 rounded text-zinc-400 hover:text-white transition-colors flex items-center justify-center cursor-pointer ml-1"
+                className="w-4 h-4 rounded text-zinc-400 hover:text-white transition-colors flex items-center justify-center cursor-pointer ml-0.5"
                 aria-label="Close"
               >
                 <X className="w-3 h-3" />
@@ -253,17 +254,17 @@ export function ExecutiveToast({
           </div>
         </div>
 
-        {/* Card Body */}
-        <div className="p-3.5 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
-            {renderIcon("w-4 h-4")}
+        {/* Card Body - Slim executive profile */}
+        <div className="px-2.5 sm:px-3.5 py-2 sm:py-3 flex items-center gap-2.5 sm:gap-3">
+          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
+            {renderIcon("w-3.5 h-3.5 sm:w-4 sm:h-4")}
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight leading-snug truncate">
               {title}
             </h4>
             {description && (
-              <p className="text-[11px] text-zinc-500 mt-0.5 leading-tight truncate">
+              <p className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 leading-tight truncate">
                 {description}
               </p>
             )}
@@ -272,14 +273,14 @@ export function ExecutiveToast({
             <button
               type="button"
               onClick={action.onClick}
-              className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-xs"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-xs"
             >
               {action.label}
             </button>
           )}
         </div>
 
-        {/* Bottom Progress Countdown Bar */}
+        {/* Bottom Progress Countdown Bar (Extended 3.5s) */}
         <div className="h-0.5 bg-zinc-100 overflow-hidden w-full">
           <div
             className={`h-full ${getAccentColor()} transition-all duration-75 ease-linear`}
