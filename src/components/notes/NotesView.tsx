@@ -2023,20 +2023,20 @@ export function NotesView() {
                     recordNoteOpened(note.id);
                     setViewingNote(note);
                   }}
-                  className={`group relative rounded-2xl border p-5 transition-all duration-300 ease-out flex flex-col justify-between cursor-pointer animate-note-card hover:-translate-y-1.5 hover:shadow-xl hover:shadow-slate-200/60 active:scale-[0.985] ${
+                  className={`group relative rounded-2xl border p-5 transition-all duration-300 ease-out flex flex-col justify-between cursor-pointer animate-note-card hover:-translate-y-1.5 hover:shadow-xl active:scale-[0.985] ${
                     celebratingNoteId === note.id
                       ? "animate-celebration-pulse ring-2 ring-emerald-500 shadow-lg"
                       : ""
                   } ${
                     note.is_completed
-                      ? "bg-slate-50/70 border-slate-200/90 hover:border-slate-300 opacity-80 hover:opacity-100 shadow-2xs"
+                      ? "bg-slate-50/70 border-slate-200/90 border-t-2 border-t-emerald-500/70 hover:border-slate-300 opacity-80 hover:opacity-100 shadow-2xs"
                       : isOverdue
-                      ? "bg-rose-50/40 border-rose-400 hover:border-rose-500 shadow-md ring-2 ring-rose-500 animate-pulse"
+                      ? "bg-gradient-to-b from-rose-100/60 via-rose-50/30 to-white border-rose-300 border-t-4 border-t-rose-600 hover:border-rose-400 shadow-md ring-2 ring-rose-500/30 animate-pulse"
                       : isUrgent
-                      ? "bg-rose-50/10 border-rose-300 hover:border-rose-400 shadow-xs ring-1 ring-rose-500/10"
+                      ? "bg-gradient-to-b from-rose-50/70 via-rose-50/20 to-white border-rose-200/90 border-t-4 border-t-rose-500 hover:border-rose-300 shadow-xs hover:shadow-rose-500/10 ring-1 ring-rose-500/15"
                       : isHigh
-                      ? "bg-amber-50/10 border-amber-300 hover:border-amber-400 shadow-xs ring-1 ring-amber-500/10"
-                      : "bg-white border-slate-200/90 hover:border-slate-300 shadow-2xs"
+                      ? "bg-gradient-to-b from-amber-50/70 via-amber-50/20 to-white border-amber-200/90 border-t-4 border-t-amber-500 hover:border-amber-300 shadow-xs hover:shadow-amber-500/10 ring-1 ring-amber-500/15"
+                      : "bg-white border-slate-200/90 border-t-2 border-t-slate-300 hover:border-slate-300 shadow-2xs hover:shadow-slate-200/60"
                   }`}
                 >
                   <div>
@@ -2051,27 +2051,27 @@ export function NotesView() {
 
                       {/* Priority Pill */}
                       {note.is_completed ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
-                          <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0 whitespace-nowrap shadow-2xs">
+                          <Check className="w-3 h-3 text-emerald-700" />
                           <span>Done</span>
                         </span>
                       ) : isOverdue ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow-xs shrink-0 whitespace-nowrap border border-rose-700 animate-pulse">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-rose-700 text-white shadow-sm shadow-rose-700/40 shrink-0 whitespace-nowrap border border-rose-800 animate-pulse">
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
-                          <span>UNRESOLVED &gt;12h</span>
+                          <span>OVERDUE &gt;12h 🔥</span>
                         </span>
                       ) : isUrgent ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0 whitespace-nowrap">
-                          <Flame className="w-3 h-3 text-rose-500 fill-rose-500" />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight bg-gradient-to-r from-rose-600 via-rose-500 to-red-600 text-white shadow-sm shadow-rose-600/30 ring-1 ring-rose-700/40 shrink-0 whitespace-nowrap animate-pulse">
+                          <Flame className="w-3.5 h-3.5 text-white fill-white shrink-0" />
                           <span>Urgent 🔥</span>
                         </span>
                       ) : isHigh ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 shrink-0 whitespace-nowrap">
-                          <AlertCircle className="w-3 h-3 text-amber-500" />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-sm shadow-amber-500/30 ring-1 ring-amber-600/40 shrink-0 whitespace-nowrap">
+                          <AlertCircle className="w-3.5 h-3.5 text-white shrink-0" />
                           <span>High Priority</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200/80 shrink-0 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200/90 shrink-0 whitespace-nowrap">
                           <span>Normal</span>
                         </span>
                       )}
@@ -2768,27 +2768,27 @@ export function NotesView() {
 
                     {/* Priority / Completed Pill */}
                     {viewingNote.is_completed ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs shrink-0">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
                         <span>Completed</span>
                       </span>
                     ) : isNoteOverdueUnresolved(viewingNote) ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-black px-3 py-1 rounded-full bg-rose-600 text-white shadow-xs shrink-0 animate-pulse border border-rose-700">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase px-3 py-1 rounded-full bg-rose-700 text-white shadow-sm shadow-rose-700/40 shrink-0 animate-pulse border border-rose-800">
                         <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
                         <span>Unresolved &gt; 12h 🔥</span>
                       </span>
                     ) : viewingNote.priority === "urgent" ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs shrink-0">
-                        <Flame className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+                      <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase px-3.5 py-1 rounded-full bg-gradient-to-r from-rose-600 via-rose-500 to-red-600 text-white shadow-sm shadow-rose-600/30 ring-1 ring-rose-700/40 shrink-0 animate-pulse">
+                        <Flame className="w-3.5 h-3.5 text-white fill-white" />
                         <span>Urgent 🔥</span>
                       </span>
                     ) : viewingNote.priority === "high" ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs shrink-0">
-                        <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                      <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-sm shadow-amber-500/30 ring-1 ring-amber-600/40 shrink-0">
+                        <AlertCircle className="w-3.5 h-3.5 text-white" />
                         <span>High Priority</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs shrink-0">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200/90 shadow-2xs shrink-0">
                         <span>Normal Priority</span>
                       </span>
                     )}

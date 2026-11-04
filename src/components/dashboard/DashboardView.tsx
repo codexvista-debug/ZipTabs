@@ -1094,22 +1094,22 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
                     <div className="text-right shrink-0">
                       {note.is_completed ? (
-                        <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span className="text-[10px] text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-2xs">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-700" />
                           <span>Done</span>
                         </span>
                       ) : note.priority === "urgent" ? (
-                        <span className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1">
-                          <Flame className="w-3 h-3 text-rose-500 fill-rose-500" />
+                        <span className="text-[10px] text-white bg-gradient-to-r from-rose-600 to-red-600 px-2.5 py-0.5 rounded-full font-black flex items-center gap-1 shadow-xs shadow-rose-600/30 animate-pulse">
+                          <Flame className="w-3 h-3 text-white fill-white" />
                           <span>Urgent 🔥</span>
                         </span>
                       ) : note.priority === "high" ? (
-                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-extrabold flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 text-amber-500" />
+                        <span className="text-[10px] text-white bg-gradient-to-r from-amber-500 to-amber-600 px-2.5 py-0.5 rounded-full font-black flex items-center gap-1 shadow-xs shadow-amber-500/25">
+                          <AlertCircle className="w-3 h-3 text-white" />
                           <span>High Priority</span>
                         </span>
                       ) : (
-                        <span className="text-[10px] text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full font-medium">
+                        <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200/90 px-2 py-0.5 rounded-full font-semibold">
                           <span>Normal</span>
                         </span>
                       )}
