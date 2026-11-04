@@ -41,12 +41,12 @@ export const sha256Hex = sha256SaltedHex;
 
 /**
  * Normalizes and formats any US phone number into:
- * 1 (XXX) XXX-XXXX [Ext. YYY]
+ * 1 (XXX) XXX-XXXX
  *
  * Guaranteed uniform style across the entire application:
  * Starts with '1 ', 3 numbers in brackets, space, 3 numbers, dash, 4 numbers.
  */
-export function formatUSAPhone(raw: string): string {
+export function formatUSAPhone(raw: string, includeExtension = false): string {
   if (!raw) return "";
   const trimmed = raw.trim();
   if (!trimmed) return "";
@@ -67,26 +67,28 @@ export function formatUSAPhone(raw: string): string {
     digits = digits.substring(1);
   }
 
+  const extSuffix = includeExtension ? extension : "";
+
   // Standard 10-digit US number -> 1 (XXX) XXX-XXXX
   if (digits.length === 10) {
     const area = digits.substring(0, 3);
     const prefix = digits.substring(3, 6);
     const line = digits.substring(6, 10);
-    return `1 (${area}) ${prefix}-${line}${extension}`;
+    return `1 (${area}) ${prefix}-${line}${extSuffix}`;
   }
 
-  // More than 10 digits without explicit ext keyword -> extra digits become Ext.
+  // More than 10 digits without explicit ext keyword -> extra digits become Ext if includeExtension
   if (digits.length > 10) {
     const area = digits.substring(0, 3);
     const prefix = digits.substring(3, 6);
     const line = digits.substring(6, 10);
     const extra = digits.substring(10);
-    return `1 (${area}) ${prefix}-${line}${extension || ` Ext. ${extra}`}`;
+    return `1 (${area}) ${prefix}-${line}${includeExtension ? (extension || ` Ext. ${extra}`) : ""}`;
   }
 
   // Partial digits (e.g. 7 digits local or partial input)
   if (digits.length === 7) {
-    return `1 (555) ${digits.substring(0, 3)}-${digits.substring(3, 7)}${extension}`;
+    return `1 (555) ${digits.substring(0, 3)}-${digits.substring(3, 7)}${extSuffix}`;
   }
 
   // If already formatted or fallback
@@ -98,16 +100,24 @@ export function formatUSAPhone(raw: string): string {
 }
 
 /**
+ * Extracts phone and extension separately.
+ */
+export function parsePhoneAndExtension(raw: string): { phone: string; extension?: string } {
+  if (!raw) return { phone: "" };
+  const trimmed = raw.trim();
+  const extMatch = trimmed.match(/(?:ext|ext\.|x|#|extension)[\s.:]*(\d+)/i);
+  const extension = extMatch ? extMatch[1] : undefined;
+  const corePhone = formatUSAPhone(trimmed, false);
+  return { phone: corePhone, extension };
+}
+
+/**
  * Interactive input formatter for USA phone numbers as the user types:
  * Automatically formats digits into `1 (XXX) XXX-XXXX`.
  */
 export function formatAsYouTypeUSAPhone(value: string): string {
   if (!value) return "";
-  let extension = "";
   const extMatch = value.match(/(?:ext|ext\.|x|#|extension)[\s.:]*(\d*)/i);
-  if (extMatch) {
-    extension = " Ext. " + extMatch[1];
-  }
   const mainPart = extMatch ? value.substring(0, extMatch.index) : value;
   let digits = mainPart.replace(/\D/g, "");
 
@@ -124,10 +134,7 @@ export function formatAsYouTypeUSAPhone(value: string): string {
   if (digits.length <= 6) {
     return `1 (${digits.slice(0, 3)}) ${digits.slice(3)}`;
   }
-  if (digits.length <= 10) {
-    return `1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}${extension}`;
-  }
-  return `1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}${extension || ` Ext. ${digits.slice(10)}`}`;
+  return `1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
 /**
@@ -167,6 +174,7 @@ export interface DirectoryRecord {
   name: string;
   email: string;
   phone: string;
+  extension?: string;
   notes?: string;
   _phoneNeedsUpgrade?: boolean;
   created_at?: string;
@@ -206,13 +214,16 @@ export async function encryptDirectoryRecordForDb(
     name: string;
     email: string;
     phone: string;
+    extension?: string;
     notes?: string;
   },
   key: CryptoKey
 ): Promise<Omit<RawSupabaseDirectoryRow, "created_at" | "updated_at">> {
   // Generate a primary IV for this row
   const rowIv = bufferToBase64(crypto.getRandomValues(new Uint8Array(12)));
-  const formattedPhone = formatUSAPhone(record.phone);
+  const { phone: parsedPhone, extension: parsedExt } = parsePhoneAndExtension(record.phone);
+  const finalExtension = record.extension?.trim() || parsedExt || undefined;
+  const formattedPhone = parsedPhone || formatUSAPhone(record.phone, false);
   const cleanPhone = formattedPhone.replace(/\D/g, "") || formattedPhone.trim();
   const trimmedNotes = record.notes?.trim() || "";
 
@@ -258,6 +269,7 @@ export async function encryptDirectoryRecordForDb(
     metadata: {
       secured: true,
       crypto_algo: "AES-256-GCM + Salted SHA-256",
+      extension: finalExtension,
       timestamp: new Date().toISOString(),
     },
   } as Omit<RawSupabaseDirectoryRow, "created_at" | "updated_at">;
@@ -281,7 +293,8 @@ export async function decryptSupabaseDirectoryRow(
   ]);
 
   const rawTrimmedPhone = phone.trim();
-  const formattedPhone = formatUSAPhone(rawTrimmedPhone);
+  const { phone: formattedPhone, extension: phoneExt } = parsePhoneAndExtension(rawTrimmedPhone);
+  const parsedExtension = row.metadata?.extension || phoneExt || undefined;
   const _phoneNeedsUpgrade = Boolean(rawTrimmedPhone && rawTrimmedPhone !== formattedPhone);
 
   return {
@@ -291,6 +304,7 @@ export async function decryptSupabaseDirectoryRow(
     name: name.trim(),
     email: email.trim(),
     phone: formattedPhone,
+    extension: parsedExtension,
     notes: decryptedNotes?.trim() || undefined,
     _phoneNeedsUpgrade,
     created_at: row.created_at,

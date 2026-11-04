@@ -37,6 +37,7 @@ interface DirectoryContactModalProps {
     name: string;
     email: string;
     phone: string;
+    extension?: string;
     notes?: string;
   }) => Promise<void>;
   initialRecord?: DirectoryRecord | null;
@@ -59,6 +60,8 @@ export function DirectoryContactModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [extension, setExtension] = useState("");
+  const [showExtension, setShowExtension] = useState(false);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -80,7 +83,10 @@ export function DirectoryContactModal({
       setCompany(initialRecord.company || "");
       setName(initialRecord.name || "");
       setEmail(initialRecord.email || "");
-      setPhone(formatUSAPhone(initialRecord.phone || ""));
+      setPhone(formatUSAPhone(initialRecord.phone || "", false));
+      const ext = initialRecord.extension || "";
+      setExtension(ext);
+      setShowExtension(Boolean(ext));
       setNotes(initialRecord.notes || "");
     } else {
       setDivision(defaultDivision);
@@ -88,6 +94,8 @@ export function DirectoryContactModal({
       setName("");
       setEmail("");
       setPhone("");
+      setExtension("");
+      setShowExtension(false);
       setNotes("");
     }
     setError(null);
@@ -153,7 +161,8 @@ export function DirectoryContactModal({
         company: company.trim() || (division === "employee" ? "ZipTabs Corp" : "Vendor Partner"),
         name: name.trim(),
         email: email.trim(),
-        phone: formatUSAPhone(phone),
+        phone: formatUSAPhone(phone, false),
+        extension: showExtension && extension.trim() ? extension.trim() : undefined,
         notes: notes.trim() || undefined,
       });
       onClose();
@@ -433,18 +442,62 @@ export function DirectoryContactModal({
           {/* Phone & Email */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Phone Number
-              </label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(formatAsYouTypeUSAPhone(e.target.value))}
-                  placeholder="1 (555) 000-0000"
-                  className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white font-mono"
-                />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Phone Number
+                </label>
+                {/* Extension Toggle Button (By default OFF) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showExtension) {
+                      setShowExtension(false);
+                      setExtension("");
+                    } else {
+                      setShowExtension(true);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer select-none active:scale-95 ${
+                    showExtension
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200/90"
+                  }`}
+                  title={showExtension ? "Hide Extension field" : "Enable Extension field"}
+                >
+                  <span>Extension</span>
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                      showExtension ? "bg-white animate-pulse" : "bg-slate-400"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 min-w-0">
+                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(formatAsYouTypeUSAPhone(e.target.value))}
+                    placeholder="1 (555) 000-0000"
+                    className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white font-mono"
+                  />
+                </div>
+
+                {/* Extra field for extension shown ONLY when toggle is ON */}
+                {showExtension && (
+                  <div className="w-24 sm:w-28 shrink-0 animate-in fade-in slide-in-from-right-1 duration-150">
+                    <input
+                      type="text"
+                      value={extension}
+                      onChange={(e) => setExtension(e.target.value.replace(/[^\d\w-]/g, ""))}
+                      placeholder="Ext #"
+                      className="w-full px-2.5 py-2 text-xs sm:text-sm rounded-xl border border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-blue-50/40 text-blue-900 font-mono text-center font-bold"
+                      title="Phone Extension Number (e.g. 204)"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

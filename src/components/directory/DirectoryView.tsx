@@ -249,6 +249,7 @@ export function DirectoryView() {
     name: string;
     email: string;
     phone: string;
+    extension?: string;
     notes?: string;
   }) => {
     if (!supabase) throw new Error("Supabase is not configured.");
@@ -278,6 +279,7 @@ export function DirectoryView() {
                 name: data.name,
                 email: data.email,
                 phone: data.phone,
+                extension: data.extension,
                 notes: data.notes,
                 updated_at: new Date().toISOString(),
               }
@@ -307,6 +309,7 @@ export function DirectoryView() {
         name: data.name,
         email: data.email,
         phone: data.phone,
+        extension: data.extension,
         notes: data.notes,
         created_at: inserted.created_at,
         updated_at: inserted.updated_at,
@@ -539,7 +542,8 @@ export function DirectoryView() {
           const phoneMatch =
             r.phone.toLowerCase().includes(q) ||
             (cleanNum.length >= 3 && r.phone.replace(/\D/g, "").includes(cleanNum));
-          if (!nameMatch && !compMatch && !emailMatch && !notesMatch && !phoneMatch) {
+          const extMatch = r.extension ? r.extension.toLowerCase().includes(q) : false;
+          if (!nameMatch && !compMatch && !emailMatch && !notesMatch && !phoneMatch && !extMatch) {
             return false;
           }
         }
@@ -943,9 +947,14 @@ export function DirectoryView() {
                     <div className="space-y-1.5 pt-0.5 text-xs">
                       {contact.phone && (
                         <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/70">
-                          <div className="flex items-center gap-2 font-mono font-semibold text-slate-800 text-xs truncate">
+                          <div className="flex items-center gap-1.5 font-mono font-semibold text-slate-800 text-xs truncate min-w-0">
                             <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             <span className="select-all truncate">{contact.phone}</span>
+                            {contact.extension && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold bg-slate-200/80 text-slate-800 border border-slate-300/70 shadow-2xs shrink-0 select-all">
+                                Ext: {contact.extension}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-1 shrink-0 ml-2">
                             <a
@@ -1093,10 +1102,10 @@ export function DirectoryView() {
                           </span>
                         </td>
 
-                        {/* Phone Number with Copy */}
+                        {/* Phone Number with Copy & Separate Extension Pill */}
                         <td className="py-3 px-4">
                           {contact.phone ? (
-                            <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800">
+                            <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800 flex-wrap">
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
@@ -1112,6 +1121,11 @@ export function DirectoryView() {
                               <span className="font-semibold select-all">
                                 {contact.phone}
                               </span>
+                              {contact.extension && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs select-all shrink-0 ml-1">
+                                  Ext: {contact.extension}
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <span className="text-slate-400 italic text-xs">No phone</span>

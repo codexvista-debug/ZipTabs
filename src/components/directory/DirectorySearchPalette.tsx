@@ -88,8 +88,9 @@ export function DirectorySearchPalette({
       const phoneMatch =
         r.phone.toLowerCase().includes(q) ||
         (cleanNum.length >= 3 && r.phone.replace(/\D/g, "").includes(cleanNum));
+      const extMatch = r.extension ? r.extension.toLowerCase().includes(q) : false;
 
-      return nameMatch || compMatch || emailMatch || notesMatch || phoneMatch;
+      return nameMatch || compMatch || emailMatch || notesMatch || phoneMatch || extMatch;
     };
 
     const matchedEmployees = records.filter((r) => r.division === "employee" && matches(r));
@@ -420,22 +421,29 @@ function SearchContactRow({
       {/* Action Buttons: Phone & Email Copy Only */}
       <div className="flex items-center gap-1.5 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
         {record.phone && (
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
-            <span className="hidden sm:inline text-xs font-mono font-medium text-slate-700 mr-1">
-              {record.phone}
-            </span>
-            <button
-              type="button"
-              onClick={() => onCopy(record.phone, record.id, "phone")}
-              title="Copy Phone Number"
-              className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-            >
-              {copiedField?.id === record.id && copiedField?.type === "phone" ? (
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-            </button>
+          <div className="flex items-center gap-1">
+            <div className="flex items-center bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
+              <span className="hidden sm:inline text-xs font-mono font-medium text-slate-700 mr-1">
+                {record.phone}
+              </span>
+              <button
+                type="button"
+                onClick={() => onCopy(record.phone, record.id, "phone")}
+                title="Copy Phone Number"
+                className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+              >
+                {copiedField?.id === record.id && copiedField?.type === "phone" ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
+            {record.extension && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs select-all shrink-0">
+                Ext: {record.extension}
+              </span>
+            )}
           </div>
         )}
 
