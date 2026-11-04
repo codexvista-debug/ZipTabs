@@ -999,42 +999,42 @@ export function MasterControlView() {
         </div>
       </div>
 
-      {/* Metric Cards Grid - Balanced 6-column grid with zero empty voids */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+      {/* Metric Cards Grid - All 5 cards side by side in a single compact row on PC */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-3 sm:gap-3.5">
         {/* Card 1: IP Lockdown Switch */}
-        <div className={`rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all lg:col-span-2 ${
+        <div className={`rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col justify-between transition-all ${
           settings.ip_lockdown_enabled
             ? "bg-rose-50/60 border-rose-300 ring-2 ring-rose-500/20"
             : "bg-white border-slate-200/90"
         }`}>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400">Lockdown Mode</span>
+              <span className="text-[11px] font-semibold text-slate-400">Lockdown Mode</span>
               <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
                   settings.ip_lockdown_enabled
                     ? "bg-rose-100 text-rose-600 animate-pulse"
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
-                <Lock className="w-4 h-4" />
+                <Lock className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              {settings.ip_lockdown_enabled ? "Locked" : "Standard"}
+            <div className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+              <span>{settings.ip_lockdown_enabled ? "Locked" : "Standard"}</span>
               {settings.ip_lockdown_enabled && (
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping shrink-0" />
               )}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[10px] text-slate-500 mt-1 line-clamp-1" title={settings.ip_lockdown_enabled ? "Restricted to authorized IP list only" : "Standard 3-strike IP defense active"}>
               {settings.ip_lockdown_enabled
-                ? "Restricted to authorized IP list only"
-                : "Standard 3-strike IP defense active"}
+                ? "Restricted to whitelist"
+                : "Standard 3-strike defense"}
             </p>
           </div>
           <button
             onClick={handleToggleLockdown}
-            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+            className={`mt-3 w-full py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 shrink-0 ${
               settings.ip_lockdown_enabled
                 ? "bg-rose-600 text-white hover:bg-rose-700 shadow-xs"
                 : "bg-blue-600 text-white hover:bg-blue-700 shadow-xs"
@@ -1042,52 +1042,52 @@ export function MasterControlView() {
           >
             {settings.ip_lockdown_enabled ? (
               <>
-                <Unlock className="w-3.5 h-3.5" />
-                <span>Disable Lockdown</span>
+                <Unlock className="w-3 h-3 shrink-0" />
+                <span className="truncate">Disable</span>
               </>
             ) : (
               <>
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span>Lock to Current IP</span>
+                <ShieldAlert className="w-3 h-3 shrink-0" />
+                <span className="truncate">Lock to IP</span>
               </>
             )}
           </button>
         </div>
 
         {/* Card 2: Vanish Mode Switch */}
-        <div className={`rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all lg:col-span-2 ${
+        <div className={`rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col justify-between transition-all ${
           settings.vanish_mode_enabled
             ? "bg-purple-50/60 border-purple-300 ring-2 ring-purple-500/20"
             : "bg-white border-slate-200/90"
         }`}>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400">Vanish Mode</span>
+              <span className="text-[11px] font-semibold text-slate-400">Vanish Mode</span>
               <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
                   settings.vanish_mode_enabled
                     ? "bg-purple-100 text-purple-700 animate-pulse"
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
-                <Ghost className="w-4 h-4" />
+                <Ghost className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              {settings.vanish_mode_enabled ? "Active" : "Standard"}
+            <div className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+              <span>{settings.vanish_mode_enabled ? "Active" : "Standard"}</span>
               {settings.vanish_mode_enabled && (
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping shrink-0" />
               )}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[10px] text-slate-500 mt-1 line-clamp-1" title={settings.vanish_mode_enabled ? "Non-whitelisted visitors redirected to Wikipedia" : "Decoy Wikipedia redirect is currently off"}>
               {settings.vanish_mode_enabled
-                ? "Non-whitelisted visitors redirected to Wikipedia"
-                : "Decoy Wikipedia redirect is currently off"}
+                ? "Decoy redirect active"
+                : "Decoy redirect is off"}
             </p>
           </div>
           <button
             onClick={handleToggleVanishMode}
-            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+            className={`mt-3 w-full py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 shrink-0 ${
               settings.vanish_mode_enabled
                 ? "bg-purple-700 text-white hover:bg-purple-800 shadow-xs"
                 : "bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 shadow-xs"
@@ -1095,71 +1095,71 @@ export function MasterControlView() {
           >
             {settings.vanish_mode_enabled ? (
               <>
-                <Unlock className="w-3.5 h-3.5" />
-                <span>Disable Vanish</span>
+                <Unlock className="w-3 h-3 shrink-0" />
+                <span className="truncate">Disable</span>
               </>
             ) : (
               <>
-                <Ghost className="w-3.5 h-3.5" />
-                <span>Enable Vanish Mode</span>
+                <Ghost className="w-3 h-3 shrink-0" />
+                <span className="truncate">Enable</span>
               </>
             )}
           </button>
         </div>
 
         {/* Card 3: Blacklisted & Locked IPs */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between md:col-span-2 lg:col-span-2">
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400">Blocked / Banned IPs</span>
-              <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                <Ban className="w-4 h-4" />
+              <span className="text-[11px] font-semibold text-slate-400">Blocked IPs</span>
+              <div className="w-7 h-7 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <Ban className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="text-xl font-black text-slate-900 tracking-tight">
               {blacklistedCount}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[10px] text-slate-500 mt-1 line-clamp-1" title={chiefTargetAttempts > 0 ? `${chiefTargetAttempts} IP(s) targeted administrator login` : "No malicious strikes on administrator"}>
               {chiefTargetAttempts > 0
-                ? `${chiefTargetAttempts} IP(s) targeted administrator login`
-                : "No malicious strikes on administrator"}
+                ? `${chiefTargetAttempts} strike(s) on admin`
+                : "0 strikes recorded"}
             </p>
           </div>
-          <div className="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400">
-            <span>Firewall & 60m Inactivity Logout</span>
+          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-semibold text-slate-400">
+            <span>60m Logout</span>
             <span className="text-emerald-600 flex items-center gap-1 font-bold">
-              <CheckCircle2 className="w-3 h-3" />
+              <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
               <span>Active</span>
             </span>
           </div>
         </div>
 
         {/* Card 4: Users & Registration */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between md:col-span-1 lg:col-span-3">
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400">Registered Users</span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <Users className="w-4 h-4" />
+              <span className="text-[11px] font-semibold text-slate-400">Registered Users</span>
+              <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <Users className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {users.length} <span className="text-xs font-normal text-slate-400">account{users.length === 1 ? "" : "s"}</span>
+            <div className="text-xl font-black text-slate-900 tracking-tight">
+              {users.length} <span className="text-[11px] font-normal text-slate-400">user{users.length === 1 ? "" : "s"}</span>
             </div>
             <div className="mt-1 flex items-center gap-1.5">
               <span
-                className={`w-2 h-2 rounded-full ${
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                   settings.registrations_allowed ? "bg-amber-500" : "bg-emerald-500"
                 }`}
               />
-              <span className="text-[11px] font-bold text-slate-600">
-                {settings.registrations_allowed ? "Registrations Open" : "Registrations Paused"}
+              <span className="text-[10px] font-bold text-slate-600 truncate">
+                {settings.registrations_allowed ? "Open" : "Paused"}
               </span>
             </div>
           </div>
           <button
             onClick={handleToggleRegistrations}
-            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+            className={`mt-3 w-full py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 shrink-0 ${
               settings.registrations_allowed
                 ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
                 : "bg-slate-900 text-white hover:bg-slate-800"
@@ -1167,58 +1167,58 @@ export function MasterControlView() {
           >
             {settings.registrations_allowed ? (
               <>
-                <UserX className="w-3.5 h-3.5" />
-                <span>Pause Registrations</span>
+                <UserX className="w-3 h-3 shrink-0" />
+                <span className="truncate">Pause</span>
               </>
             ) : (
               <>
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Resume Registrations</span>
+                <UserCheck className="w-3 h-3 shrink-0" />
+                <span className="truncate">Resume</span>
               </>
             )}
           </button>
         </div>
 
         {/* Card 5: Your Current IP & Country */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between md:col-span-1 lg:col-span-3">
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400">Your Current Network</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <Globe className="w-4 h-4" />
+              <span className="text-[11px] font-semibold text-slate-400">Your Network</span>
+              <div className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <Globe className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className="text-base font-mono font-bold text-slate-900 flex items-center gap-2 truncate" title={clientIp}>
-              <CountryFlagBadge code={countryMap[clientIp]} ip={clientIp} className="w-5 h-3.5" />
-              <span>{clientIp}</span>
+            <div className="text-sm font-mono font-bold text-slate-900 flex items-center gap-1.5 truncate" title={clientIp}>
+              <CountryFlagBadge code={countryMap[clientIp]} ip={clientIp} className="w-4 h-3 shrink-0" />
+              <span className="truncate">{clientIp}</span>
             </div>
             <div className="mt-1 flex items-center gap-1.5">
-              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 truncate">
                 {getCountryName(countryMap[clientIp], clientIp)}
               </span>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-1.5">
             <button
               onClick={() => copyToClipboard(clientIp, "my-ip")}
-              className="flex-1 py-1.5 px-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+              className="flex-1 py-1.5 px-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 shrink-0"
             >
               {copiedText === "my-ip" ? (
                 <>
-                  <Check className="w-3 h-3 text-emerald-600" />
-                  <span className="text-emerald-600">Copied</span>
+                  <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span className="text-emerald-600 text-[10px]">Copied</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3 h-3" />
-                  <span>Copy IP</span>
+                  <Copy className="w-3 h-3 shrink-0" />
+                  <span className="text-[10px]">Copy IP</span>
                 </>
               )}
             </button>
             {!settings.allowed_ips?.includes(clientIp) && (
               <button
                 onClick={() => handleAddAllowedIp()}
-                className="py-1.5 px-2.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-semibold cursor-pointer active:scale-95"
+                className="py-1.5 px-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[10px] font-semibold cursor-pointer active:scale-95 shrink-0"
                 title="Add to Whitelist"
               >
                 Whitelist
