@@ -17,6 +17,7 @@ import {
   CornerDownLeft,
   ArrowUpDown,
   Sparkles,
+  PhoneForwarded,
 } from "lucide-react";
 
 interface DirectorySearchPaletteProps {
@@ -426,8 +427,12 @@ function SearchContactRow({
               <span className="hidden sm:inline-flex items-baseline gap-0.5 text-xs font-mono font-medium text-slate-700 mr-1 select-all">
                 <span>{record.phone}</span>
                 {record.extension && (
-                  <sup className="text-[8.5px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1 py-0.5 rounded leading-none -top-1 ml-0.5">
-                    ext.{record.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
+                  <sup
+                    title={`Extension: ${record.extension}`}
+                    className="text-[8.5px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1 py-0.5 rounded leading-none -top-1 ml-0.5 inline-flex items-center gap-0.5"
+                  >
+                    <PhoneForwarded className="w-2 h-2 text-indigo-500" />
+                    <span>{record.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
                   </sup>
                 )}
               </span>

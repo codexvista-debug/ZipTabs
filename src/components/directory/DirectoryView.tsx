@@ -48,6 +48,9 @@ import {
   BookUser,
   SlidersHorizontal,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  PhoneForwarded,
   Info,
   CheckCircle2,
   AlertCircle,
@@ -566,15 +569,25 @@ export function DirectoryView() {
       } else {
         setActiveDivision("all");
       }
-      setToast({
-        title: "Directory Filtered",
-        description: `Showing only records matching "${filterTerm.trim()}".`,
-        type: "info",
-        metric: "Filtered",
-      });
     },
     []
   );
+
+  // Pagination (10 records per page, only active when needed)
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeDivision, activeSearchFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedRecords = useMemo(() => {
+    const start = (validCurrentPage - 1) * PAGE_SIZE;
+    return filteredRecords.slice(start, start + PAGE_SIZE);
+  }, [filteredRecords, validCurrentPage]);
 
   // Jump to selected record and scroll it into view with smooth highlight
   const handleJumpToRecord = useCallback(
@@ -864,7 +877,7 @@ export function DirectoryView() {
           <div>
             {/* 1. MOBILE CARD VIEW (Elements appear in one go without horizontal scrolling) */}
             <div className="md:hidden divide-y divide-slate-100">
-              {filteredRecords.map((contact) => {
+              {paginatedRecords.map((contact) => {
                 const isEmployee = contact.division === "employee";
                 const initials = contact.name
                   ? contact.name
@@ -953,8 +966,12 @@ export function DirectoryView() {
                             <span className="select-all flex items-baseline gap-1 min-w-0">
                               <span className="truncate">{contact.phone}</span>
                               {contact.extension && (
-                                <sup className="text-[8.5px] sm:text-[9px] font-mono font-bold text-indigo-700 bg-indigo-50/90 border border-indigo-200/80 px-1 py-0.5 rounded leading-none shadow-2xs select-all tracking-tight -top-1 shrink-0">
-                                  ext.{contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
+                                <sup
+                                  title={`Extension: ${contact.extension}`}
+                                  className="text-[8.5px] sm:text-[9px] font-mono font-bold text-indigo-700 bg-indigo-50/90 border border-indigo-200/80 px-1 py-0.5 rounded leading-none shadow-2xs select-all tracking-tight -top-1 shrink-0 inline-flex items-center gap-0.5"
+                                >
+                                  <PhoneForwarded className="w-2.5 h-2.5 text-indigo-500" />
+                                  <span>{contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
                                 </sup>
                               )}
                             </span>
@@ -1033,7 +1050,7 @@ export function DirectoryView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredRecords.map((contact) => {
+                  {paginatedRecords.map((contact) => {
                     const isEmployee = contact.division === "employee";
                     const initials = contact.name
                       ? contact.name
@@ -1124,8 +1141,12 @@ export function DirectoryView() {
                               <span className="font-semibold select-all flex items-baseline gap-1">
                                 <span>{contact.phone}</span>
                                 {contact.extension && (
-                                  <sup className="text-[9px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1 py-0.5 rounded leading-none shadow-2xs select-all -top-1 ml-0.5">
-                                    ext.{contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
+                                  <sup
+                                    title={`Extension: ${contact.extension}`}
+                                    className="text-[9px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1 py-0.5 rounded leading-none shadow-2xs select-all -top-1 ml-0.5 inline-flex items-center gap-0.5"
+                                  >
+                                    <PhoneForwarded className="w-2.5 h-2.5 text-indigo-500" />
+                                    <span>{contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
                                   </sup>
                                 )}
                               </span>
@@ -1193,25 +1214,59 @@ export function DirectoryView() {
           </div>
         )}
 
-        {/* Footer Record Count */}
-        <div className="px-4 py-3 bg-slate-50/70 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+        {/* Footer Record Count & Pagination (10 per page, only when needed) */}
+        <div className="px-4 py-3 bg-slate-50/70 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
           <div>
-            Showing <span className="font-bold text-slate-800">{filteredRecords.length}</span> of{" "}
-            <span className="font-bold text-slate-800">{totalCount}</span> directory records
+            Showing{" "}
+            <span className="font-bold text-slate-800">
+              {filteredRecords.length === 0
+                ? 0
+                : `${(validCurrentPage - 1) * PAGE_SIZE + 1}–${Math.min(
+                    validCurrentPage * PAGE_SIZE,
+                    filteredRecords.length
+                  )}`}
+            </span>{" "}
+            of{" "}
+            <span className="font-bold text-slate-800">{filteredRecords.length}</span>{" "}
+            directory records
           </div>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-[11px] text-slate-400">
-              <Lock className="w-3 h-3 text-emerald-600" />
-              AES-256-GCM encrypted in Supabase
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsSecurityModalOpen(true)}
-              className="text-blue-600 hover:underline font-semibold"
-            >
-              View Cryptographic Proof
-            </button>
-          </div>
+
+          {/* Pagination Controls - only show when pagination is needed (> 10 records) */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5 select-none">
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentPage((p) => Math.max(p - 1, 1));
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                disabled={validCurrentPage === 1}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-slate-700 transition-colors shadow-2xs cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Prev</span>
+              </button>
+
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-700 shadow-2xs">
+                <span>{validCurrentPage}</span>
+                <span className="text-slate-400">/</span>
+                <span>{totalPages}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentPage((p) => Math.min(p + 1, totalPages));
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                disabled={validCurrentPage === totalPages}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-slate-700 transition-colors shadow-2xs cursor-pointer"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
