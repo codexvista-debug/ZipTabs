@@ -2970,9 +2970,26 @@ export function NotesView() {
               </button>
             </div>
 
-            {/* 2. Desktop View Action Bar (Expanded layout with text buttons) */}
+            {/* 2. Desktop View Action Bar (Arranged similar to mobile: Edit Note on left, Mark Done, Copy, Close on right) */}
             <div className="hidden sm:flex mt-8 pt-4 border-t border-slate-100 items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
+                {/* Edit Button with Pencil Icon (Prominent Blue Button on Left) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const noteToEdit = viewingNote;
+                    handleCloseViewModal();
+                    setTimeout(() => {
+                      handleOpenEdit(noteToEdit);
+                    }, 190);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Note</span>
+                </button>
+
+                {/* Mark as Done */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -3003,6 +3020,7 @@ export function NotesView() {
                   )}
                 </button>
 
+                {/* Copy */}
                 <button
                   type="button"
                   onClick={(e) => handleCopyNote(viewingNote, e)}
@@ -3013,29 +3031,14 @@ export function NotesView() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2.5">
+              {/* Close on Right */}
+              <div>
                 <button
                   type="button"
                   onClick={handleCloseViewModal}
                   className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
                 >
                   Close
-                </button>
-
-                {/* Edit Button with Pencil Icon */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const noteToEdit = viewingNote;
-                    handleCloseViewModal();
-                    setTimeout(() => {
-                      handleOpenEdit(noteToEdit);
-                    }, 190);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit Note</span>
                 </button>
               </div>
             </div>
