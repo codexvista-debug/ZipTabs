@@ -800,7 +800,7 @@ export function DirectoryView() {
             <button
               type="button"
               onClick={() => setActiveDivision("all")}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`hidden sm:inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeDivision === "all"
                   ? "bg-white text-slate-900 shadow-xs border border-slate-300/60"
                   : "text-slate-600 hover:text-slate-900"
