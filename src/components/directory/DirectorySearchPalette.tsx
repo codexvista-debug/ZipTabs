@@ -374,17 +374,13 @@ function SearchContactRow({
         </div>
       </div>
 
-      {/* Action Buttons: Phone & Email */}
+      {/* Action Buttons: Phone & Email Copy Only */}
       <div className="flex items-center gap-1.5 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
         {record.phone && (
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
-            <a
-              href={`tel:${record.phone.replace(/[^\d+]/g, "")}`}
-              title={`Call ${record.phone}`}
-              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
-            >
-              <Phone className="w-3.5 h-3.5" />
-            </a>
+          <div className="flex items-center bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
+            <span className="hidden sm:inline text-xs font-mono font-medium text-slate-700 mr-1">
+              {record.phone}
+            </span>
             <button
               type="button"
               onClick={() => onCopy(record.phone, record.id, "phone")}
@@ -397,25 +393,18 @@ function SearchContactRow({
                 <Copy className="w-3.5 h-3.5" />
               )}
             </button>
-            <span className="hidden sm:inline text-xs font-mono font-medium text-slate-700 px-1.5">
-              {record.phone}
-            </span>
           </div>
         )}
 
         {record.email && (
-          <div className="hidden md:flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
-            <a
-              href={`mailto:${record.email}`}
-              title={`Email ${record.email}`}
-              className="p-1 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-            >
-              <Mail className="w-3.5 h-3.5" />
-            </a>
+          <div className="hidden md:flex items-center bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
+            <span className="text-xs text-slate-600 mr-1 truncate max-w-[140px]">
+              {record.email}
+            </span>
             <button
               type="button"
               onClick={() => onCopy(record.email, record.id, "email")}
-              title="Copy Email"
+              title="Copy Email Address"
               className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
             >
               {copiedField?.id === record.id && copiedField?.type === "email" ? (
