@@ -999,55 +999,10 @@ export function MasterControlView() {
         </div>
       </div>
 
-      {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Card 1: Users & Registration */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400">Registered Users</span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <Users className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {users.length} <span className="text-xs font-normal text-slate-400">account{users.length === 1 ? "" : "s"}</span>
-            </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  settings.registrations_allowed ? "bg-amber-500" : "bg-emerald-500"
-                }`}
-              />
-              <span className="text-[11px] font-bold text-slate-600">
-                {settings.registrations_allowed ? "Registrations Open" : "Registrations Paused"}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={handleToggleRegistrations}
-            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
-              settings.registrations_allowed
-                ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
-                : "bg-slate-900 text-white hover:bg-slate-800"
-            }`}
-          >
-            {settings.registrations_allowed ? (
-              <>
-                <UserX className="w-3.5 h-3.5" />
-                <span>Pause Registrations</span>
-              </>
-            ) : (
-              <>
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Resume Registrations</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Card 2: IP Lockdown Switch */}
-        <div className={`rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all ${
+      {/* Metric Cards Grid - Balanced 6-column grid with zero empty voids */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        {/* Card 1: IP Lockdown Switch */}
+        <div className={`rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all lg:col-span-2 ${
           settings.ip_lockdown_enabled
             ? "bg-rose-50/60 border-rose-300 ring-2 ring-rose-500/20"
             : "bg-white border-slate-200/90"
@@ -1099,8 +1054,8 @@ export function MasterControlView() {
           </button>
         </div>
 
-        {/* Card 3: Vanish Mode Switch */}
-        <div className={`rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all ${
+        {/* Card 2: Vanish Mode Switch */}
+        <div className={`rounded-2xl border p-5 shadow-xs flex flex-col justify-between transition-all lg:col-span-2 ${
           settings.vanish_mode_enabled
             ? "bg-purple-50/60 border-purple-300 ring-2 ring-purple-500/20"
             : "bg-white border-slate-200/90"
@@ -1152,8 +1107,8 @@ export function MasterControlView() {
           </button>
         </div>
 
-        {/* Card 4: Blacklisted & Locked IPs */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+        {/* Card 3: Blacklisted & Locked IPs */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between md:col-span-2 lg:col-span-2">
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-400">Blocked / Banned IPs</span>
@@ -1179,8 +1134,53 @@ export function MasterControlView() {
           </div>
         </div>
 
-        {/* Card 4: Your Current IP & Country */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
+        {/* Card 4: Users & Registration */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between md:col-span-1 lg:col-span-3">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-slate-400">Registered Users</span>
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tracking-tight">
+              {users.length} <span className="text-xs font-normal text-slate-400">account{users.length === 1 ? "" : "s"}</span>
+            </div>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  settings.registrations_allowed ? "bg-amber-500" : "bg-emerald-500"
+                }`}
+              />
+              <span className="text-[11px] font-bold text-slate-600">
+                {settings.registrations_allowed ? "Registrations Open" : "Registrations Paused"}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleToggleRegistrations}
+            className={`mt-4 w-full py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+              settings.registrations_allowed
+                ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                : "bg-slate-900 text-white hover:bg-slate-800"
+            }`}
+          >
+            {settings.registrations_allowed ? (
+              <>
+                <UserX className="w-3.5 h-3.5" />
+                <span>Pause Registrations</span>
+              </>
+            ) : (
+              <>
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Resume Registrations</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Card 5: Your Current IP & Country */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between md:col-span-1 lg:col-span-3">
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-400">Your Current Network</span>

@@ -46,11 +46,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 0. Check Master Control Security Settings (Global & Vanish Mode)
-    const { data: allSettings } = await supabase
-      .from("system_security_settings")
-      .select("*")
-      .in("id", ["global", "vanish_mode"]);
+    // Concurrently fetch system security settings, IP lock record, and user credentials in parallel
+    const [settingsRes, lockRes, userRes] = await Promise.all([
+      supabase
+        .from("system_security_settings")
+        .select("*")
+        .in("id", ["global", "vanish_mode"]),
+      supabase
+        .from("auth_ip_locks")
+        .select("*")
+        .eq("ip", clientIp)
+        .maybeSingle(),
+      supabase
+        .from("app_users")
+        .select("*")
+        .ilike("username", cleanUsername)
+        .maybeSingle(),
+    ]);
+
+    const allSettings = settingsRes.data;
+    const lockRecord = lockRes.data;
+    const userRecord = userRes.data;
 
     const settings = allSettings?.find((s) => s.id === "global");
     const vanishSettings = allSettings?.find((s) => s.id === "vanish_mode");
@@ -96,13 +112,7 @@ export async function POST(req: NextRequest) {
         if (!isAllowed) {
           // Log targeted username attempt even when blocked by lockdown
           try {
-            const { data: currentLock } = await supabase
-              .from("auth_ip_locks")
-              .select("*")
-              .eq("ip", clientIp)
-              .maybeSingle();
-
-            const hist = Array.isArray(currentLock?.attempt_history) ? currentLock.attempt_history : [];
+            const hist = Array.isArray(lockRecord?.attempt_history) ? lockRecord.attempt_history : [];
             const updatedHist = [
               ...hist,
               {
@@ -116,8 +126,8 @@ export async function POST(req: NextRequest) {
             await supabase.from("auth_ip_locks").upsert({
               ip: clientIp,
               country_code: clientCountry,
-              failed_attempts: currentLock?.failed_attempts || 0,
-              locked_until: currentLock?.locked_until || null,
+              failed_attempts: lockRecord?.failed_attempts || 0,
+              locked_until: lockRecord?.locked_until || null,
               last_attempt_at: new Date().toISOString(),
               attempt_history: updatedHist,
             });
@@ -141,12 +151,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Check if IP is currently locked out
-    const { data: lockRecord } = await supabase
-      .from("auth_ip_locks")
-      .select("*")
-      .eq("ip", clientIp)
-      .maybeSingle();
-
     if (lockRecord?.locked_until) {
       const lockedUntilMs = new Date(lockRecord.locked_until).getTime();
       const nowMs = Date.now();
@@ -171,23 +175,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Fetch user from app_users
-    const { data: userRecord } = await supabase
-      .from("app_users")
-      .select("*")
-      .ilike("username", cleanUsername)
-      .maybeSingle();
-
+    // 2. Verify password
     let passwordMatches = false;
     if (userRecord) {
       passwordMatches = await verifyPassword(cleanPassword, userRecord.password);
-      // Auto-upgrade legacy plain text password to SHA-256 hash
-      if (passwordMatches && userRecord.password === cleanPassword) {
-        const newHash = await hashPassword(cleanPassword);
-        await supabase
-          .from("app_users")
-          .update({ password: newHash })
-          .eq("id", userRecord.id);
+      // Auto-upgrade legacy plain text password to SHA-256 hash in background
+      if (passwordMatches && userRecord.password === cleanPassword && supabase) {
+        const client = supabase;
+        hashPassword(cleanPassword).then((newHash) => {
+          client
+            .from("app_users")
+            .update({ password: newHash })
+            .eq("id", userRecord.id)
+            .then(() => {});
+        }).catch(() => {});
       }
     }
 

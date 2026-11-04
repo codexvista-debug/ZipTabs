@@ -12,6 +12,8 @@ import {
   Clock,
   AlertTriangle,
   X,
+  Check,
+  Sparkles,
 } from "lucide-react";
 
 export function AuthScreen() {
@@ -21,6 +23,7 @@ export function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginPhase, setLoginPhase] = useState<"idle" | "verifying" | "success">("idle");
   const [inactivityNotice, setInactivityNotice] = useState(false);
 
   useEffect(() => {
@@ -81,16 +84,23 @@ export function AuthScreen() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockoutInfo?.locked) return;
+    if (lockoutInfo?.locked || isSubmitting) return;
 
     setError(null);
     setIsSubmitting(true);
+    setLoginPhase("verifying");
 
     try {
       const res = await login(username, password);
       if (!res.success) {
+        setLoginPhase("idle");
         setError(res.error || "Invalid username or password.");
+      } else {
+        setLoginPhase("success");
       }
+    } catch {
+      setLoginPhase("idle");
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -321,14 +331,34 @@ export function AuthScreen() {
                   </div>
                 </div>
 
-                {/* Solid White "Secure Login" button */}
+                {/* Solid White / Tactile "Secure Login" button */}
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full mt-2 py-2.5 px-4 rounded-lg bg-white hover:bg-zinc-200 text-black font-bold text-xs tracking-wide transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                  disabled={isSubmitting || loginPhase === "success"}
+                  className={`w-full mt-2 py-2.5 px-4 rounded-lg font-bold text-xs tracking-wide transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 shadow-sm ${
+                    loginPhase === "success"
+                      ? "bg-emerald-500 text-white shadow-emerald-500/25 scale-[0.99]"
+                      : isSubmitting
+                      ? "bg-zinc-200 text-zinc-900"
+                      : "bg-white hover:bg-zinc-100 text-black active:scale-[0.99]"
+                  }`}
                 >
-                  {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Secure Login</span>
+                  {loginPhase === "success" ? (
+                    <>
+                      <Check className="w-4 h-4 text-white animate-in zoom-in-50 duration-150" />
+                      <span>Access Granted</span>
+                    </>
+                  ) : isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-800" />
+                      <span>Verifying Credentials...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-zinc-600" />
+                      <span>Secure Login</span>
+                    </>
+                  )}
                 </button>
               </form>
             </>
