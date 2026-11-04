@@ -555,7 +555,13 @@ export function DirectoryView() {
         if (activeDivision === "employee") return r.division === "employee";
         return true;
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => {
+        // Vendors appear first in search results and when viewing All
+        if (a.division !== b.division) {
+          return a.division === "vendor" ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
   }, [records, activeDivision, activeSearchFilter]);
 
   // Filter directory to show ONLY searched records (replaces broken jumping on mobile)

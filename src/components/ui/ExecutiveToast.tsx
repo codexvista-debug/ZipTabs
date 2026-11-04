@@ -113,12 +113,19 @@ export function ExecutiveToast({
       ? "AI & Intelligence"
       : "Supabase Vault");
 
+  const isDestructive =
+    type === "destructive" ||
+    (typeof title === "string" &&
+      (title.toLowerCase().includes("delete") ||
+        title.toLowerCase().includes("purge") ||
+        title.toLowerCase().includes("remove")));
+
   const defaultMetric =
     metric ||
-    (type === "error"
-      ? "Alert"
-      : type === "destructive"
+    (isDestructive
       ? "Purged"
+      : type === "error"
+      ? "Alert"
       : type === "warning"
       ? "Warning"
       : type === "security"
@@ -129,11 +136,10 @@ export function ExecutiveToast({
 
   // Icon renderer based on type
   const renderIcon = (sizeClass = "w-4 h-4") => {
+    if (isDestructive) return <Trash2 className={`${sizeClass} text-rose-600`} />;
     switch (type) {
       case "error":
         return <ShieldAlert className={`${sizeClass} text-rose-600 animate-pulse`} />;
-      case "destructive":
-        return <Trash2 className={`${sizeClass} text-rose-600`} />;
       case "warning":
         return <AlertTriangle className={`${sizeClass} text-amber-600`} />;
       case "security":
@@ -147,9 +153,9 @@ export function ExecutiveToast({
   };
 
   const getAccentColor = () => {
+    if (isDestructive) return "bg-rose-500";
     switch (type) {
       case "error":
-      case "destructive":
         return "bg-rose-500";
       case "warning":
         return "bg-amber-500";
@@ -179,11 +185,13 @@ export function ExecutiveToast({
         <span className="truncate max-w-[85px] sm:max-w-[100px]">{defaultMetric.toUpperCase()}</span>
       </div>
 
-      {/* Title */}
-      <div className="min-w-0 flex-1 truncate pr-1">
-        <span className="text-xs font-black text-zinc-900 tracking-tight truncate block">{title}</span>
+      {/* Title & Info - Safe Intrinsic Sizing */}
+      <div className="flex items-center gap-1.5 min-w-0 max-w-[200px] sm:max-w-xs shrink pr-1">
+        <span className="text-xs font-bold text-zinc-900 tracking-tight truncate whitespace-nowrap block">
+          {title}
+        </span>
         {description && (
-          <span className="text-[11px] text-zinc-500 ml-1.5 font-medium hidden sm:inline truncate">
+          <span className="text-[11px] text-zinc-500 font-medium hidden sm:inline truncate whitespace-nowrap">
             {description}
           </span>
         )}
@@ -194,7 +202,7 @@ export function ExecutiveToast({
         <button
           type="button"
           onClick={action.onClick}
-          className="px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-black text-white text-[10px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer"
+          className="px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-black text-white text-[10px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer whitespace-nowrap"
         >
           {action.label}
         </button>

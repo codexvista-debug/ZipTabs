@@ -104,9 +104,9 @@ export function DirectorySearchPalette({
     };
   }, [query, records]);
 
-  // Flattened list for keyboard selection
+  // Flattened list for keyboard selection (Vendors first, then Employees)
   const flatList = useMemo(() => {
-    return [...searchResults.employees, ...searchResults.vendors];
+    return [...searchResults.vendors, ...searchResults.employees];
   }, [searchResults]);
 
   // Keep selected index in bound
@@ -202,13 +202,13 @@ export function DirectorySearchPalette({
         <div className="px-3 sm:px-4 py-2 bg-blue-50/70 border-b border-blue-100/80 flex items-center justify-between text-xs text-blue-900 gap-2">
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
             <span className="font-semibold text-[11px] sm:text-xs">Results:</span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100/90 text-blue-800 text-[10px] sm:text-[11px] font-semibold">
-              <Users className="w-3 h-3" />
-              {searchResults.employees.length} Employees
-            </span>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100/90 text-indigo-800 text-[10px] sm:text-[11px] font-semibold">
               <Building2 className="w-3 h-3" />
               {searchResults.vendors.length} Vendors
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100/90 text-blue-800 text-[10px] sm:text-[11px] font-semibold">
+              <Users className="w-3 h-3" />
+              {searchResults.employees.length} Employees
             </span>
           </div>
           {query.trim() && (
@@ -247,15 +247,15 @@ export function DirectorySearchPalette({
             </div>
           ) : (
             <>
-              {/* EMPLOYEES SECTION */}
-              {searchResults.employees.length > 0 && (
+              {/* VENDORS SECTION (Vendors appear first) */}
+              {searchResults.vendors.length > 0 && (
                 <div>
                   <div className="px-3 py-1 text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-blue-600" />
-                    Employees ({searchResults.employees.length})
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                    Vendors ({searchResults.vendors.length})
                   </div>
                   <div className="space-y-1 mt-1">
-                    {searchResults.employees.map((rec) => {
+                    {searchResults.vendors.map((rec) => {
                       const itemIndex = flatList.indexOf(rec);
                       const isSelected = itemIndex === selectedIndex;
                       return (
@@ -281,15 +281,15 @@ export function DirectorySearchPalette({
                 </div>
               )}
 
-              {/* VENDORS SECTION */}
-              {searchResults.vendors.length > 0 && (
+              {/* EMPLOYEES SECTION */}
+              {searchResults.employees.length > 0 && (
                 <div>
                   <div className="px-3 py-1 text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                    Vendors ({searchResults.vendors.length})
+                    <User className="w-3.5 h-3.5 text-blue-600" />
+                    Employees ({searchResults.employees.length})
                   </div>
                   <div className="space-y-1 mt-1">
-                    {searchResults.vendors.map((rec) => {
+                    {searchResults.employees.map((rec) => {
                       const itemIndex = flatList.indexOf(rec);
                       const isSelected = itemIndex === selectedIndex;
                       return (

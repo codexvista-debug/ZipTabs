@@ -521,9 +521,10 @@ export function NotesView() {
 
   // Custom Styled Toast Notification with Semantic Spatial Placement
   const [toastNotification, setToastNotification] = useState<{
-    type: "success" | "error" | "info";
+    type: "success" | "error" | "info" | "destructive";
     title: string;
     description?: string;
+    metric?: string;
     position?: ToastPosition;
   } | null>(null);
 
@@ -570,11 +571,12 @@ export function NotesView() {
   const showToast = (
     title: string,
     description?: string,
-    type: "success" | "error" | "info" = "success",
-    position?: ToastPosition
+    type: "success" | "error" | "info" | "destructive" = "success",
+    position?: ToastPosition,
+    metric?: string
   ) => {
     const resolvedPosition = getToastPosition(title, position);
-    setToastNotification({ title, description, type, position: resolvedPosition });
+    setToastNotification({ title, description, type, position: resolvedPosition, metric });
   };
 
   useEffect(() => {
@@ -1450,7 +1452,13 @@ export function NotesView() {
       }
     }
 
-    showToast("Note Deleted", `"${note.title}" permanently removed.`, "info");
+    showToast(
+      note.title ? `"${note.title}" Deleted` : "Note Deleted",
+      `Note permanently removed from workspace.`,
+      "destructive",
+      "bottom-center",
+      "Purged"
+    );
   };
 
   // Copy Note content
@@ -1550,7 +1558,14 @@ export function NotesView() {
               title={toastNotification.title}
               description={toastNotification.description}
               headerMeta="Notes & Reminders Engine"
-              metric={toastNotification.type === "error" ? "Action Blocked" : "Workspace Synced"}
+              metric={
+                toastNotification.metric ||
+                (toastNotification.type === "error"
+                  ? "Action Blocked"
+                  : toastNotification.title.toLowerCase().includes("delete")
+                  ? "Purged"
+                  : "Workspace Synced")
+              }
               onClose={() => setToastNotification(null)}
               durationMs={4000}
             />
@@ -1774,9 +1789,9 @@ export function NotesView() {
         )}
 
         {/* Bottom Actions Bar */}
-        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+        <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
           {/* Left: Attach Image & Paste Hint */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <input
               ref={quickFileInputRef}
               type="file"
@@ -1794,19 +1809,19 @@ export function NotesView() {
             <button
               type="button"
               onClick={() => quickFileInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 shadow-2xs"
               title="Attach an image to extract text or store with this note"
             >
-              <ScanText className="w-3.5 h-3.5 text-blue-600" />
-              <span>Attach / Scan Image</span>
+              <ScanText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>Attach<span className="hidden sm:inline"> / Scan Image</span></span>
             </button>
-            <span className="text-[11px] text-slate-400 hidden sm:inline">
+            <span className="text-[11px] text-slate-400 hidden sm:inline truncate">
               or paste screenshot <kbd className="font-mono text-[10px] bg-slate-100 border border-slate-200 px-1 py-0.5 rounded">Ctrl+V</kbd>
             </span>
           </div>
 
           {/* Right: Auto-subject preview, Clear, and Submit Button */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {quickContent.trim() && (
               <>
                 <span className="text-[11px] text-slate-400 hidden lg:inline-flex items-center gap-1 mr-1">
@@ -1818,7 +1833,7 @@ export function NotesView() {
                     setQuickContent("");
                     setQuickFiles([]);
                   }}
-                  className="px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer font-medium"
+                  className="px-2 py-1 text-xs text-slate-400 hover:text-slate-600 cursor-pointer font-medium whitespace-nowrap"
                 >
                   Clear
                 </button>
@@ -1829,12 +1844,12 @@ export function NotesView() {
               type="button"
               disabled={isQuickSaving || (!quickContent.trim() && quickFiles.length === 0)}
               onClick={() => handleQuickAddNote()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
             >
               {isQuickSaving ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
               ) : (
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 shrink-0" />
               )}
               <span>Add Note</span>
             </button>
