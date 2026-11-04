@@ -883,7 +883,7 @@ export function DirectoryView() {
           <div>
             {/* 1. MOBILE CARD VIEW (Elements appear in one go without horizontal scrolling) */}
             <div className="md:hidden divide-y divide-slate-100">
-              {paginatedRecords.map((contact) => {
+              {paginatedRecords.map((contact, idx) => {
                 const isEmployee = contact.division === "employee";
                 const initials = contact.name
                   ? contact.name
@@ -899,7 +899,8 @@ export function DirectoryView() {
                   <div
                     key={contact.id}
                     id={`contact-card-${contact.id}`}
-                    className={`p-3.5 space-y-2.5 transition-all duration-300 rounded-2xl ${
+                    style={{ animationDelay: `${Math.min(idx * 25, 250)}ms` }}
+                    className={`p-3.5 space-y-2.5 transition-all duration-300 rounded-2xl animate-card-enter hover:-translate-y-0.5 hover:shadow-md active:scale-[0.985] ${
                       focusedRecordId === contact.id
                         ? "bg-indigo-50/90 ring-2 ring-indigo-500 shadow-md"
                         : "hover:bg-slate-50/70"
@@ -1056,7 +1057,7 @@ export function DirectoryView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {paginatedRecords.map((contact) => {
+                  {paginatedRecords.map((contact, idx) => {
                     const isEmployee = contact.division === "employee";
                     const initials = contact.name
                       ? contact.name
@@ -1072,7 +1073,8 @@ export function DirectoryView() {
                       <tr
                         key={contact.id}
                         id={`contact-row-${contact.id}`}
-                        className={`transition-all duration-300 group ${
+                        style={{ animationDelay: `${Math.min(idx * 20, 200)}ms` }}
+                        className={`transition-all duration-300 group animate-card-enter ${
                           focusedRecordId === contact.id
                             ? "bg-indigo-50/90 ring-2 ring-indigo-500 shadow-md"
                             : "hover:bg-slate-50/80"

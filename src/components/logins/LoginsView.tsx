@@ -1286,7 +1286,7 @@ export function LoginsView() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {filteredLogins.map((item) => {
+          {filteredLogins.map((item, idx) => {
             const isVisible = visiblePasswords[item.id] || false;
             const cleanDomain = getCleanDomain(item.url);
             const catStyle = getCategoryBadgeStyle(item.category);
@@ -1298,12 +1298,13 @@ export function LoginsView() {
               <div
                 key={item.id}
                 tabIndex={0}
+                style={{ animationDelay: `${Math.min(idx * 30, 360)}ms` }}
                 onClick={() => setFocusedCardId(item.id)}
                 onFocus={() => setFocusedCardId(item.id)}
-                className={`relative rounded-2xl p-5 transition-all duration-200 flex flex-col justify-between group overflow-hidden cursor-pointer outline-none select-none ${
+                className={`relative rounded-2xl p-5 transition-all duration-300 flex flex-col justify-between group overflow-hidden cursor-pointer outline-none select-none animate-card-enter active:scale-[0.985] ${
                   isFocused
-                    ? "bg-white border-2 border-blue-600 shadow-xl shadow-blue-500/15 ring-4 ring-blue-500/10 -translate-y-1"
-                    : "bg-gradient-to-b from-white via-slate-50/25 to-slate-50/70 border border-slate-200/90 hover:border-blue-400/80 hover:shadow-[0_12px_28px_-6px_rgba(37,99,235,0.09)] hover:-translate-y-0.5"
+                    ? "bg-white border-2 border-blue-600 shadow-xl shadow-blue-500/15 ring-4 ring-blue-500/10 -translate-y-1.5"
+                    : "bg-gradient-to-b from-white via-slate-50/25 to-slate-50/70 border border-slate-200/90 hover:border-blue-400/80 hover:shadow-xl hover:-translate-y-1.5"
                 }`}
               >
                 {/* Top subtle decorative accent line (Glows on Focus) */}

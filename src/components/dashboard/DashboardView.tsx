@@ -481,7 +481,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       {/* ==================================================== */}
       {/* 1. EXECUTIVE DYNAMIC GREETING & SUMMARY PILL         */}
       {/* ==================================================== */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xs relative overflow-hidden text-slate-900 transition-all hover:shadow-md">
+      <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xs relative overflow-hidden text-slate-900 transition-all duration-300 hover:shadow-md animate-card-enter">
         {/* Subtle Top Ambient Gradient Line */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-blue-500 to-indigo-500" />
         <div className="absolute -top-24 -right-24 w-60 h-60 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -558,7 +558,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       {/* ==================================================== */}
       <div
         onClick={() => onNavigate("calendar")}
-        className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xs relative overflow-hidden group cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all text-slate-900"
+        style={{ animationDelay: "60ms" }}
+        className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xs relative overflow-hidden group cursor-pointer hover:border-indigo-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 text-slate-900 animate-card-enter"
         title="Click to view detailed US Calendar & Payroll Breakdown"
       >
         {/* Subtle Top Ambient Gradient Line */}
@@ -763,7 +764,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Action Card 1: Overdue Invoices */}
           <div
             onClick={() => onNavigate("invoices")}
-            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
+            style={{ animationDelay: "100ms" }}
+            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] hover:border-slate-300 transition-all duration-300 cursor-pointer group animate-card-enter"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
@@ -787,7 +789,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
             <button
               type="button"
-              className="mt-6 w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 group-hover:border-amber-300 bg-white text-slate-700 text-xs font-bold group-hover:bg-amber-50/50 transition-colors cursor-pointer"
+              className="mt-6 w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 group-hover:border-amber-300 bg-white text-slate-700 text-xs font-bold group-hover:bg-amber-50/50 transition-colors cursor-pointer active:scale-98"
             >
               <span>Review Invoices</span>
               <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors" />
@@ -797,7 +799,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Action Card 2: Notes & Urgent Deadlines */}
           <div
             onClick={() => onNavigate("notes")}
-            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-rose-500 flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
+            style={{ animationDelay: "160ms" }}
+            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-rose-500 flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] hover:border-slate-300 transition-all duration-300 cursor-pointer group animate-card-enter"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
@@ -821,7 +824,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
             <button
               type="button"
-              className="mt-6 w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 group-hover:border-rose-300 bg-white text-slate-700 text-xs font-bold group-hover:bg-rose-50/50 transition-colors cursor-pointer"
+              className="mt-6 w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-200 group-hover:border-rose-300 bg-white text-slate-700 text-xs font-bold group-hover:bg-rose-50/50 transition-colors cursor-pointer active:scale-98"
             >
               <span>View Notes & Reminders</span>
               <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-600 transition-colors" />
@@ -831,7 +834,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Action Card 3: US Payroll Cycle & Working Hours */}
           <div
             onClick={() => onNavigate("calendar")}
-            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-[#4f46e5] flex flex-col justify-between hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group md:col-span-2 xl:col-span-1"
+            style={{ animationDelay: "220ms" }}
+            className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs border-l-4 border-l-[#4f46e5] flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] hover:border-slate-300 transition-all duration-300 cursor-pointer group md:col-span-2 xl:col-span-1 animate-card-enter"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
@@ -855,7 +859,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
             <button
               type="button"
-              className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#4f46e5] hover:bg-[#4338ca] text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
+              className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#4f46e5] hover:bg-[#4338ca] active:scale-98 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
             >
               <span>Open US Calendar</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -877,9 +881,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Module 1: Invoices */}
           <div
             onClick={() => onNavigate("invoices")}
-            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex items-center gap-3.5 cursor-pointer group"
+            style={{ animationDelay: "120ms" }}
+            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-lg hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex items-center gap-3.5 cursor-pointer group animate-card-enter"
           >
-            <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 transition-colors shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform shrink-0">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div className="min-w-0">
@@ -899,9 +904,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Module 2: Notes & Reminders */}
           <div
             onClick={() => onNavigate("notes")}
-            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-amber-400 hover:shadow-md transition-all flex items-center gap-3.5 cursor-pointer group"
+            style={{ animationDelay: "180ms" }}
+            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-amber-400 hover:shadow-lg hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex items-center gap-3.5 cursor-pointer group animate-card-enter"
           >
-            <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 transition-colors shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 group-hover:scale-105 transition-transform shrink-0">
               <NotebookPen className="w-5 h-5" />
             </div>
             <div className="min-w-0">
@@ -921,9 +927,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Module 3: US Calendar */}
           <div
             onClick={() => onNavigate("calendar")}
-            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-indigo-400 hover:shadow-md transition-all flex items-center gap-3.5 cursor-pointer group"
+            style={{ animationDelay: "240ms" }}
+            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-indigo-400 hover:shadow-lg hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex items-center gap-3.5 cursor-pointer group animate-card-enter"
           >
-            <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 transition-colors shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 group-hover:scale-105 transition-transform shrink-0">
               <CalendarDays className="w-5 h-5" />
             </div>
             <div className="min-w-0">
@@ -943,9 +950,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Module 4: Cloud Drive */}
           <div
             onClick={() => onNavigate("drive")}
-            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-sky-400 hover:shadow-md transition-all flex items-center gap-3.5 cursor-pointer group"
+            style={{ animationDelay: "300ms" }}
+            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-sky-400 hover:shadow-lg hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex items-center gap-3.5 cursor-pointer group animate-card-enter"
           >
-            <div className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 transition-colors shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 group-hover:scale-105 transition-transform shrink-0">
               <FolderOpen className="w-5 h-5" />
             </div>
             <div className="min-w-0">
@@ -965,9 +973,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           {/* Module 5: Storage & Usage */}
           <div
             onClick={() => onNavigate("usage")}
-            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-emerald-400 hover:shadow-md transition-all flex items-center gap-3.5 cursor-pointer group"
+            style={{ animationDelay: "360ms" }}
+            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:border-emerald-400 hover:shadow-lg hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex items-center gap-3.5 cursor-pointer group animate-card-enter"
           >
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 group-hover:scale-105 transition-transform shrink-0">
               <HardDrive className="w-5 h-5" />
             </div>
             <div className="min-w-0">
@@ -1014,11 +1023,12 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   {isLoading ? "Loading invoices from database..." : "No overdue invoices found."}
                 </div>
               ) : (
-                topOverdueInvoices.map((inv) => (
+                topOverdueInvoices.map((inv, idx) => (
                   <div
                     key={inv.id}
                     onClick={() => onNavigate("invoices")}
-                    className="p-3 rounded-xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/60 transition-colors flex items-center justify-between gap-3 cursor-pointer"
+                    style={{ animationDelay: `${idx * 40}ms` }}
+                    className="p-3 rounded-xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/60 hover:-translate-y-0.5 hover:shadow-2xs active:scale-[0.99] transition-all duration-200 flex items-center justify-between gap-3 cursor-pointer animate-card-enter"
                   >
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-slate-900 truncate">
@@ -1076,11 +1086,12 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                   {isLoading ? "Loading notes from database..." : "No active notes created yet."}
                 </div>
               ) : (
-                recentNotes.map((note) => (
+                recentNotes.map((note, idx) => (
                   <div
                     key={note.id}
                     onClick={() => onNavigate("notes")}
-                    className="p-3 rounded-xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/60 transition-colors flex items-center justify-between gap-3 cursor-pointer"
+                    style={{ animationDelay: `${idx * 40}ms` }}
+                    className="p-3 rounded-xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/60 hover:-translate-y-0.5 hover:shadow-2xs active:scale-[0.99] transition-all duration-200 flex items-center justify-between gap-3 cursor-pointer animate-card-enter"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1">

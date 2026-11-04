@@ -1311,8 +1311,9 @@ export function InvoicesView() {
                     return (
                       <tr
                         key={rowId || idx}
+                        style={{ animationDelay: `${Math.min(idx * 20, 200)}ms` }}
                         onClick={(e) => handleRowSelect(rowId, idx, e)}
-                        className={`cursor-pointer transition-colors select-none relative ${
+                        className={`cursor-pointer transition-colors select-none relative animate-card-enter ${
                           isSelected
                             ? "bg-blue-50/95 hover:bg-blue-100/80 shadow-2xs"
                             : "hover:bg-slate-50/80"
@@ -1417,8 +1418,9 @@ export function InvoicesView() {
                   return (
                     <div
                       key={rowId || idx}
+                      style={{ animationDelay: `${Math.min(idx * 20, 200)}ms` }}
                       onClick={(e) => handleRowSelect(rowId, idx, e)}
-                      className={`p-3.5 transition-colors cursor-pointer select-none flex items-start justify-between gap-3 ${
+                      className={`p-3.5 transition-all duration-200 cursor-pointer select-none flex items-start justify-between gap-3 animate-card-enter hover:-translate-y-0.5 active:scale-[0.99] ${
                         isSelected
                           ? "bg-blue-50/95 border-l-4 border-l-blue-600 shadow-2xs"
                           : "hover:bg-slate-50/80 bg-white border-l-4 border-l-transparent"

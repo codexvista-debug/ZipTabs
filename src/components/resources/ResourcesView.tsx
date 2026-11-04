@@ -2022,14 +2022,15 @@ export function ResourcesView() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {remittances.map((rem) => {
+                    {remittances.map((rem, idx) => {
                       const isSelected = selectedRemittance?.id === rem.id;
                       const daysLeft = getDaysRemaining(rem.expires_at);
                       return (
                         <div
                           key={rem.id}
+                          style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
                           onClick={() => setSelectedRemittance(rem)}
-                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          className={`p-4 rounded-2xl border transition-all duration-300 cursor-pointer flex items-center justify-between gap-3 animate-card-enter hover:-translate-y-1 hover:shadow-md active:scale-[0.985] ${
                             isSelected
                               ? "bg-blue-50/70 border-blue-500 shadow-sm ring-2 ring-blue-500/10"
                               : "bg-slate-50/60 border-slate-200/90 hover:bg-white hover:border-slate-300 hover:shadow-xs"

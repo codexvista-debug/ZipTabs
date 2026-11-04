@@ -941,7 +941,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {visibleFolders.map((folder) => {
+                {visibleFolders.map((folder, idx) => {
                   const colorConfig =
                     FOLDER_COLORS.find((c) => c.id === folder.color) || FOLDER_COLORS[0];
                   const childFiles = activeFiles.filter((f) => f.folder_id === folder.id);
@@ -949,11 +949,12 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                   return (
                     <div
                       key={folder.id}
+                      style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
                       onClick={() => {
                         setCurrentFolderId(folder.id);
                         setSearchQuery("");
                       }}
-                      className="group relative bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-blue-400 rounded-2xl p-3.5 shadow-2xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between select-none"
+                      className="group relative bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-blue-400 rounded-2xl p-3.5 shadow-2xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 cursor-pointer flex flex-col justify-between select-none animate-card-enter"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div
@@ -1059,7 +1060,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
             ) : viewMode === "grid" ? (
               /* Grid View */
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-                {visibleFiles.map((file) => {
+                {visibleFiles.map((file, idx) => {
                   const iconInfo = getFileIcon(file.name, file.type);
                   const isImage = (file.type || "").startsWith("image/");
                   const isTrash = driveTab === "trash";
@@ -1073,7 +1074,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                   return (
                     <div
                       key={file.id}
-                      className="group relative bg-white border border-slate-200/80 hover:border-blue-400 rounded-2xl overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between"
+                      style={{ animationDelay: `${Math.min(idx * 30, 360)}ms` }}
+                      className="group relative bg-white border border-slate-200/80 hover:border-blue-400 rounded-2xl overflow-hidden shadow-2xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex flex-col justify-between animate-card-enter"
                     >
                       {/* Thumbnail or Icon Preview Header */}
                       <div
@@ -1228,7 +1230,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {visibleFiles.map((file) => {
+                      {visibleFiles.map((file, idx) => {
                         const iconInfo = getFileIcon(file.name, file.type);
                         const isTrash = driveTab === "trash";
                         const parentFolder = folders.find((f) => f.id === file.folder_id);
@@ -1244,7 +1246,11 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                           : "-";
 
                         return (
-                          <tr key={file.id} className="hover:bg-slate-50/80 transition-colors">
+                          <tr
+                            key={file.id}
+                            style={{ animationDelay: `${Math.min(idx * 20, 200)}ms` }}
+                            className="hover:bg-slate-50/80 transition-colors animate-card-enter"
+                          >
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-3 min-w-0">
                                 <FileBrandIcon fileName={file.name} mimeType={file.type} size="sm" />

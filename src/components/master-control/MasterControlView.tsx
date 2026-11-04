@@ -1002,11 +1002,14 @@ export function MasterControlView() {
       {/* Metric Cards Grid - All 5 cards side by side in a single compact row on PC */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-3 sm:gap-3.5">
         {/* Card 1: IP Lockdown Switch */}
-        <div className={`rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col justify-between transition-all ${
-          settings.ip_lockdown_enabled
-            ? "bg-rose-50/60 border-rose-300 ring-2 ring-rose-500/20"
-            : "bg-white border-slate-200/90"
-        }`}>
+        <div
+          style={{ animationDelay: "0ms" }}
+          className={`rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl active:scale-[0.985] animate-card-enter ${
+            settings.ip_lockdown_enabled
+              ? "bg-rose-50/60 border-rose-300 ring-2 ring-rose-500/20"
+              : "bg-white border-slate-200/90"
+          }`}
+        >
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold text-slate-400">Lockdown Mode</span>
@@ -1055,11 +1058,14 @@ export function MasterControlView() {
         </div>
 
         {/* Card 2: Vanish Mode Switch */}
-        <div className={`rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col justify-between transition-all ${
-          settings.vanish_mode_enabled
-            ? "bg-purple-50/60 border-purple-300 ring-2 ring-purple-500/20"
-            : "bg-white border-slate-200/90"
-        }`}>
+        <div
+          style={{ animationDelay: "50ms" }}
+          className={`rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl active:scale-[0.985] animate-card-enter ${
+            settings.vanish_mode_enabled
+              ? "bg-purple-50/60 border-purple-300 ring-2 ring-purple-500/20"
+              : "bg-white border-slate-200/90"
+          }`}
+        >
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold text-slate-400">Vanish Mode</span>
@@ -1108,7 +1114,10 @@ export function MasterControlView() {
         </div>
 
         {/* Card 3: Blacklisted & Locked IPs */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
+        <div
+          style={{ animationDelay: "100ms" }}
+          className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex flex-col justify-between animate-card-enter"
+        >
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold text-slate-400">Blocked IPs</span>
@@ -1135,7 +1144,10 @@ export function MasterControlView() {
         </div>
 
         {/* Card 4: Users & Registration */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
+        <div
+          style={{ animationDelay: "150ms" }}
+          className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex flex-col justify-between animate-card-enter"
+        >
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold text-slate-400">Registered Users</span>
@@ -1180,7 +1192,10 @@ export function MasterControlView() {
         </div>
 
         {/* Card 5: Your Current IP & Country */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between">
+        <div
+          style={{ animationDelay: "200ms" }}
+          className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex flex-col justify-between animate-card-enter"
+        >
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold text-slate-400">Your Network</span>

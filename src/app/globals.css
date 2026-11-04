@@ -162,13 +162,13 @@ body {
 }
 
 /* ==========================================================================
-   Notes Visual Feast Animations (Page Load, Cards, Modals, Mark-as-Done)
+   Visual Feast Animations (Page Load, Cards, Modals, Mark-as-Done, Interactive)
    ========================================================================== */
 
-@keyframes noteCardEnter {
+@keyframes cardEnter {
   0% {
     opacity: 0;
-    transform: translateY(14px) scale(0.98);
+    transform: translateY(14px) scale(0.985);
   }
   100% {
     opacity: 1;
@@ -176,8 +176,9 @@ body {
   }
 }
 
-.animate-note-card {
-  animation: noteCardEnter 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+.animate-note-card,
+.animate-card-enter {
+  animation: cardEnter 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes modalBackdropEnter {

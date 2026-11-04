@@ -243,7 +243,10 @@ export function UsageView() {
       {/* Primary Usage Cards (Gauges) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* 1. Supabase File Storage (1 GB Limit) */}
-        <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs relative overflow-hidden">
+        <div
+          style={{ animationDelay: "0ms" }}
+          className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 relative overflow-hidden animate-card-enter"
+        >
           {/* Header Row: Icon + Title + Pill */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
@@ -321,7 +324,10 @@ export function UsageView() {
         </div>
 
         {/* 2. Supabase Database Size (500 MB Limit) */}
-        <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs relative overflow-hidden">
+        <div
+          style={{ animationDelay: "80ms" }}
+          className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 relative overflow-hidden animate-card-enter"
+        >
           {/* Header Row: Icon + Title + Pill */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">

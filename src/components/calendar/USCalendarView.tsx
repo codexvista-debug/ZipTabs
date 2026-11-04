@@ -559,7 +559,10 @@ export function USCalendarView() {
       {/* KPI Cards: 2x2 Grid on Mobile (Row 1: Total & Holidays, Row 2: P1 & P2 side-by-side), 4 Cols on Desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Total Working Hours */}
-        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
+        <div
+          style={{ animationDelay: "0ms" }}
+          className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 relative overflow-hidden flex flex-col justify-between animate-card-enter"
+        >
           <div className="flex items-center justify-between text-slate-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">
             <span className="truncate">Total Hours</span>
             <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
@@ -575,7 +578,10 @@ export function USCalendarView() {
         </div>
 
         {/* US Holidays in Month (Placed in Row 1 Col 2 on mobile so P1 & P2 align side-by-side) */}
-        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
+        <div
+          style={{ animationDelay: "50ms" }}
+          className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 relative overflow-hidden flex flex-col justify-between animate-card-enter"
+        >
           <div className="flex items-center justify-between text-slate-400 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">
             <span className="truncate">US Holidays</span>
             <Flag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600 shrink-0" />
@@ -596,7 +602,10 @@ export function USCalendarView() {
         </div>
 
         {/* P1 Hours (Days 1–15) */}
-        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-blue-200/80 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-blue-50/30 flex flex-col justify-between">
+        <div
+          style={{ animationDelay: "100ms" }}
+          className="bg-white rounded-2xl p-3 sm:p-5 border border-blue-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 relative overflow-hidden bg-gradient-to-br from-white to-blue-50/30 flex flex-col justify-between animate-card-enter"
+        >
           <div className="flex items-center justify-between gap-1 text-blue-600 text-[11px] sm:text-xs font-bold uppercase tracking-wider">
             <span className="truncate">P1 (1–15)</span>
             <span className="px-1.5 py-0.2 rounded-md bg-blue-100 text-blue-700 text-[9px] sm:text-[10px] font-extrabold shrink-0">
@@ -618,7 +627,10 @@ export function USCalendarView() {
         </div>
 
         {/* P2 Hours (Days 16–30/31) */}
-        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-indigo-200/80 shadow-xs relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/30 flex flex-col justify-between">
+        <div
+          style={{ animationDelay: "150ms" }}
+          className="bg-white rounded-2xl p-3 sm:p-5 border border-indigo-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/30 flex flex-col justify-between animate-card-enter"
+        >
           <div className="flex items-center justify-between gap-1 text-indigo-600 text-[11px] sm:text-xs font-bold uppercase tracking-wider">
             <span className="truncate">P2 (16–{daysInCurrentMonth})</span>
             <span className="px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-700 text-[9px] sm:text-[10px] font-extrabold shrink-0">
