@@ -68,7 +68,7 @@ export function ExecutiveToast({
   headerMeta,
   metric,
   position,
-  variant = "capsule",
+  variant = "monolith",
   action,
   onClose,
   durationMs = 3500,
@@ -249,9 +249,9 @@ export function ExecutiveToast({
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-32px)] sm:max-w-lg lg:max-w-xl ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
+      className={`relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-32px)] sm:min-w-[380px] sm:max-w-xl lg:max-w-2xl ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
     >
-      {/* Monolith Dark Header Bar - Ultra-compact on mobile */}
+      {/* Monolith Dark Header Bar */}
       <div className="bg-zinc-950 text-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 flex items-center justify-between border-b border-zinc-800 gap-2">
         <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse shrink-0`} />
@@ -277,16 +277,16 @@ export function ExecutiveToast({
       </div>
 
       {/* Card Body - Slim executive profile */}
-      <div className="px-2.5 sm:px-3.5 py-2 sm:py-3 flex items-center gap-2.5 sm:gap-3">
+      <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-3">
         <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
           {renderIcon("w-3.5 h-3.5 sm:w-4 sm:h-4")}
         </div>
         <div className="min-w-0 flex-1">
-          <h4 className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight leading-snug truncate">
+          <h4 className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight leading-snug">
             {title}
           </h4>
           {description && (
-            <p className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 leading-tight truncate">
+            <p className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 leading-snug">
               {description}
             </p>
           )}
@@ -295,20 +295,22 @@ export function ExecutiveToast({
           <button
             type="button"
             onClick={action.onClick}
-            className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-xs"
+            className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-xs active:scale-95 ml-1"
           >
             {action.label}
           </button>
         )}
       </div>
 
-      {/* Bottom Progress Countdown Bar (Extended 3.5s) */}
-      <div className="h-0.5 bg-zinc-100 overflow-hidden w-full">
-        <div
-          className={`h-full ${getAccentColor()} transition-all duration-75 ease-linear`}
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
+      {/* Bottom Progress Countdown Bar */}
+      {durationMs > 0 && (
+        <div className="h-0.5 bg-zinc-100 overflow-hidden w-full">
+          <div
+            className={`h-full ${getAccentColor()} transition-all duration-75 ease-linear`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 
@@ -410,8 +412,8 @@ export function ExecutiveToast({
   }
 
   // ----------------------------------------------------
-  // 2. Standard Universal Toast (Sleek Executive Precision Dynamic Capsule)
-  // Default across all tabs for a unified, modern, high-tier executive feel.
+  // 2. Standard Universal Toast (Responsive: Mobile Capsule + Desktop Monolith)
+  // Restores the rich Monolith Command Bar on PC while keeping mobile sleek.
   // ----------------------------------------------------
   const finalContent =
     variant === "sculpted-notch" ? (
@@ -419,13 +421,11 @@ export function ExecutiveToast({
         {renderCapsuleCard("sm:hidden")}
         {renderSculptedCard("hidden sm:block")}
       </>
-    ) : variant === "monolith" ? (
+    ) : (
       <>
         {renderCapsuleCard("sm:hidden")}
         {renderMonolithCard("hidden sm:block")}
       </>
-    ) : (
-      renderCapsuleCard()
     );
 
   if (position) {
