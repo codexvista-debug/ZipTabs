@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { verifyPassword } from "@/lib/crypto";
+import { getSessionUser } from "@/lib/session";
 
 export function getClientIp(req: NextRequest): string {
   const forwardedFor = req.headers.get("x-forwarded-for");
@@ -17,6 +18,17 @@ export function getClientIp(req: NextRequest): string {
 
 // GET: Fetch system settings, users, IP locks, and current client IP
 export async function GET(req: NextRequest) {
+  const session = await getSessionUser(req);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+  if (session.username.toLowerCase() !== "chief" && session.role !== "Chief Administrator") {
+    return NextResponse.json(
+      { success: false, error: "Forbidden: Master Control requires @chief authorization." },
+      { status: 403 }
+    );
+  }
+
   const clientIp = getClientIp(req);
   const db = supabaseAdmin || supabase;
 
@@ -97,6 +109,17 @@ export async function GET(req: NextRequest) {
 
 // POST: Execute security mutations
 export async function POST(req: NextRequest) {
+  const session = await getSessionUser(req);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+  if (session.username.toLowerCase() !== "chief" && session.role !== "Chief Administrator") {
+    return NextResponse.json(
+      { success: false, error: "Forbidden: Master Control requires @chief authorization." },
+      { status: 403 }
+    );
+  }
+
   const clientIp = getClientIp(req);
   const db = supabaseAdmin || supabase;
 

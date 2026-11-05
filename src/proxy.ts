@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 // In-memory security cache to avoid hammering Supabase while keeping <2s real-time responsiveness
 let cachedSettings: {
@@ -92,6 +93,38 @@ export async function proxy(request: NextRequest) {
       // Evict non-whitelisted IP immediately at the HTTP server level with HTTP 307.
       // Zero HTML, JS, or assets are sent to the client.
       return NextResponse.redirect("https://www.wikipedia.org", 307);
+    }
+  }
+
+  // Session gate for internal API routes
+  if (pathname.startsWith("/api/")) {
+    const isPublicApi =
+      pathname.startsWith("/api/auth/login") ||
+      pathname.startsWith("/api/auth/register") ||
+      pathname.startsWith("/api/auth/lockout-status") ||
+      pathname.startsWith("/api/auth/me") ||
+      pathname.startsWith("/api/auth/logout") ||
+      pathname.startsWith("/api/discord");
+
+    if (!isPublicApi) {
+      const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+      const session = await verifySessionToken(token);
+      if (!session) {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized: Active session required." },
+          { status: 401 }
+        );
+      }
+      if (
+        pathname.startsWith("/api/master-control") &&
+        session.username !== "chief" &&
+        session.role !== "Chief Administrator"
+      ) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden: Master Control requires @chief authorization." },
+          { status: 403 }
+        );
+      }
     }
   }
 

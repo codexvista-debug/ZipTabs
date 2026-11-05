@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getSessionUser } from "@/lib/session";
 import { extractText } from "unpdf";
 import * as XLSX from "xlsx";
 import { createWorker } from "tesseract.js";
 
 // 1. GET: Fetch active remittances for a vendor (Auto-prunes expired >30 days)
 export async function GET(req: NextRequest) {
+  const session = await getSessionUser(req);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
   const { searchParams } = new URL(req.url);
   const vendorId = searchParams.get("vendorId") || "pyramid";
 
@@ -47,6 +52,10 @@ export async function GET(req: NextRequest) {
 
 // 2. DELETE: Remove a specific remittance by ID
 export async function DELETE(req: NextRequest) {
+  const session = await getSessionUser(req);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
 
@@ -104,6 +113,10 @@ export interface ParsedInvoiceItem {
 // - Multipart: Parse file (PDF or Excel/CSV), returns draft data for validation - NOT stored in DB
 // - JSON: Save validated data to Supabase (stores data only, not original file binary)
 export async function POST(req: NextRequest) {
+  const session = await getSessionUser(req);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
   const contentType = req.headers.get("content-type") || "";
 
   // CASE A: User validated the data and clicked "Confirm & Save to Supabase"

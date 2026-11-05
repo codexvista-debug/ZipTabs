@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
 
 export function getClientIp(req: NextRequest): string {
   const forwardedFor = req.headers.get("x-forwarded-for");
@@ -217,7 +218,13 @@ export async function POST(req: NextRequest) {
         attempt_history: updatedHistory,
       });
 
-      return NextResponse.json({
+      const sessionToken = await createSessionToken({
+        id: userRecord.id,
+        username: userRecord.username,
+        role: userRecord.role || "Administrator",
+      });
+
+      const response = NextResponse.json({
         success: true,
         user: {
           id: userRecord.id,
@@ -225,6 +232,9 @@ export async function POST(req: NextRequest) {
           role: userRecord.role || "Administrator",
         },
       });
+
+      setSessionCookie(response, sessionToken);
+      return response;
     }
 
     // 4. Handle Failed Attempt: Increment strike count

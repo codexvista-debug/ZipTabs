@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getSessionUser } from "@/lib/session";
 
 // POST: Explicit save endpoint for validated remittance data (Stores data, not the PDF file)
 export async function POST(req: NextRequest) {
+  const session = await getSessionUser(req);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
   if (!supabase) {
     return NextResponse.json({ success: false, error: "Database offline" }, { status: 503 });
   }

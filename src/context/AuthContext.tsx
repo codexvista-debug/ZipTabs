@@ -208,6 +208,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return; // Never reveal UI, keep loading state while navigating away
       }
 
+      // Verify server HttpOnly session cookie
+      try {
+        const meRes = await fetch("/api/auth/me");
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.authenticated && meData.user) {
+            setUser(meData.user);
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(meData.user));
+              localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+            } catch {}
+          } else {
+            // Server cookie missing or invalid - revoke local session
+            setUser(null);
+            try {
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem(LAST_ACTIVITY_KEY);
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.error("Session verification error:", err);
+      }
+
       if (isMounted) {
         setIsLoading(false);
       }
@@ -538,6 +562,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(LAST_ACTIVITY_KEY);
+    try {
+      fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    } catch {}
     try {
       if (typeof window !== "undefined") {
         if (isTimeout) {

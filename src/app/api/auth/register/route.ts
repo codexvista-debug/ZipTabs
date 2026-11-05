@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, supabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/crypto";
+import { createSessionToken, setSessionCookie } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   const db = supabaseAdmin || supabase;
@@ -68,7 +69,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: insertError.message }, { status: 500 });
     }
 
-    return NextResponse.json({
+    const sessionToken = await createSessionToken({
+      id: newUser.id,
+      username: newUser.username,
+      role: newUser.role || "Administrator",
+    });
+
+    const response = NextResponse.json({
       success: true,
       user: {
         id: newUser.id,
@@ -76,6 +83,9 @@ export async function POST(req: NextRequest) {
         role: newUser.role || "Administrator",
       },
     });
+
+    setSessionCookie(response, sessionToken);
+    return response;
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message || "Failed to register user." }, { status: 500 });
   }
