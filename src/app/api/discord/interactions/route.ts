@@ -132,64 +132,80 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- COMMAND: /vanish ---
-    if (commandName === "vanish") {
+    // --- COMMAND: /lockdown (unified with legacy /vanish) ---
+    if (commandName === "lockdown" || commandName === "vanish") {
       const state = String(options.state || "").toLowerCase().trim(); // "on", "off", "status"
 
       try {
         if (state === "on" || state === "enable" || state === "activate") {
-          // Turn Vanish Mode ON
-          await supabase.from("system_security_settings").upsert({
-            id: "vanish_mode",
-            ip_lockdown_enabled: true,
-            updated_at: new Date().toISOString(),
-            updated_by: `discord:@${callerUser}`,
-          });
+          // Turn Lockdown ON (Synchronize both global and vanish_mode)
+          await Promise.all([
+            supabase.from("system_security_settings").upsert({
+              id: "global",
+              ip_lockdown_enabled: true,
+              updated_at: new Date().toISOString(),
+              updated_by: `discord:@${callerUser}`,
+            }),
+            supabase.from("system_security_settings").upsert({
+              id: "vanish_mode",
+              ip_lockdown_enabled: true,
+              updated_at: new Date().toISOString(),
+              updated_by: `discord:@${callerUser}`,
+            }),
+          ]);
 
           return NextResponse.json({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
               embeds: [
                 {
-                  title: "🛡️ Vanish Mode ACTIVATED",
+                  title: "🛡️ ZipTabs Lockdown ACTIVATED",
                   description:
-                    "**Wikipedia Cloaking is now ACTIVE on ZipTabs.**\nAll traffic outside of whitelisted IPs will be instantly evicted and redirected to Wikipedia with zero assets served.",
-                  color: 0x2563eb, // Cobalt Blue
+                    "**Lockdown Mode is now ACTIVE on ZipTabs.**\nAccess is strictly restricted to whitelisted IPs. All unauthorized traffic will be evicted and cloaked (redirected to Wikipedia) with zero assets served.",
+                  color: 0xe11d48, // Crimson Red
                   fields: [
-                    { name: "State", value: "🔒 ON (Cloaked)", inline: true },
+                    { name: "Lockdown State", value: "🔒 ON (Restricted & Cloaked)", inline: true },
                     { name: "Authorized By", value: `@${callerUser}`, inline: true },
                     { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
                   ],
-                  footer: { text: "ZipTabs Remote Controller • Command Executed" },
+                  footer: { text: "ZipTabs Defense Grid • Remote Lockdown Active" },
                   timestamp: new Date().toISOString(),
                 },
               ],
             },
           });
         } else if (state === "off" || state === "disable" || state === "deactivate") {
-          // Turn Vanish Mode OFF
-          await supabase.from("system_security_settings").upsert({
-            id: "vanish_mode",
-            ip_lockdown_enabled: false,
-            updated_at: new Date().toISOString(),
-            updated_by: `discord:@${callerUser}`,
-          });
+          // Turn Lockdown OFF (Synchronize both global and vanish_mode)
+          await Promise.all([
+            supabase.from("system_security_settings").upsert({
+              id: "global",
+              ip_lockdown_enabled: false,
+              updated_at: new Date().toISOString(),
+              updated_by: `discord:@${callerUser}`,
+            }),
+            supabase.from("system_security_settings").upsert({
+              id: "vanish_mode",
+              ip_lockdown_enabled: false,
+              updated_at: new Date().toISOString(),
+              updated_by: `discord:@${callerUser}`,
+            }),
+          ]);
 
           return NextResponse.json({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
               embeds: [
                 {
-                  title: "🟢 Vanish Mode DEACTIVATED",
+                  title: "🟢 ZipTabs Lockdown DEACTIVATED",
                   description:
-                    "**Vanish Mode is now DISABLED.**\nZipTabs is accessible normally from any network without Wikipedia redirection.",
+                    "**Lockdown Mode is now DISABLED.**\nZipTabs is accessible normally from any network without IP restriction or Wikipedia redirection.",
                   color: 0x10b981, // Emerald Green
                   fields: [
-                    { name: "State", value: "🔓 OFF (Open)", inline: true },
+                    { name: "Lockdown State", value: "🔓 OFF (Open Access)", inline: true },
                     { name: "Authorized By", value: `@${callerUser}`, inline: true },
                     { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
                   ],
-                  footer: { text: "ZipTabs Remote Controller • Command Executed" },
+                  footer: { text: "ZipTabs Defense Grid • Normal Access Restored" },
                   timestamp: new Date().toISOString(),
                 },
               ],
@@ -197,21 +213,24 @@ export async function POST(req: NextRequest) {
           });
         } else {
           // Check Status
-          const { data: vanishData } = await supabase
-            .from("system_security_settings")
-            .select("ip_lockdown_enabled, updated_at, updated_by")
-            .eq("id", "vanish_mode")
-            .maybeSingle();
+          const [vanishDataRes, globalDataRes] = await Promise.all([
+            supabase
+              .from("system_security_settings")
+              .select("ip_lockdown_enabled, updated_at, updated_by")
+              .eq("id", "vanish_mode")
+              .maybeSingle(),
+            supabase
+              .from("system_security_settings")
+              .select("ip_lockdown_enabled, allowed_ips, updated_at, updated_by")
+              .eq("id", "global")
+              .maybeSingle(),
+          ]);
 
-          const { data: globalData } = await supabase
-            .from("system_security_settings")
-            .select("allowed_ips")
-            .eq("id", "global")
-            .maybeSingle();
-
-          const isEnabled = Boolean(vanishData?.ip_lockdown_enabled);
-          const allowedCount = Array.isArray(globalData?.allowed_ips)
-            ? globalData.allowed_ips.length
+          const isEnabled = Boolean(
+            globalDataRes.data?.ip_lockdown_enabled || vanishDataRes.data?.ip_lockdown_enabled
+          );
+          const allowedCount = Array.isArray(globalDataRes.data?.allowed_ips)
+            ? globalDataRes.data.allowed_ips.length
             : 0;
 
           return NextResponse.json({
@@ -220,11 +239,11 @@ export async function POST(req: NextRequest) {
               embeds: [
                 {
                   title: "📊 ZipTabs Defense Status",
-                  color: isEnabled ? 0x2563eb : 0x10b981,
+                  color: isEnabled ? 0xe11d48 : 0x10b981,
                   fields: [
                     {
-                      name: "Vanish Mode",
-                      value: isEnabled ? "🔒 **ACTIVE** (Wikipedia Redirect)" : "🟢 **INACTIVE** (Open Access)",
+                      name: "Lockdown Mode",
+                      value: isEnabled ? "🔒 **ACTIVE** (Locked & Cloaked to Wikipedia)" : "🟢 **INACTIVE** (Open Access)",
                       inline: true,
                     },
                     {
@@ -234,8 +253,8 @@ export async function POST(req: NextRequest) {
                     },
                     {
                       name: "Last Modified",
-                      value: vanishData?.updated_at
-                        ? new Date(vanishData.updated_at).toLocaleString()
+                      value: (globalDataRes.data?.updated_at || vanishDataRes.data?.updated_at)
+                        ? new Date((globalDataRes.data?.updated_at || vanishDataRes.data?.updated_at)!).toLocaleString()
                         : "Unknown",
                       inline: false,
                     },
@@ -252,7 +271,7 @@ export async function POST(req: NextRequest) {
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
             flags: 64,
-            content: `❌ Error toggling Vanish Mode: ${err?.message || "Unknown error"}`,
+            content: `❌ Error toggling Lockdown Mode: ${err?.message || "Unknown error"}`,
           },
         });
       }
@@ -332,7 +351,7 @@ export async function POST(req: NextRequest) {
           supabase.from("app_notes").select("id, priority, is_completed"),
         ]);
 
-        const isVanish = Boolean(vanishRes.data?.ip_lockdown_enabled);
+        const isLockdown = Boolean(globalRes.data?.ip_lockdown_enabled || vanishRes.data?.ip_lockdown_enabled);
         const allowedCount = Array.isArray(globalRes.data?.allowed_ips) ? globalRes.data.allowed_ips.length : 0;
         const totalInvoices = invRes.data?.length || 0;
         const totalOverdueAmount = (invRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.amount) || 0), 0);
@@ -344,11 +363,11 @@ export async function POST(req: NextRequest) {
             embeds: [
               {
                 title: "⚡ ZipTabs Executive Briefing",
-                color: 0x2563eb,
+                color: isLockdown ? 0xe11d48 : 0x2563eb,
                 fields: [
                   {
-                    name: "🛡️ Vanish Mode",
-                    value: isVanish ? "🔒 ACTIVE" : "🟢 DISABLED",
+                    name: "🛡️ Lockdown Mode",
+                    value: isLockdown ? "🔒 ACTIVE (Locked)" : "🟢 DISABLED (Open)",
                     inline: true,
                   },
                   {

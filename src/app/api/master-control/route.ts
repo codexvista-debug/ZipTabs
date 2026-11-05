@@ -53,6 +53,10 @@ export async function GET(req: NextRequest) {
         .limit(100),
     ]);
 
+    const isLockdown = Boolean(
+      settingsRes.data?.ip_lockdown_enabled || vanishRes.data?.ip_lockdown_enabled
+    );
+
     const globalData = settingsRes.data || {
       id: "global",
       registrations_allowed: false,
@@ -63,7 +67,8 @@ export async function GET(req: NextRequest) {
 
     const settings = {
       ...globalData,
-      vanish_mode_enabled: Boolean(vanishRes.data?.ip_lockdown_enabled),
+      ip_lockdown_enabled: isLockdown,
+      vanish_mode_enabled: isLockdown,
     };
 
     return NextResponse.json(
@@ -124,57 +129,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, registrations_allowed: allowed });
     }
 
-    if (action === "toggle_lockdown") {
+    if (action === "toggle_lockdown" || action === "toggle_vanish_mode") {
       const enabled = Boolean(body.enabled);
       let updatedAllowed = [...allowedIps];
-      // If enabling lockdown and current IP isn't allowed, auto-whitelist current IP
+      // If enabling lockdown and current IP isn't allowed, auto-whitelist current IP so Chief is never ejected
       if (enabled && clientIp && !updatedAllowed.includes(clientIp)) {
         updatedAllowed.push(clientIp);
       }
 
-      await supabase
-        .from("system_security_settings")
-        .upsert({
-          id: "global",
-          ip_lockdown_enabled: enabled,
-          allowed_ips: updatedAllowed,
-          updated_at: new Date().toISOString(),
-          updated_by: "chief",
-        });
-      return NextResponse.json({
-        success: true,
-        ip_lockdown_enabled: enabled,
-        allowed_ips: updatedAllowed,
-      });
-    }
-
-    if (action === "toggle_vanish_mode") {
-      const enabled = Boolean(body.enabled);
-      let updatedAllowed = [...allowedIps];
-      // If enabling vanish mode and current IP isn't allowed, auto-whitelist current IP so Chief is never ejected
-      if (enabled && clientIp && !updatedAllowed.includes(clientIp)) {
-        updatedAllowed.push(clientIp);
-        await supabase
+      // Synchronize both global and vanish_mode as one unified Lockdown system
+      await Promise.all([
+        supabase
           .from("system_security_settings")
           .upsert({
             id: "global",
+            ip_lockdown_enabled: enabled,
             allowed_ips: updatedAllowed,
             updated_at: new Date().toISOString(),
             updated_by: "chief",
-          });
-      }
-
-      await supabase
-        .from("system_security_settings")
-        .upsert({
-          id: "vanish_mode",
-          ip_lockdown_enabled: enabled,
-          updated_at: new Date().toISOString(),
-          updated_by: "chief",
-        });
+          }),
+        supabase
+          .from("system_security_settings")
+          .upsert({
+            id: "vanish_mode",
+            ip_lockdown_enabled: enabled,
+            updated_at: new Date().toISOString(),
+            updated_by: "chief",
+          }),
+      ]);
 
       return NextResponse.json({
         success: true,
+        ip_lockdown_enabled: enabled,
         vanish_mode_enabled: enabled,
         allowed_ips: updatedAllowed,
       });

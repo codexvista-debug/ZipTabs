@@ -2,9 +2,8 @@
  * Optional Lightweight Discord Channel Bot Listener
  * 
  * If you prefer typing direct commands in a private Discord channel instead of slash commands:
- *   !vanish on 7416
- *   !vanish off 7416
- *   !whitelist 49.43.x.x 7416
+ *   !lockdown on 7416
+ *   !lockdown off 7416
  *   !status 7416
  * 
  * Run with:

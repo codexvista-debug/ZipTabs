@@ -23,12 +23,12 @@ Example:
 
 const commands = [
   {
-    name: "vanish",
-    description: "Control ZipTabs Vanish Mode (Wikipedia Cloaking)",
+    name: "lockdown",
+    description: "Control ZipTabs Lockdown Mode (IP restriction & Wikipedia cloaking)",
     options: [
       {
         name: "state",
-        description: "Turn Vanish Mode on, off, or check current status",
+        description: "Turn Lockdown on, off, or check current status",
         type: 3, // STRING
         required: true,
         choices: [
@@ -39,25 +39,7 @@ const commands = [
       },
       {
         name: "pin",
-        description: "Enter your secret authorization PIN",
-        type: 3, // STRING
-        required: true,
-      },
-    ],
-  },
-  {
-    name: "whitelist",
-    description: "Whitelist an IP address for ZipTabs access during Vanish Mode",
-    options: [
-      {
-        name: "ip",
-        description: "IP address to allow (e.g. 49.43.232.217)",
-        type: 3, // STRING
-        required: true,
-      },
-      {
-        name: "pin",
-        description: "Enter your secret authorization PIN",
+        description: "Enter your secret authorization PIN (Required: 7416)",
         type: 3, // STRING
         required: true,
       },
@@ -69,7 +51,7 @@ const commands = [
     options: [
       {
         name: "pin",
-        description: "Enter your secret authorization PIN",
+        description: "Enter your secret authorization PIN (Required: 7416)",
         type: 3, // STRING
         required: true,
       },

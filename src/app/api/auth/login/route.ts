@@ -70,18 +70,19 @@ export async function POST(req: NextRequest) {
 
     const settings = allSettings?.find((s) => s.id === "global");
     const vanishSettings = allSettings?.find((s) => s.id === "vanish_mode");
-    const isVanishMode = Boolean(vanishSettings?.ip_lockdown_enabled);
+    const isLockdown = Boolean(settings?.ip_lockdown_enabled || vanishSettings?.ip_lockdown_enabled);
 
-    if (isVanishMode) {
+    if (isLockdown) {
       const isAllowed = Array.isArray(settings?.allowed_ips) && settings.allowed_ips.includes(clientIp);
       if (!isAllowed) {
         return NextResponse.json(
           {
             success: false,
             locked: true,
+            isLockdown: true,
             isVanishMode: true,
             vanishRedirectUrl: "https://www.wikipedia.org",
-            error: "Vanish Mode Active. Access Denied.",
+            error: "Lockdown Mode Active. Access Denied.",
           },
           { status: 403 }
         );

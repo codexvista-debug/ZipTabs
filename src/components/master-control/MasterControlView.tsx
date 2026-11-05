@@ -279,20 +279,20 @@ export function MasterControlView() {
           { event: "*", schema: "public", table: "system_security_settings" },
           (payload: any) => {
             // Instant zero-latency state sync from external updates (Discord bot / other tabs)
-            if (payload?.new?.id === "vanish_mode") {
+            if (payload?.new?.id === "vanish_mode" || payload?.new?.id === "global") {
+              const isLocked = Boolean(payload.new.ip_lockdown_enabled);
               setSettings((prev) => ({
                 ...prev,
-                vanish_mode_enabled: Boolean(payload.new.ip_lockdown_enabled),
+                ip_lockdown_enabled: isLocked,
+                vanish_mode_enabled: isLocked,
+                allowed_ips: payload.new.allowed_ips || prev.allowed_ips,
+                registrations_allowed:
+                  payload.new.registrations_allowed !== undefined
+                    ? Boolean(payload.new.registrations_allowed)
+                    : prev.registrations_allowed,
+                blacklisted_ips: payload.new.blacklisted_ips || prev.blacklisted_ips,
                 updated_at: payload.new.updated_at,
                 updated_by: payload.new.updated_by,
-              }));
-            } else if (payload?.new?.id === "global") {
-              setSettings((prev) => ({
-                ...prev,
-                allowed_ips: payload.new.allowed_ips || prev.allowed_ips,
-                ip_lockdown_enabled: Boolean(payload.new.ip_lockdown_enabled),
-                registrations_allowed: Boolean(payload.new.registrations_allowed),
-                blacklisted_ips: payload.new.blacklisted_ips || prev.blacklisted_ips,
               }));
             }
             loadMasterData(true);
@@ -378,78 +378,61 @@ export function MasterControlView() {
     const prevAllowed = [...settings.allowed_ips];
     setPendingActionId("lockdown");
 
-    executeActionOptimistic(
-      { action: "toggle_lockdown", enabled: nextState },
-      () =>
-        setSettings((prev) => ({
-          ...prev,
-          ip_lockdown_enabled: nextState,
-          allowed_ips: nextState && !prev.allowed_ips.includes(clientIp)
-            ? [...prev.allowed_ips, clientIp]
-            : prev.allowed_ips,
-        })),
-      () =>
-        setSettings((prev) => ({
-          ...prev,
-          ip_lockdown_enabled: prevState,
-          allowed_ips: prevAllowed,
-        })),
-      nextState
-        ? `WEBSITE LOCKED DOWN: Access restricted strictly to IP ${clientIp}.`
-        : "Website lockdown lifted. Standard IP monitoring active."
-    );
-  };
-
-  // 2.1 Toggle Vanish Mode (Immediate eviction of non-whitelisted visitors to Wikipedia)
-  const executeToggleVanishMode = (nextState: boolean) => {
-    const prevState = Boolean(settings.vanish_mode_enabled);
-    const prevAllowed = [...settings.allowed_ips];
-    setPendingActionId("vanish");
-
-    executeActionOptimistic(
-      { action: "toggle_vanish_mode", enabled: nextState },
-      () =>
-        setSettings((prev) => ({
-          ...prev,
-          vanish_mode_enabled: nextState,
-          allowed_ips: nextState && !prev.allowed_ips.includes(clientIp)
-            ? [...prev.allowed_ips, clientIp]
-            : prev.allowed_ips,
-        })),
-      () =>
-        setSettings((prev) => ({
-          ...prev,
-          vanish_mode_enabled: prevState,
-          allowed_ips: prevAllowed,
-        })),
-      nextState
-        ? `VANISH MODE ACTIVATED: Non-whitelisted visitors are evicted to Wikipedia immediately.`
-        : "Vanish Mode deactivated. Normal access restored."
-    );
-  };
-
-  const handleToggleVanishMode = () => {
-    const nextState = !settings.vanish_mode_enabled;
     if (nextState) {
       setConfirmDialog({
-        title: "Activate Vanish Mode?",
+        title: "Activate Lockdown Mode?",
         description: (
           <span>
-            When Vanish Mode is active, <strong>any visitor visiting any part of this site</strong> whose IP is not on your whitelist will be <strong>instantly evicted and redirected to Wikipedia</strong> (<code className="text-purple-600 bg-purple-50 px-1 py-0.5 rounded font-mono text-[11px]">https://www.wikipedia.org</code>).
+            When Lockdown Mode is active, <strong>access is strictly restricted to authorized whitelisted IPs</strong>. Any unauthorized visitor to any part of this site will be <strong>instantly evicted and cloaked (redirected to Wikipedia)</strong> (<code className="text-rose-600 bg-rose-50 px-1 py-0.5 rounded font-mono text-[11px]">https://www.wikipedia.org</code>).
             <br /><br />
-            They will never be able to access or remain on your website link at all. Your current IP (<strong className="text-slate-900">{clientIp}</strong>) will be kept whitelisted so you are never locked out.
+            Your current IP (<strong className="text-slate-900">{clientIp}</strong>) will be kept whitelisted so you are never locked out.
           </span>
         ),
-        confirmText: "Activate Vanish Mode",
-        confirmVariant: "purple",
-        icon: "ghost",
+        confirmText: "Activate Lockdown",
+        confirmVariant: "danger",
+        icon: "lock",
         onConfirm: () => {
           setConfirmDialog(null);
-          executeToggleVanishMode(true);
+          executeActionOptimistic(
+            { action: "toggle_lockdown", enabled: true },
+            () =>
+              setSettings((prev) => ({
+                ...prev,
+                ip_lockdown_enabled: true,
+                vanish_mode_enabled: true,
+                allowed_ips: !prev.allowed_ips.includes(clientIp)
+                  ? [...prev.allowed_ips, clientIp]
+                  : prev.allowed_ips,
+              })),
+            () =>
+              setSettings((prev) => ({
+                ...prev,
+                ip_lockdown_enabled: prevState,
+                vanish_mode_enabled: prevState,
+                allowed_ips: prevAllowed,
+              })),
+            `LOCKDOWN ACTIVATED: Access restricted strictly to whitelist; unauthorized traffic cloaked to Wikipedia.`
+          );
         },
       });
     } else {
-      executeToggleVanishMode(false);
+      executeActionOptimistic(
+        { action: "toggle_lockdown", enabled: false },
+        () =>
+          setSettings((prev) => ({
+            ...prev,
+            ip_lockdown_enabled: false,
+            vanish_mode_enabled: false,
+          })),
+        () =>
+          setSettings((prev) => ({
+            ...prev,
+            ip_lockdown_enabled: prevState,
+            vanish_mode_enabled: prevState,
+            allowed_ips: prevAllowed,
+          })),
+        "Lockdown lifted. Standard IP monitoring active."
+      );
     }
   };
 
@@ -999,9 +982,9 @@ export function MasterControlView() {
         </div>
       </div>
 
-      {/* Metric Cards Grid - All 5 cards side by side in a single compact row on PC */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 lg:grid-cols-5 gap-3 sm:gap-3.5">
-        {/* Card 1: IP Lockdown Switch */}
+      {/* Metric Cards Grid - 4 cards side by side in a compact row on PC */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-3.5">
+        {/* Card 1: Unified Lockdown Switch */}
         <div
           style={{ animationDelay: "0ms" }}
           className={`rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl active:scale-[0.985] animate-card-enter ${
@@ -1029,10 +1012,10 @@ export function MasterControlView() {
                 <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping shrink-0" />
               )}
             </div>
-            <p className="text-[10px] text-slate-500 mt-1 line-clamp-1" title={settings.ip_lockdown_enabled ? "Restricted to authorized IP list only" : "Standard 3-strike IP defense active"}>
+            <p className="text-[10px] text-slate-500 mt-1 line-clamp-1" title={settings.ip_lockdown_enabled ? "Restricted to whitelist; unauthorized cloaked to Wikipedia" : "Standard open access active"}>
               {settings.ip_lockdown_enabled
-                ? "Restricted to whitelist"
-                : "Standard 3-strike defense"}
+                ? "Locked & cloaked to Wikipedia"
+                : "Standard open access"}
             </p>
           </div>
           <button
@@ -1046,76 +1029,20 @@ export function MasterControlView() {
             {settings.ip_lockdown_enabled ? (
               <>
                 <Unlock className="w-3 h-3 shrink-0" />
-                <span className="truncate">Disable</span>
+                <span className="truncate">Unlock Site</span>
               </>
             ) : (
               <>
                 <ShieldAlert className="w-3 h-3 shrink-0" />
-                <span className="truncate">Lock to IP</span>
+                <span className="truncate">Engage Lockdown</span>
               </>
             )}
           </button>
         </div>
 
-        {/* Card 2: Vanish Mode Switch */}
+        {/* Card 2: Blacklisted & Locked IPs */}
         <div
-          style={{ animationDelay: "50ms" }}
-          className={`rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl active:scale-[0.985] animate-card-enter ${
-            settings.vanish_mode_enabled
-              ? "bg-purple-50/60 border-purple-300 ring-2 ring-purple-500/20"
-              : "bg-white border-slate-200/90"
-          }`}
-        >
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-semibold text-slate-400">Vanish Mode</span>
-              <div
-                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
-                  settings.vanish_mode_enabled
-                    ? "bg-purple-100 text-purple-700 animate-pulse"
-                    : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                <Ghost className="w-3.5 h-3.5" />
-              </div>
-            </div>
-            <div className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-              <span>{settings.vanish_mode_enabled ? "Active" : "Standard"}</span>
-              {settings.vanish_mode_enabled && (
-                <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping shrink-0" />
-              )}
-            </div>
-            <p className="text-[10px] text-slate-500 mt-1 line-clamp-1" title={settings.vanish_mode_enabled ? "Non-whitelisted visitors redirected to Wikipedia" : "Decoy Wikipedia redirect is currently off"}>
-              {settings.vanish_mode_enabled
-                ? "Decoy redirect active"
-                : "Decoy redirect is off"}
-            </p>
-          </div>
-          <button
-            onClick={handleToggleVanishMode}
-            className={`mt-3 w-full py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 shrink-0 ${
-              settings.vanish_mode_enabled
-                ? "bg-purple-700 text-white hover:bg-purple-800 shadow-xs"
-                : "bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 shadow-xs"
-            }`}
-          >
-            {settings.vanish_mode_enabled ? (
-              <>
-                <Unlock className="w-3 h-3 shrink-0" />
-                <span className="truncate">Disable</span>
-              </>
-            ) : (
-              <>
-                <Ghost className="w-3 h-3 shrink-0" />
-                <span className="truncate">Enable</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Card 3: Blacklisted & Locked IPs */}
-        <div
-          style={{ animationDelay: "100ms" }}
+          style={{ animationDelay: "60ms" }}
           className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs hover:shadow-xl hover:-translate-y-1 active:scale-[0.985] transition-all duration-300 flex flex-col justify-between animate-card-enter"
         >
           <div>
@@ -1521,9 +1448,9 @@ export function MasterControlView() {
                             <span>Blacklisted</span>
                           </span>
                         ) : isVanished ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                            <Ghost className="w-3 h-3 text-purple-600" />
-                            <span>Vanished (Wikipedia)</span>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <ShieldAlert className="w-3 h-3 text-rose-600" />
+                            <span>Lockdown (Wikipedia)</span>
                           </span>
                         ) : isLocked ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
@@ -1718,7 +1645,7 @@ export function MasterControlView() {
                   <span
                     className={`text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.2 rounded ${
                       isVanished
-                        ? "bg-purple-200/70 text-purple-900"
+                        ? "bg-rose-200/70 text-rose-900"
                         : isBanned
                         ? "bg-rose-200/70 text-rose-900"
                         : isBlocked
@@ -1727,7 +1654,7 @@ export function MasterControlView() {
                     }`}
                   >
                     {isVanished
-                      ? "Vanished -> Wikipedia"
+                      ? "Lockdown -> Wikipedia"
                       : isBanned
                       ? "Blacklist Screen"
                       : isBlocked
@@ -1824,15 +1751,10 @@ export function MasterControlView() {
                             <Ban className="w-3 h-3" />
                             <span>Blacklisted</span>
                           </span>
-                        ) : isVanished ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                            <Ghost className="w-3 h-3 text-purple-600" />
-                            <span>Vanished (Wikipedia)</span>
-                          </span>
-                        ) : isBlockedByLockdown ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            <Lock className="w-3 h-3" />
-                            <span>Blocked (Lockdown)</span>
+                        ) : isVanished || isBlockedByLockdown ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <ShieldAlert className="w-3 h-3 text-rose-600" />
+                            <span>Lockdown (Wikipedia)</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">

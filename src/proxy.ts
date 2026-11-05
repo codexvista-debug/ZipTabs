@@ -52,11 +52,12 @@ async function getSecuritySettings(): Promise<{ isVanishMode: boolean; allowedIp
       const global = data.find((s) => s.id === "global");
       const vanish = data.find((s) => s.id === "vanish_mode");
 
-      const isVanishMode = Boolean(vanish?.ip_lockdown_enabled);
+      // Unified Lockdown: if either global or vanish_mode indicates lockdown, lock & cloak site
+      const isLockdown = Boolean(global?.ip_lockdown_enabled || vanish?.ip_lockdown_enabled);
       const allowedIps: string[] = Array.isArray(global?.allowed_ips) ? global.allowed_ips : [];
 
       cachedSettings = {
-        isVanishMode,
+        isVanishMode: isLockdown,
         allowedIps,
         fetchedAt: now,
       };

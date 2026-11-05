@@ -69,22 +69,23 @@ export async function GET(req: NextRequest) {
     const allSettings = allSettingsRes.data;
     const settings = allSettings?.find((s) => s.id === "global");
     const vanishSettings = allSettings?.find((s) => s.id === "vanish_mode");
-    const isVanishMode = Boolean(vanishSettings?.ip_lockdown_enabled);
+    const isLockdown = Boolean(settings?.ip_lockdown_enabled || vanishSettings?.ip_lockdown_enabled);
 
-    // 1.1 Priority: Check Vanish Mode
-    if (isVanishMode) {
+    // 1.1 Priority: Check Unified Lockdown Mode (Evict non-whitelisted traffic to Wikipedia)
+    if (isLockdown) {
       const isAllowed = Array.isArray(settings?.allowed_ips) && settings.allowed_ips.includes(clientIp);
       if (!isAllowed) {
         return NextResponse.json({
           ip: clientIp,
           locked: true,
+          isLockdown: true,
           isVanishMode: true,
           vanishRedirectUrl: "https://www.wikipedia.org",
           attempts: 0,
           remainingAttempts: 0,
           lockedUntil: null,
           remainingMs: 0,
-          error: "VANISH_MODE",
+          error: "LOCKDOWN_ACTIVE",
         });
       }
     }
