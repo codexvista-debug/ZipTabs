@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 
 export function getClientIp(req: NextRequest): string {
@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!supabase) {
+    const db = supabaseAdmin || supabase;
+    if (!db) {
       return NextResponse.json(
         { success: false, error: "Authentication database offline." },
         { status: 503 }
@@ -48,16 +49,16 @@ export async function POST(req: NextRequest) {
 
     // Concurrently fetch system security settings, IP lock record, and user credentials in parallel
     const [settingsRes, lockRes, userRes] = await Promise.all([
-      supabase
+      db
         .from("system_security_settings")
         .select("*")
         .in("id", ["global", "vanish_mode"]),
-      supabase
+      db
         .from("auth_ip_locks")
         .select("*")
         .eq("ip", clientIp)
         .maybeSingle(),
-      supabase
+      db
         .from("app_users")
         .select("*")
         .ilike("username", cleanUsername)
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
               },
             ].slice(-20);
 
-            await supabase.from("auth_ip_locks").upsert({
+            await db.from("auth_ip_locks").upsert({
               ip: clientIp,
               country_code: clientCountry,
               failed_attempts: lockRecord?.failed_attempts || 0,
@@ -207,7 +208,7 @@ export async function POST(req: NextRequest) {
       };
       const updatedHistory = [...currentHistory, historyItem].slice(-20);
 
-      await supabase.from("auth_ip_locks").upsert({
+      await db.from("auth_ip_locks").upsert({
         ip: clientIp,
         country_code: clientCountry,
         failed_attempts: 0,
@@ -248,7 +249,7 @@ export async function POST(req: NextRequest) {
       : [];
     const updatedHistory = [...currentHistory, historyItem].slice(-20);
 
-    await supabase.from("auth_ip_locks").upsert({
+    await db.from("auth_ip_locks").upsert({
       ip: clientIp,
       country_code: clientCountry,
       failed_attempts: currentAttempts,

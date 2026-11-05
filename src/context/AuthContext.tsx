@@ -479,69 +479,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: "Password must be at least 3 characters." };
     }
 
-    if (supabase) {
-      try {
-        // Enforce Master Control registration lock policy
-        const { data: settings } = await supabase
-          .from("system_security_settings")
-          .select("registrations_allowed")
-          .eq("id", "global")
-          .maybeSingle();
-
-        if (settings && !settings.registrations_allowed) {
-          return {
-            success: false,
-            error: "New user registrations are currently paused and locked by the Chief Administrator.",
-          };
-        }
-
-        const { data: existing } = await supabase
-          .from("app_users")
-          .select("id")
-          .ilike("username", cleanUsername)
-          .maybeSingle();
-
-        if (existing) {
-          return { success: false, error: `Username '${cleanUsername}' is already taken.` };
-        }
-
-        // HASH PASSWORD BEFORE STORING IN DATABASE
-        const securePasswordHash = await hashPassword(cleanPassword);
-
-        const { data: newUser, error: insertError } = await supabase
-          .from("app_users")
-          .insert([
-            {
-              username: cleanUsername,
-              password: securePasswordHash,
-              role: "Administrator",
-            },
-          ])
-          .select()
-          .single();
-
-        if (insertError) {
-          return { success: false, error: insertError.message };
-        }
-
-        const loggedUser: AppUser = {
-          id: newUser.id,
-          username: newUser.username,
-          role: newUser.role || "Administrator",
-        };
-        setUser(loggedUser);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
-        localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
-        try {
-          sessionStorage.removeItem(INACTIVITY_LOGOUT_FLAG);
-        } catch {}
-        return { success: true };
-      } catch (err: any) {
-        return { success: false, error: err.message || "Failed to register user." };
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: cleanUsername, password: cleanPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || "Failed to register user." };
       }
-    }
 
-    return { success: false, error: "Database not connected." };
+      const loggedUser: AppUser = data.user;
+      setUser(loggedUser);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
+      localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+      try {
+        sessionStorage.removeItem(INACTIVITY_LOGOUT_FLAG);
+      } catch {}
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Failed to register user." };
+    }
   };
 
   const changePassword = async (oldPassword: string, newPassword: string) => {
@@ -554,40 +513,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: "New password must be at least 3 characters." };
     }
 
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from("app_users")
-          .select("*")
-          .ilike("username", user.username.toLowerCase())
-          .maybeSingle();
-
-        if (data) {
-          const isValidOld = await verifyPassword(cleanOld, data.password);
-          if (!isValidOld) {
-            return { success: false, error: "Current password does not match." };
-          }
-        }
-
-        // HASH NEW PASSWORD BEFORE SAVING IN SUPABASE
-        const secureNewHash = await hashPassword(cleanNew);
-
-        const { error: updateError } = await supabase
-          .from("app_users")
-          .update({ password: secureNewHash })
-          .ilike("username", user.username.toLowerCase());
-
-        if (updateError) {
-          return { success: false, error: updateError.message };
-        }
-
-        return { success: true };
-      } catch (err: any) {
-        return { success: false, error: err.message || "Failed to update password." };
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: user.username,
+          oldPassword: cleanOld,
+          newPassword: cleanNew,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || "Failed to update password." };
       }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Failed to update password." };
     }
-
-    return { success: true };
   };
 
   const logout = (isInactivityTimeout: boolean | unknown = false) => {

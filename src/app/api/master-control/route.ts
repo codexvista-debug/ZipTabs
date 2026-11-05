@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { verifyPassword } from "@/lib/crypto";
 
 export function getClientIp(req: NextRequest): string {
@@ -18,8 +18,9 @@ export function getClientIp(req: NextRequest): string {
 // GET: Fetch system settings, users, IP locks, and current client IP
 export async function GET(req: NextRequest) {
   const clientIp = getClientIp(req);
+  const db = supabaseAdmin || supabase;
 
-  if (!supabase) {
+  if (!db) {
     return NextResponse.json(
       { success: false, error: "Database offline" },
       { status: 503 }
@@ -28,25 +29,25 @@ export async function GET(req: NextRequest) {
 
   try {
     const [settingsRes, vanishRes, usersRes, ipLocksRes, visitorsRes] = await Promise.all([
-      supabase
+      db
         .from("system_security_settings")
         .select("*")
         .eq("id", "global")
         .maybeSingle(),
-      supabase
+      db
         .from("system_security_settings")
         .select("*")
         .eq("id", "vanish_mode")
         .maybeSingle(),
-      supabase
+      db
         .from("app_users")
         .select("id, username, role, created_at")
         .order("created_at", { ascending: true }),
-      supabase
+      db
         .from("auth_ip_locks")
         .select("*")
         .order("last_attempt_at", { ascending: false }),
-      supabase
+      db
         .from("site_visitors")
         .select("*")
         .order("last_visited_at", { ascending: false })
@@ -97,8 +98,9 @@ export async function GET(req: NextRequest) {
 // POST: Execute security mutations
 export async function POST(req: NextRequest) {
   const clientIp = getClientIp(req);
+  const db = supabaseAdmin || supabase;
 
-  if (!supabase) {
+  if (!db) {
     return NextResponse.json({ success: false, error: "Database offline" }, { status: 503 });
   }
 
@@ -107,7 +109,7 @@ export async function POST(req: NextRequest) {
     const { action } = body;
 
     // Fetch current settings
-    const { data: currentSettings } = await supabase
+    const { data: currentSettings } = await db
       .from("system_security_settings")
       .select("*")
       .eq("id", "global")
@@ -118,7 +120,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "toggle_registrations") {
       const allowed = Boolean(body.allowed);
-      await supabase
+      await db
         .from("system_security_settings")
         .upsert({
           id: "global",
@@ -139,7 +141,7 @@ export async function POST(req: NextRequest) {
 
       // Synchronize both global and vanish_mode as one unified Lockdown system
       await Promise.all([
-        supabase
+        db
           .from("system_security_settings")
           .upsert({
             id: "global",
@@ -148,7 +150,7 @@ export async function POST(req: NextRequest) {
             updated_at: new Date().toISOString(),
             updated_by: "chief",
           }),
-        supabase
+        db
           .from("system_security_settings")
           .upsert({
             id: "vanish_mode",
@@ -170,7 +172,7 @@ export async function POST(req: NextRequest) {
       const ip = (body.ip || "").trim();
       if (!ip) return NextResponse.json({ success: false, error: "IP required" }, { status: 400 });
       const updated = Array.from(new Set([...allowedIps, ip]));
-      await supabase
+      await db
         .from("system_security_settings")
         .upsert({
           id: "global",
@@ -183,7 +185,7 @@ export async function POST(req: NextRequest) {
     if (action === "remove_allowed_ip") {
       const ip = (body.ip || "").trim();
       const updated = allowedIps.filter((item) => item !== ip);
-      await supabase
+      await db
         .from("system_security_settings")
         .upsert({
           id: "global",
@@ -199,7 +201,7 @@ export async function POST(req: NextRequest) {
       const updated = Array.from(new Set([...blacklistedIps, ip]));
 
       // 1. Update system settings
-      await supabase
+      await db
         .from("system_security_settings")
         .upsert({
           id: "global",
@@ -208,7 +210,7 @@ export async function POST(req: NextRequest) {
         });
 
       // 2. Lock in auth_ip_locks with 10-year expiration
-      await supabase.from("auth_ip_locks").upsert({
+      await db.from("auth_ip_locks").upsert({
         ip,
         failed_attempts: 3,
         locked_until: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(),
@@ -222,7 +224,7 @@ export async function POST(req: NextRequest) {
       const ip = (body.ip || "").trim();
       const updated = blacklistedIps.filter((item) => item !== ip);
 
-      await supabase
+      await db
         .from("system_security_settings")
         .upsert({
           id: "global",
@@ -231,7 +233,7 @@ export async function POST(req: NextRequest) {
         });
 
       // Reset strikes in auth_ip_locks
-      await supabase
+      await db
         .from("auth_ip_locks")
         .update({
           failed_attempts: 0,
@@ -244,7 +246,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "reset_strikes") {
       const ip = (body.ip || "").trim();
-      await supabase
+      await db
         .from("auth_ip_locks")
         .update({
           failed_attempts: 0,
@@ -258,7 +260,7 @@ export async function POST(req: NextRequest) {
     if (action === "delete_user") {
       const userId = body.userId;
       // Safeguard: Never delete chief!
-      const { data: userToDelete } = await supabase
+      const { data: userToDelete } = await db
         .from("app_users")
         .select("username")
         .eq("id", userId)
@@ -271,7 +273,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await supabase.from("app_users").delete().eq("id", userId);
+      await db.from("app_users").delete().eq("id", userId);
       return NextResponse.json({ success: true });
     }
 
@@ -279,7 +281,7 @@ export async function POST(req: NextRequest) {
       const keepSessionId = (body.keepSessionId || "").trim();
       const now = new Date().toISOString();
 
-      await supabase
+      await db
         .from("system_security_settings")
         .upsert({
           id: "global",
@@ -309,7 +311,7 @@ export async function POST(req: NextRequest) {
       }
 
       // 1. Verify Chief password
-      const { data: chiefUser } = await supabase
+      const { data: chiefUser } = await db
         .from("app_users")
         .select("password")
         .ilike("username", "chief")
@@ -332,10 +334,10 @@ export async function POST(req: NextRequest) {
 
       // 2. Perform authorized log deletion
       if (target === "defense" || target === "all") {
-        await supabase.from("auth_ip_locks").delete().neq("ip", "");
+        await db.from("auth_ip_locks").delete().neq("ip", "");
       }
       if (target === "visitors" || target === "all") {
-        await supabase.from("site_visitors").delete().neq("ip", "");
+        await db.from("site_visitors").delete().neq("ip", "");
       }
 
       return NextResponse.json({

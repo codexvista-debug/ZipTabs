@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 
 export function getClientIp(req: NextRequest): string {
   const forwardedFor = req.headers.get("x-forwarded-for");
@@ -25,8 +25,9 @@ export function getClientCountry(req: NextRequest): string | null {
 export async function GET(req: NextRequest) {
   const clientIp = getClientIp(req);
   const clientCountry = getClientCountry(req);
+  const db = supabaseAdmin || supabase;
 
-  if (!supabase) {
+  if (!db) {
     return NextResponse.json({ ip: clientIp, attempts: 0, remainingAttempts: 3, locked: false });
   }
 
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
     // 0. Asynchronous Non-Blocking Visitor Telemetry (Does NOT block critical auth verification)
     (async () => {
       try {
-        await supabase.rpc("record_site_visitor", {
+        await db.rpc("record_site_visitor", {
           p_ip: clientIp,
           p_user_agent: userAgent,
           p_page: "/",
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
         });
 
         if (reqSessionId || authUser) {
-          await supabase
+          await db
             .from("site_visitors")
             .update({
               active_session_id: reqSessionId || null,
@@ -62,8 +63,8 @@ export async function GET(req: NextRequest) {
 
     // 1. Parallel High-Speed Security Verification: Run settings and IP lock queries concurrently
     const [allSettingsRes, lockRecordRes] = await Promise.all([
-      supabase.from("system_security_settings").select("*").in("id", ["global", "vanish_mode"]),
-      supabase.from("auth_ip_locks").select("*").eq("ip", clientIp).maybeSingle(),
+      db.from("system_security_settings").select("*").in("id", ["global", "vanish_mode"]),
+      db.from("auth_ip_locks").select("*").eq("ip", clientIp).maybeSingle(),
     ]);
 
     const allSettings = allSettingsRes.data;
@@ -163,7 +164,7 @@ export async function GET(req: NextRequest) {
           });
         } else {
           // Lockout expired after 24h, auto reset
-          await supabase
+          await db
             .from("auth_ip_locks")
             .update({ failed_attempts: 0, locked_until: null })
             .eq("ip", clientIp);

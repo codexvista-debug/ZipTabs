@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 
 const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN || "8977";
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
@@ -95,7 +95,8 @@ function sendPinDeniedResponse(commandName: string, callerUser: string) {
 }
 
 async function handleLockdownAction(state: string, callerUser: string) {
-  if (!supabase) {
+  const db = supabaseAdmin || supabase;
+  if (!db) {
     return NextResponse.json({
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: { flags: 64, content: "⚠️ Database service offline. Could not contact Supabase." },
@@ -106,13 +107,13 @@ async function handleLockdownAction(state: string, callerUser: string) {
     if (state === "on" || state === "enable" || state === "activate") {
       // Turn Lockdown ON (Synchronize both global and vanish_mode)
       await Promise.all([
-        supabase.from("system_security_settings").upsert({
+        db.from("system_security_settings").upsert({
           id: "global",
           ip_lockdown_enabled: true,
           updated_at: new Date().toISOString(),
           updated_by: `discord:@${callerUser}`,
         }),
-        supabase.from("system_security_settings").upsert({
+        db.from("system_security_settings").upsert({
           id: "vanish_mode",
           ip_lockdown_enabled: true,
           updated_at: new Date().toISOString(),
@@ -143,13 +144,13 @@ async function handleLockdownAction(state: string, callerUser: string) {
     } else if (state === "off" || state === "disable" || state === "deactivate") {
       // Turn Lockdown OFF (Synchronize both global and vanish_mode)
       await Promise.all([
-        supabase.from("system_security_settings").upsert({
+        db.from("system_security_settings").upsert({
           id: "global",
           ip_lockdown_enabled: false,
           updated_at: new Date().toISOString(),
           updated_by: `discord:@${callerUser}`,
         }),
-        supabase.from("system_security_settings").upsert({
+        db.from("system_security_settings").upsert({
           id: "vanish_mode",
           ip_lockdown_enabled: false,
           updated_at: new Date().toISOString(),
@@ -180,12 +181,12 @@ async function handleLockdownAction(state: string, callerUser: string) {
     } else {
       // Check Status
       const [vanishDataRes, globalDataRes] = await Promise.all([
-        supabase
+        db
           .from("system_security_settings")
           .select("ip_lockdown_enabled, updated_at, updated_by")
           .eq("id", "vanish_mode")
           .maybeSingle(),
-        supabase
+        db
           .from("system_security_settings")
           .select("ip_lockdown_enabled, allowed_ips, updated_at, updated_by")
           .eq("id", "global")
