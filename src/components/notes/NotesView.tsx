@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 import { downloadFileDirectly } from "@/lib/download";
+import { getSecureFileUrl, getSecureDownloadUrl } from "@/lib/storage";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import { extractTextFromImageFile } from "@/lib/ocr";
 import {
@@ -1223,7 +1224,7 @@ export function NotesView() {
           name: file.name,
           size: file.size,
           type: file.type || "application/octet-stream",
-          url: data?.publicUrl || "",
+          url: getSecureFileUrl(storagePath),
           path: storagePath,
         };
 
@@ -2167,7 +2168,7 @@ export function NotesView() {
                             >
                               {isImg ? (
                                 <img
-                                  src={att.url}
+                                  src={getSecureFileUrl(att.path || att.url)}
                                   alt={att.name}
                                   className="w-full h-full object-cover group-hover/att:scale-105 transition-transform duration-200"
                                 />
@@ -2550,7 +2551,7 @@ export function NotesView() {
                                 title="Click to view attachment"
                               >
                                 <img
-                                  src={att.url}
+                                  src={getSecureFileUrl(att.path || att.url)}
                                   alt={att.name}
                                   className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                                 />
@@ -2947,7 +2948,7 @@ export function NotesView() {
                           {isImage ? (
                             <>
                               <img
-                                src={att.url}
+                                src={getSecureFileUrl(att.path || att.url)}
                                 alt={att.name}
                                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                               />
@@ -3237,9 +3238,9 @@ export function NotesView() {
                               className="relative w-12 h-12 rounded-xl border border-zinc-200 bg-white overflow-hidden shrink-0 flex items-center justify-center shadow-2xs"
                               title={`${att.name} (${formatFileSize(att.size)})`}
                             >
-                              {isImg && att.url ? (
+                              {isImg && (att.path || att.url) ? (
                                 <img
-                                  src={att.url}
+                                  src={getSecureFileUrl(att.path || att.url)}
                                   alt={att.name}
                                   className="w-full h-full object-cover"
                                 />

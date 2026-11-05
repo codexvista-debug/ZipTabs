@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { UniversalFileViewer } from "./UniversalFileViewer";
 import { downloadFileDirectly } from "@/lib/download";
+import { getSecureFileUrl, getSecureDownloadUrl } from "@/lib/storage";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import {
   ExecutiveToast,
@@ -378,7 +379,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           size: file.size,
           type: file.type || "application/octet-stream",
           storage_path: storagePath,
-          public_url: urlData?.publicUrl || "",
+          public_url: getSecureFileUrl(storagePath),
           retention_type: "permanent",
           expires_at: null,
           created_at: new Date().toISOString(),
@@ -1082,9 +1083,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                         onClick={() => setPreviewFile(file)}
                         className="relative w-full aspect-4/3 bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer group/preview"
                       >
-                        {isImage && file.public_url ? (
+                        {isImage && (file.storage_path || file.public_url) ? (
                           <img
-                            src={file.public_url}
+                            src={getSecureFileUrl(file.storage_path || file.public_url)}
                             alt={file.name}
                             className="w-full h-full object-cover group-hover/preview:scale-105 transition-transform duration-200"
                           />
@@ -1166,7 +1167,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                downloadFileDirectly(file.public_url, file.name);
+                                downloadFileDirectly(
+                                  getSecureDownloadUrl(file.storage_path || file.public_url, file.name),
+                                  file.name
+                                );
                               }}
                               className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
                               title="Download file directly"
@@ -1317,7 +1321,10 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    downloadFileDirectly(file.public_url, file.name);
+                                    downloadFileDirectly(
+                                  getSecureDownloadUrl(file.storage_path || file.public_url, file.name),
+                                  file.name
+                                );
                                   }}
                                   className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                                   title="Download directly"

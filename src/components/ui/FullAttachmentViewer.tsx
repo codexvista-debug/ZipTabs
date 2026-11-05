@@ -4,6 +4,7 @@ import React, { useState, useEffect, Component, ReactNode } from "react";
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 import { downloadFileDirectly } from "@/lib/download";
+import { getSecureFileUrl } from "@/lib/storage";
 import { FileBrandIcon } from "./FileBrandIcon";
 import { ExcelSheetViewer } from "./ExcelSheetViewer";
 import {
@@ -140,7 +141,8 @@ export function FullAttachmentViewer({
   // File metadata calculations (derived safely with optional chaining)
   const fileName = file?.name || "Attachment";
   const ext = fileName.split(".").pop()?.toLowerCase() || "";
-  const fileUrl = file?.url || file?.public_url || "";
+  const rawFileUrl = file?.url || file?.public_url || (file as any)?.storage_path || "";
+  const fileUrl = getSecureFileUrl(rawFileUrl);
   const mimeType = (file?.type || file?.mimetype || "").toLowerCase();
 
   const isImage = mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "ico"].includes(ext);

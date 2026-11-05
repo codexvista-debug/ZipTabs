@@ -28,6 +28,7 @@ import {
   Download,
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
+import { getSecureFileUrl } from "@/lib/storage";
 import { downloadFileDirectly } from "@/lib/download";
 import {
   ExecutiveToast,
@@ -117,7 +118,7 @@ export function UsageView() {
               .getPublicUrl(f.name);
             return {
               ...f,
-              url: urlData?.publicUrl || "",
+              url: getSecureFileUrl(f.name),
             };
           });
 
