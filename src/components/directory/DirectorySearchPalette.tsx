@@ -17,7 +17,6 @@ import {
   CornerDownLeft,
   ArrowUpDown,
   Sparkles,
-  PhoneForwarded,
 } from "lucide-react";
 
 interface DirectorySearchPaletteProps {
@@ -424,16 +423,20 @@ function SearchContactRow({
         {record.phone && (
           <div className="flex items-center gap-1">
             <div className="flex items-center bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
-              <span className="hidden sm:inline-flex items-baseline gap-0.5 text-xs font-mono font-medium text-slate-700 mr-1 select-all">
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono font-medium text-slate-700 mr-1 select-all">
                 <span>{record.phone}</span>
                 {record.extension && (
-                  <sup
+                  <span
                     title={`Extension: ${record.extension}`}
-                    className="text-[8.5px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1 py-0.5 rounded leading-none -top-1 ml-0.5 inline-flex items-center gap-0.5"
+                    className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9px] font-mono shrink-0 shadow-2xs select-all align-middle ml-0.5"
                   >
-                    <PhoneForwarded className="w-2 h-2 text-indigo-500" />
-                    <span>{record.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
-                  </sup>
+                    <span className="bg-indigo-600 text-white font-extrabold px-1 py-0.5 tracking-wider text-[8px] leading-none">
+                      EXT
+                    </span>
+                    <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
+                      {record.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
+                    </span>
+                  </span>
                 )}
               </span>
               <button
