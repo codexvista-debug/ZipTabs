@@ -11,11 +11,19 @@ const DISCORD_PUBLIC_KEY =
 const InteractionType = {
   PING: 1,
   APPLICATION_COMMAND: 2,
+  MESSAGE_COMPONENT: 3,
+  APPLICATION_COMMAND_AUTOCOMPLETE: 4,
+  MODAL_SUBMIT: 5,
 };
 
 const InteractionResponseType = {
   PONG: 1,
   CHANNEL_MESSAGE_WITH_SOURCE: 4,
+  DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE: 5,
+  DEFERRED_UPDATE_MESSAGE: 6,
+  UPDATE_MESSAGE: 7,
+  APPLICATION_COMMAND_AUTOCOMPLETE_RESULT: 8,
+  MODAL: 9,
 };
 
 /**
@@ -63,6 +71,242 @@ function extractClientIp(req: NextRequest): string {
   return "127.0.0.1";
 }
 
+function sendPinDeniedResponse(commandName: string, callerUser: string) {
+  return NextResponse.json({
+    type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+    data: {
+      flags: 64, // Ephemeral (strictly visible to caller)
+      embeds: [
+        {
+          title: "🚫 Access Denied: Invalid Security PIN",
+          description: `The command \`/${commandName}\` was rejected because the security PIN is incorrect.`,
+          color: 0xe11d48, // Rose red
+          fields: [
+            { name: "Caller", value: `@${callerUser}`, inline: true },
+            { name: "Status", value: "Action Blocked", inline: true },
+          ],
+          footer: { text: "ZipTabs Defense Grid • PIN Required for Remote Commands" },
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    },
+  });
+}
+
+async function handleLockdownAction(state: string, callerUser: string) {
+  if (!supabase) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: { flags: 64, content: "⚠️ Database service offline. Could not contact Supabase." },
+    });
+  }
+
+  try {
+    if (state === "on" || state === "enable" || state === "activate") {
+      // Turn Lockdown ON (Synchronize both global and vanish_mode)
+      await Promise.all([
+        supabase.from("system_security_settings").upsert({
+          id: "global",
+          ip_lockdown_enabled: true,
+          updated_at: new Date().toISOString(),
+          updated_by: `discord:@${callerUser}`,
+        }),
+        supabase.from("system_security_settings").upsert({
+          id: "vanish_mode",
+          ip_lockdown_enabled: true,
+          updated_at: new Date().toISOString(),
+          updated_by: `discord:@${callerUser}`,
+        }),
+      ]);
+
+      return NextResponse.json({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          embeds: [
+            {
+              title: "🛡️ ZipTabs Lockdown ACTIVATED",
+              description:
+                "**Lockdown Mode is now ACTIVE on ZipTabs.**\nAccess is strictly restricted to whitelisted IPs. All unauthorized traffic will be evicted and cloaked (redirected to Wikipedia) with zero assets served.",
+              color: 0xe11d48, // Crimson Red
+              fields: [
+                { name: "Lockdown State", value: "🔒 ON (Restricted & Cloaked)", inline: true },
+                { name: "Authorized By", value: `@${callerUser}`, inline: true },
+                { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
+              ],
+              footer: { text: "ZipTabs Defense Grid • Remote Lockdown Active" },
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        },
+      });
+    } else if (state === "off" || state === "disable" || state === "deactivate") {
+      // Turn Lockdown OFF (Synchronize both global and vanish_mode)
+      await Promise.all([
+        supabase.from("system_security_settings").upsert({
+          id: "global",
+          ip_lockdown_enabled: false,
+          updated_at: new Date().toISOString(),
+          updated_by: `discord:@${callerUser}`,
+        }),
+        supabase.from("system_security_settings").upsert({
+          id: "vanish_mode",
+          ip_lockdown_enabled: false,
+          updated_at: new Date().toISOString(),
+          updated_by: `discord:@${callerUser}`,
+        }),
+      ]);
+
+      return NextResponse.json({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          embeds: [
+            {
+              title: "🟢 ZipTabs Lockdown DEACTIVATED",
+              description:
+                "**Lockdown Mode is now DISABLED.**\nZipTabs is accessible normally from any network without IP restriction or Wikipedia redirection.",
+              color: 0x10b981, // Emerald Green
+              fields: [
+                { name: "Lockdown State", value: "🔓 OFF (Open Access)", inline: true },
+                { name: "Authorized By", value: `@${callerUser}`, inline: true },
+                { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
+              ],
+              footer: { text: "ZipTabs Defense Grid • Normal Access Restored" },
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        },
+      });
+    } else {
+      // Check Status
+      const [vanishDataRes, globalDataRes] = await Promise.all([
+        supabase
+          .from("system_security_settings")
+          .select("ip_lockdown_enabled, updated_at, updated_by")
+          .eq("id", "vanish_mode")
+          .maybeSingle(),
+        supabase
+          .from("system_security_settings")
+          .select("ip_lockdown_enabled, allowed_ips, updated_at, updated_by")
+          .eq("id", "global")
+          .maybeSingle(),
+      ]);
+
+      const isEnabled = Boolean(
+        globalDataRes.data?.ip_lockdown_enabled || vanishDataRes.data?.ip_lockdown_enabled
+      );
+      const allowedCount = Array.isArray(globalDataRes.data?.allowed_ips)
+        ? globalDataRes.data.allowed_ips.length
+        : 0;
+
+      return NextResponse.json({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          embeds: [
+            {
+              title: "📊 ZipTabs Defense Status",
+              color: isEnabled ? 0xe11d48 : 0x10b981,
+              fields: [
+                {
+                  name: "Lockdown Mode",
+                  value: isEnabled ? "🔒 **ACTIVE** (Locked & Cloaked to Wikipedia)" : "🟢 **INACTIVE** (Open Access)",
+                  inline: true,
+                },
+                {
+                  name: "Whitelisted IPs",
+                  value: `${allowedCount} allowed IP${allowedCount === 1 ? "" : "s"}`,
+                  inline: true,
+                },
+                {
+                  name: "Last Modified",
+                  value: (globalDataRes.data?.updated_at || vanishDataRes.data?.updated_at)
+                    ? new Date((globalDataRes.data?.updated_at || vanishDataRes.data?.updated_at)!).toLocaleString()
+                    : "Unknown",
+                  inline: false,
+                },
+              ],
+              footer: { text: "ZipTabs Remote Controller • Status Query" },
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        },
+      });
+    }
+  } catch (err: any) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        flags: 64,
+        content: `❌ Error toggling Lockdown Mode: ${err?.message || "Unknown error"}`,
+      },
+    });
+  }
+}
+
+async function handleStatusQuery() {
+  if (!supabase) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: { flags: 64, content: "⚠️ Database service offline. Could not contact Supabase." },
+    });
+  }
+
+  try {
+    const [vanishRes, globalRes, invRes, notesRes] = await Promise.all([
+      supabase.from("system_security_settings").select("*").eq("id", "vanish_mode").maybeSingle(),
+      supabase.from("system_security_settings").select("*").eq("id", "global").maybeSingle(),
+      supabase.from("invoices").select("amount, days_overdue"),
+      supabase.from("app_notes").select("id, priority, is_completed"),
+    ]);
+
+    const isLockdown = Boolean(globalRes.data?.ip_lockdown_enabled || vanishRes.data?.ip_lockdown_enabled);
+    const allowedCount = Array.isArray(globalRes.data?.allowed_ips) ? globalRes.data.allowed_ips.length : 0;
+    const totalInvoices = invRes.data?.length || 0;
+    const totalOverdueAmount = (invRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.amount) || 0), 0);
+    const urgentNotes = (notesRes.data || []).filter((n: any) => !n.is_completed && n.priority === "urgent").length;
+
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        embeds: [
+          {
+            title: "⚡ ZipTabs Executive Briefing",
+            color: isLockdown ? 0xe11d48 : 0x2563eb,
+            fields: [
+              {
+                name: "🛡️ Lockdown Mode",
+                value: isLockdown ? "🔒 ACTIVE (Locked)" : "🟢 DISABLED (Open)",
+                inline: true,
+              },
+              {
+                name: "🌐 Whitelisted IPs",
+                value: `${allowedCount} active`,
+                inline: true,
+              },
+              {
+                name: "📑 Overdue Invoices",
+                value: `${totalInvoices} records ($${totalOverdueAmount.toLocaleString("en-US", { maximumFractionDigits: 0 })})`,
+                inline: false,
+              },
+              {
+                name: "🔥 Urgent Notes",
+                value: `${urgentNotes} pending task${urgentNotes === 1 ? "" : "s"}`,
+                inline: true,
+              },
+            ],
+            footer: { text: "ZipTabs System Health • Requested by Chief" },
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+  } catch (err: any) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: { flags: 64, content: `❌ Error reading status: ${err?.message}` },
+    });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-signature-ed25519");
@@ -97,307 +341,81 @@ export async function POST(req: NextRequest) {
 
     const providedPin = String(options.pin || "").trim();
     const callerUser = body.member?.user?.username || body.user?.username || "Discord User";
-    const clientIp = extractClientIp(req);
 
-    // --- SECURITY PIN ENFORCEMENT ---
-    if (providedPin !== REQUIRED_PIN) {
+    // --- COMMAND: /lockdown (unified with legacy /vanish) ---
+    if (commandName === "lockdown" || commandName === "vanish") {
+      const state = String(options.state || "status").toLowerCase().trim();
+
+      // If user typed PIN as an argument, verify it directly
+      if (providedPin) {
+        if (providedPin !== REQUIRED_PIN) {
+          return sendPinDeniedResponse(commandName, callerUser);
+        }
+        return handleLockdownAction(state, callerUser);
+      }
+
+      // If PIN was NOT typed (Recommended: hides PIN completely from chat typing):
+      // Return a private Discord Modal Popup!
       return NextResponse.json({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        type: InteractionResponseType.MODAL,
         data: {
-          flags: 64, // Ephemeral (only visible to caller)
-          embeds: [
+          custom_id: `lockdown_modal:${state}`,
+          title: "ZipTabs Authorization",
+          components: [
             {
-              title: "🚫 Access Denied: Invalid Security PIN",
-              description: `The command \`/${commandName}\` was rejected because the security PIN is incorrect.`,
-              color: 0xe11d48, // Rose red
-              fields: [
-                { name: "Caller", value: `@${callerUser}`, inline: true },
-                { name: "Status", value: "Action Blocked", inline: true },
+              type: 1, // Action row
+              components: [
+                {
+                  type: 4, // Text input
+                  custom_id: "pin",
+                  label: "Enter Chief PIN",
+                  style: 1, // Short
+                  min_length: 4,
+                  max_length: 10,
+                  placeholder: "••••",
+                  required: true,
+                },
               ],
-              footer: { text: "ZipTabs Defense Grid • PIN Required for Remote Commands" },
-              timestamp: new Date().toISOString(),
             },
           ],
         },
       });
     }
 
-    if (!supabase) {
-      return NextResponse.json({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          flags: 64,
-          content: "⚠️ Database service offline. Could not contact Supabase.",
-        },
-      });
-    }
-
-    // --- COMMAND: /lockdown (unified with legacy /vanish) ---
-    if (commandName === "lockdown" || commandName === "vanish") {
-      const state = String(options.state || "").toLowerCase().trim(); // "on", "off", "status"
-
-      try {
-        if (state === "on" || state === "enable" || state === "activate") {
-          // Turn Lockdown ON (Synchronize both global and vanish_mode)
-          await Promise.all([
-            supabase.from("system_security_settings").upsert({
-              id: "global",
-              ip_lockdown_enabled: true,
-              updated_at: new Date().toISOString(),
-              updated_by: `discord:@${callerUser}`,
-            }),
-            supabase.from("system_security_settings").upsert({
-              id: "vanish_mode",
-              ip_lockdown_enabled: true,
-              updated_at: new Date().toISOString(),
-              updated_by: `discord:@${callerUser}`,
-            }),
-          ]);
-
-          return NextResponse.json({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              embeds: [
-                {
-                  title: "🛡️ ZipTabs Lockdown ACTIVATED",
-                  description:
-                    "**Lockdown Mode is now ACTIVE on ZipTabs.**\nAccess is strictly restricted to whitelisted IPs. All unauthorized traffic will be evicted and cloaked (redirected to Wikipedia) with zero assets served.",
-                  color: 0xe11d48, // Crimson Red
-                  fields: [
-                    { name: "Lockdown State", value: "🔒 ON (Restricted & Cloaked)", inline: true },
-                    { name: "Authorized By", value: `@${callerUser}`, inline: true },
-                    { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
-                  ],
-                  footer: { text: "ZipTabs Defense Grid • Remote Lockdown Active" },
-                  timestamp: new Date().toISOString(),
-                },
-              ],
-            },
-          });
-        } else if (state === "off" || state === "disable" || state === "deactivate") {
-          // Turn Lockdown OFF (Synchronize both global and vanish_mode)
-          await Promise.all([
-            supabase.from("system_security_settings").upsert({
-              id: "global",
-              ip_lockdown_enabled: false,
-              updated_at: new Date().toISOString(),
-              updated_by: `discord:@${callerUser}`,
-            }),
-            supabase.from("system_security_settings").upsert({
-              id: "vanish_mode",
-              ip_lockdown_enabled: false,
-              updated_at: new Date().toISOString(),
-              updated_by: `discord:@${callerUser}`,
-            }),
-          ]);
-
-          return NextResponse.json({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              embeds: [
-                {
-                  title: "🟢 ZipTabs Lockdown DEACTIVATED",
-                  description:
-                    "**Lockdown Mode is now DISABLED.**\nZipTabs is accessible normally from any network without IP restriction or Wikipedia redirection.",
-                  color: 0x10b981, // Emerald Green
-                  fields: [
-                    { name: "Lockdown State", value: "🔓 OFF (Open Access)", inline: true },
-                    { name: "Authorized By", value: `@${callerUser}`, inline: true },
-                    { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
-                  ],
-                  footer: { text: "ZipTabs Defense Grid • Normal Access Restored" },
-                  timestamp: new Date().toISOString(),
-                },
-              ],
-            },
-          });
-        } else {
-          // Check Status
-          const [vanishDataRes, globalDataRes] = await Promise.all([
-            supabase
-              .from("system_security_settings")
-              .select("ip_lockdown_enabled, updated_at, updated_by")
-              .eq("id", "vanish_mode")
-              .maybeSingle(),
-            supabase
-              .from("system_security_settings")
-              .select("ip_lockdown_enabled, allowed_ips, updated_at, updated_by")
-              .eq("id", "global")
-              .maybeSingle(),
-          ]);
-
-          const isEnabled = Boolean(
-            globalDataRes.data?.ip_lockdown_enabled || vanishDataRes.data?.ip_lockdown_enabled
-          );
-          const allowedCount = Array.isArray(globalDataRes.data?.allowed_ips)
-            ? globalDataRes.data.allowed_ips.length
-            : 0;
-
-          return NextResponse.json({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              embeds: [
-                {
-                  title: "📊 ZipTabs Defense Status",
-                  color: isEnabled ? 0xe11d48 : 0x10b981,
-                  fields: [
-                    {
-                      name: "Lockdown Mode",
-                      value: isEnabled ? "🔒 **ACTIVE** (Locked & Cloaked to Wikipedia)" : "🟢 **INACTIVE** (Open Access)",
-                      inline: true,
-                    },
-                    {
-                      name: "Whitelisted IPs",
-                      value: `${allowedCount} allowed IP${allowedCount === 1 ? "" : "s"}`,
-                      inline: true,
-                    },
-                    {
-                      name: "Last Modified",
-                      value: (globalDataRes.data?.updated_at || vanishDataRes.data?.updated_at)
-                        ? new Date((globalDataRes.data?.updated_at || vanishDataRes.data?.updated_at)!).toLocaleString()
-                        : "Unknown",
-                      inline: false,
-                    },
-                  ],
-                  footer: { text: "ZipTabs Remote Controller • Status Query" },
-                  timestamp: new Date().toISOString(),
-                },
-              ],
-            },
-          });
-        }
-      } catch (err: any) {
-        return NextResponse.json({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            flags: 64,
-            content: `❌ Error toggling Lockdown Mode: ${err?.message || "Unknown error"}`,
-          },
-        });
-      }
-    }
-
-    // --- COMMAND: /whitelist ---
-    if (commandName === "whitelist") {
-      const targetIp = String(options.ip || "").trim();
-
-      if (!targetIp) {
-        return NextResponse.json({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            flags: 64,
-            content: "⚠️ Please specify an IP address to whitelist (e.g. `/whitelist ip:49.43.232.217 pin:<your_pin>`).",
-          },
-        });
-      }
-
-      try {
-        const { data: currentGlobal } = await supabase
-          .from("system_security_settings")
-          .select("allowed_ips")
-          .eq("id", "global")
-          .maybeSingle();
-
-        const currentAllowed: string[] = Array.isArray(currentGlobal?.allowed_ips)
-          ? currentGlobal.allowed_ips
-          : [];
-
-        if (!currentAllowed.includes(targetIp)) {
-          const updated = [...currentAllowed, targetIp];
-          await supabase.from("system_security_settings").upsert({
-            id: "global",
-            allowed_ips: updated,
-            updated_at: new Date().toISOString(),
-            updated_by: `discord:@${callerUser}`,
-          });
-        }
-
-        return NextResponse.json({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            embeds: [
-              {
-                title: "✅ IP Whitelisted Successfully",
-                description: `IP \`${targetIp}\` has been authorized to access ZipTabs even while Vanish Mode is active.`,
-                color: 0x10b981,
-                fields: [
-                  { name: "Whitelisted IP", value: `\`${targetIp}\``, inline: true },
-                  { name: "Authorized By", value: `@${callerUser}`, inline: true },
-                ],
-                footer: { text: "ZipTabs Remote Controller • Access Granted" },
-                timestamp: new Date().toISOString(),
-              },
-            ],
-          },
-        });
-      } catch (err: any) {
-        return NextResponse.json({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            flags: 64,
-            content: `❌ Failed to whitelist IP: ${err?.message}`,
-          },
-        });
-      }
-    }
-
     // --- COMMAND: /status ---
     if (commandName === "status") {
-      try {
-        const [vanishRes, globalRes, invRes, notesRes] = await Promise.all([
-          supabase.from("system_security_settings").select("*").eq("id", "vanish_mode").maybeSingle(),
-          supabase.from("system_security_settings").select("*").eq("id", "global").maybeSingle(),
-          supabase.from("invoices").select("amount, days_overdue"),
-          supabase.from("app_notes").select("id, priority, is_completed"),
-        ]);
-
-        const isLockdown = Boolean(globalRes.data?.ip_lockdown_enabled || vanishRes.data?.ip_lockdown_enabled);
-        const allowedCount = Array.isArray(globalRes.data?.allowed_ips) ? globalRes.data.allowed_ips.length : 0;
-        const totalInvoices = invRes.data?.length || 0;
-        const totalOverdueAmount = (invRes.data || []).reduce((acc: number, r: any) => acc + (Number(r.amount) || 0), 0);
-        const urgentNotes = (notesRes.data || []).filter((n: any) => !n.is_completed && n.priority === "urgent").length;
-
-        return NextResponse.json({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            embeds: [
-              {
-                title: "⚡ ZipTabs Executive Briefing",
-                color: isLockdown ? 0xe11d48 : 0x2563eb,
-                fields: [
-                  {
-                    name: "🛡️ Lockdown Mode",
-                    value: isLockdown ? "🔒 ACTIVE (Locked)" : "🟢 DISABLED (Open)",
-                    inline: true,
-                  },
-                  {
-                    name: "🌐 Whitelisted IPs",
-                    value: `${allowedCount} active`,
-                    inline: true,
-                  },
-                  {
-                    name: "📑 Overdue Invoices",
-                    value: `${totalInvoices} records ($${totalOverdueAmount.toLocaleString("en-US", { maximumFractionDigits: 0 })})`,
-                    inline: false,
-                  },
-                  {
-                    name: "🔥 Urgent Notes",
-                    value: `${urgentNotes} pending task${urgentNotes === 1 ? "" : "s"}`,
-                    inline: true,
-                  },
-                ],
-                footer: { text: "ZipTabs System Health • Requested by Chief" },
-                timestamp: new Date().toISOString(),
-              },
-            ],
-          },
-        });
-      } catch (err: any) {
-        return NextResponse.json({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: { flags: 64, content: `❌ Error reading status: ${err?.message}` },
-        });
+      if (providedPin) {
+        if (providedPin !== REQUIRED_PIN) {
+          return sendPinDeniedResponse(commandName, callerUser);
+        }
+        return handleStatusQuery();
       }
+
+      // Open private modal popup so PIN is never typed in chat
+      return NextResponse.json({
+        type: InteractionResponseType.MODAL,
+        data: {
+          custom_id: "status_modal",
+          title: "ZipTabs Authorization",
+          components: [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 4,
+                  custom_id: "pin",
+                  label: "Enter Chief PIN",
+                  style: 1,
+                  min_length: 4,
+                  max_length: 10,
+                  placeholder: "••••",
+                  required: true,
+                },
+              ],
+            },
+          ],
+        },
+      });
     }
 
     return NextResponse.json({
@@ -407,6 +425,52 @@ export async function POST(req: NextRequest) {
         content: `❓ Unknown command: \`/${commandName}\`.`,
       },
     });
+  }
+
+  // 3. Handle Modal Submissions (Secret PIN entered in private popup)
+  if (body.type === InteractionType.MODAL_SUBMIT) {
+    const customId = String(body.data?.custom_id || "");
+    const callerUser = body.member?.user?.username || body.user?.username || "Discord User";
+
+    let submittedPin = "";
+    for (const actionRow of body.data?.components || []) {
+      for (const comp of actionRow.components || []) {
+        if (comp.custom_id === "pin") {
+          submittedPin = String(comp.value || "").trim();
+        }
+      }
+    }
+
+    if (submittedPin !== REQUIRED_PIN) {
+      return NextResponse.json({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          flags: 64, // Ephemeral: strictly visible to caller only
+          embeds: [
+            {
+              title: "🚫 Access Denied: Invalid Security PIN",
+              description: "The security PIN entered in the popup was incorrect. Action blocked.",
+              color: 0xe11d48,
+              fields: [
+                { name: "Caller", value: `@${callerUser}`, inline: true },
+                { name: "Status", value: "Action Blocked", inline: true },
+              ],
+              footer: { text: "ZipTabs Defense Grid • Verification Failed" },
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        },
+      });
+    }
+
+    if (customId.startsWith("lockdown_modal:")) {
+      const state = customId.split(":")[1] || "status";
+      return handleLockdownAction(state, callerUser);
+    }
+
+    if (customId === "status_modal") {
+      return handleStatusQuery();
+    }
   }
 
   return NextResponse.json({ error: "Unsupported interaction" }, { status: 400 });

@@ -37,25 +37,11 @@ const commands = [
           { name: "📊 Check Status", value: "status" },
         ],
       },
-      {
-        name: "pin",
-        description: "Enter your secret authorization PIN (Required: 7416)",
-        type: 3, // STRING
-        required: true,
-      },
     ],
   },
   {
     name: "status",
     description: "Get real-time operational status of ZipTabs",
-    options: [
-      {
-        name: "pin",
-        description: "Enter your secret authorization PIN (Required: 7416)",
-        type: 3, // STRING
-        required: true,
-      },
-    ],
   },
 ];
 
