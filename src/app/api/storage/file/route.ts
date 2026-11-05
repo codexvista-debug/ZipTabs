@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, supabase } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/session";
 
+// Server-side in-memory cache for generated signed URLs (prevents redundant Supabase roundtrips)
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+const SIGNED_URL_TTL_SECONDS = 7200; // 2 hours
+const BROWSER_CACHE_SECONDS = 3600; // 1 hour browser cache
+
 /**
  * Authenticated File Gateway
  * Strictly requires an active ziptabs_session HttpOnly cookie.
@@ -9,7 +14,7 @@ import { getSessionUser } from "@/lib/session";
  * and authorized file downloads while blocking anonymous public access.
  */
 export async function GET(req: NextRequest) {
-  // 1. Double-layer session verification
+  // 1. Session verification
   const session = await getSessionUser(req);
   if (!session) {
     return NextResponse.json(
@@ -41,6 +46,20 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const cacheKey = `${filePath}:${isDownload}:${downloadFilename || ""}`;
+  const now = Date.now();
+  const cached = signedUrlCache.get(cacheKey);
+
+  // Return cached signed URL if valid for at least another 60 seconds
+  if (cached && cached.expiresAt - now > 60000) {
+    const response = NextResponse.redirect(cached.url, 307);
+    response.headers.set(
+      "Cache-Control",
+      `private, max-age=${BROWSER_CACHE_SECONDS}, stale-while-revalidate=7200`
+    );
+    return response;
+  }
+
   const db = supabaseAdmin || supabase;
   if (!db) {
     return NextResponse.json(
@@ -55,10 +74,10 @@ export async function GET(req: NextRequest) {
       options.download = downloadFilename || true;
     }
 
-    // Generate a 5-minute ephemeral signed URL
+    // Generate ephemeral signed URL from Supabase
     const { data, error } = await db.storage
       .from("note-attachments")
-      .createSignedUrl(filePath, 300, options);
+      .createSignedUrl(filePath, SIGNED_URL_TTL_SECONDS, options);
 
     if (error || !data?.signedUrl) {
       console.error("Failed to generate signed URL:", error);
@@ -68,8 +87,23 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 307 Temporary Redirect: Preserves method and redirects browser to high-speed CDN
-    return NextResponse.redirect(data.signedUrl, 307);
+    // Cache in memory (evict oldest if cache exceeds 1500 items)
+    if (signedUrlCache.size > 1500) {
+      const firstKey = signedUrlCache.keys().next().value;
+      if (firstKey) signedUrlCache.delete(firstKey);
+    }
+    signedUrlCache.set(cacheKey, {
+      url: data.signedUrl,
+      expiresAt: now + SIGNED_URL_TTL_SECONDS * 1000,
+    });
+
+    // 307 Temporary Redirect with private browser caching header
+    const response = NextResponse.redirect(data.signedUrl, 307);
+    response.headers.set(
+      "Cache-Control",
+      `private, max-age=${BROWSER_CACHE_SECONDS}, stale-while-revalidate=7200`
+    );
+    return response;
   } catch (err: any) {
     console.error("Storage gateway error:", err);
     return NextResponse.json(

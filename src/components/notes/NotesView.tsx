@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 import { downloadFileDirectly } from "@/lib/download";
-import { getSecureFileUrl, getSecureDownloadUrl } from "@/lib/storage";
+import { getSecureFileUrl, getSecureDownloadUrl, preloadSignedUrls } from "@/lib/storage";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import { extractTextFromImageFile } from "@/lib/ocr";
 import {
@@ -756,6 +756,17 @@ export function NotesView() {
           });
 
           setNotes(cleanedNotes);
+          const pathsToPreload: string[] = [];
+          for (const n of cleanedNotes) {
+            if (Array.isArray(n.attachments)) {
+              for (const a of n.attachments) {
+                if (a.path) pathsToPreload.push(a.path);
+              }
+            }
+          }
+          if (pathsToPreload.length > 0) {
+            preloadSignedUrls(pathsToPreload);
+          }
           try {
             // Keep localStorage completely clean and in sync with valid notes only
             localStorage.setItem("ziptabs_app_notes", JSON.stringify(cleanedNotes));
@@ -842,6 +853,18 @@ export function NotesView() {
 
   useEffect(() => {
     loadCategories();
+    // Batch preload ephemeral signed URLs so image thumbnails and attachments render instantly
+    const initialPaths: string[] = [];
+    for (const n of notes) {
+      if (Array.isArray(n.attachments)) {
+        for (const a of n.attachments) {
+          if (a.path) initialPaths.push(a.path);
+        }
+      }
+    }
+    if (initialPaths.length > 0) {
+      preloadSignedUrls(initialPaths);
+    }
     loadNotes();
 
     // Supabase Realtime Subscription: keeps PC and Phone synced instantly without page reload

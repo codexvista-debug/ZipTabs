@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { UniversalFileViewer } from "./UniversalFileViewer";
 import { downloadFileDirectly } from "@/lib/download";
-import { getSecureFileUrl, getSecureDownloadUrl } from "@/lib/storage";
+import { getSecureFileUrl, getSecureDownloadUrl, preloadSignedUrls } from "@/lib/storage";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import {
   ExecutiveToast,
@@ -213,6 +213,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         }
         if (filesRes.data) {
           setFiles(filesRes.data);
+          const drivePaths = filesRes.data.map((f: any) => f.storage_path).filter(Boolean);
+          if (drivePaths.length > 0) preloadSignedUrls(drivePaths);
           try {
             localStorage.setItem("ziptabs_drive_files", JSON.stringify(filesRes.data));
           } catch {}
