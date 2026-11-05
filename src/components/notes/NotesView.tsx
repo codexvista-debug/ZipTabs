@@ -87,6 +87,7 @@ export interface NoteItem {
   attachments?: NoteAttachment[];
   created_at?: string;
   updated_at?: string;
+  last_opened_at?: string;
 }
 
 export interface CategoryConfig {
@@ -757,6 +758,25 @@ export function NotesView() {
           try {
             // Keep localStorage completely clean and in sync with valid notes only
             localStorage.setItem("ziptabs_app_notes", JSON.stringify(cleanedNotes));
+
+            // Sync any cloud last_opened_at timestamps into local device storage
+            const rawOpened = localStorage.getItem("ziptabs_notes_last_opened");
+            const openedMap: Record<string, string> = rawOpened ? JSON.parse(rawOpened) : {};
+            let hasOpenedSync = false;
+            for (const n of cleanedNotes) {
+              if (n.last_opened_at) {
+                const dbTime = new Date(n.last_opened_at).getTime();
+                const localTime = openedMap[n.id] ? new Date(openedMap[n.id]).getTime() : 0;
+                if (dbTime > localTime) {
+                  openedMap[n.id] = n.last_opened_at;
+                  hasOpenedSync = true;
+                }
+              }
+            }
+            if (hasOpenedSync) {
+              localStorage.setItem("ziptabs_notes_last_opened", JSON.stringify(openedMap));
+              window.dispatchEvent(new CustomEvent("ziptabs-note-opened", { detail: { syncFromCloud: true } }));
+            }
           } catch {}
 
           if (hasUpdates && supabase) {
@@ -955,7 +975,7 @@ export function NotesView() {
   // Open modal for Edit
   const handleOpenEdit = (note: NoteItem) => {
     recordNoteOpened(note.id);
-    setEditingNote(note);
+    setEditingNote({ ...note, last_opened_at: new Date().toISOString() });
     setFormContent(note.content || note.title || "");
     setFormCategory(normalizeCategory(note.category));
     setFormPriority(note.priority || "normal");
@@ -1323,6 +1343,7 @@ export function NotesView() {
         priority: formPriority,
         attachments: finalAttachments,
         updated_at: nowIso,
+        last_opened_at: nowIso,
       };
 
       const updatedList = notes.map((n) => (n.id === editingNote.id ? updatedItem : n));
@@ -1340,6 +1361,7 @@ export function NotesView() {
             priority: updatedItem.priority,
             attachments: finalAttachments,
             updated_at: nowIso,
+            last_opened_at: nowIso,
           })
           .eq("id", editingNote.id)
           .then(({ error }) => {
@@ -1368,6 +1390,7 @@ export function NotesView() {
         attachments: finalAttachments,
         created_at: nowIso,
         updated_at: nowIso,
+        last_opened_at: nowIso,
       };
 
       const updatedList = [newItem, ...notes];
@@ -1387,6 +1410,7 @@ export function NotesView() {
               priority: newItem.priority,
               is_completed: false,
               attachments: finalAttachments,
+              last_opened_at: nowIso,
             },
           ])
           .then(({ error }) => {
@@ -2041,7 +2065,7 @@ export function NotesView() {
                   style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
                   onClick={() => {
                     recordNoteOpened(note.id);
-                    setViewingNote(note);
+                    setViewingNote({ ...note, last_opened_at: new Date().toISOString() });
                   }}
                   className={`group relative rounded-2xl border p-5 transition-all duration-300 ease-out flex flex-col justify-between cursor-pointer animate-note-card hover:-translate-y-1.5 hover:shadow-xl active:scale-[0.985] ${
                     celebratingNoteId === note.id
