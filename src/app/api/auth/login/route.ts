@@ -70,6 +70,22 @@ export async function POST(req: NextRequest) {
     const lockRecord = lockRes.data;
     const userRecord = userRes.data;
 
+    // Fail-safe: if database query returned an error, do not penalize user with a strike
+    if (userRes.error) {
+      console.error("Database user query error:", userRes.error);
+      return NextResponse.json(
+        { success: false, error: "Authentication database query error. Please retry." },
+        { status: 500 }
+      );
+    }
+
+    if (!userRecord) {
+      return NextResponse.json(
+        { success: false, error: `Account '${cleanUsername}' not found.` },
+        { status: 404 }
+      );
+    }
+
     const settings = allSettings?.find((s) => s.id === "global");
     const vanishSettings = allSettings?.find((s) => s.id === "vanish_mode");
     const isLockdown = Boolean(settings?.ip_lockdown_enabled || vanishSettings?.ip_lockdown_enabled);
