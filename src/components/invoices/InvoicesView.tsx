@@ -5,10 +5,15 @@ import { supabase } from "@/lib/supabase";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import {
+  parseVendorAndConsultant,
+  checkConsultantsAbnormal,
+} from "@/lib/invoiceUtils";
+import {
   Upload,
   FileSpreadsheet,
   Search,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Loader2,
   Copy,
@@ -243,7 +248,14 @@ export function InvoicesView() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [isCopiedRecently, setIsCopiedRecently] = useState(false);
-  const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+  const [copiedNotification, setCopiedNotification] = useState<{
+    type: "success" | "warning";
+    title: string;
+    description: string;
+    headerMeta?: string;
+    metric?: string;
+    durationMs?: number;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -741,16 +753,10 @@ export function InvoicesView() {
 
     const headers = ["Consultant", "Invoice", "Amount Due", "Due Date", "Aging"];
 
-    const getRowValues = (inv: InvoiceRecord) => {
-      // Extract consultant name: only the part after "-" if present, otherwise trimmed vendor name
-      let consultant = (inv.vendor_name || "—").trim();
-      if (consultant.includes("-")) {
-        const parts = consultant.split("-");
-        const afterHyphen = parts.slice(1).join("-").trim();
-        if (afterHyphen) {
-          consultant = afterHyphen;
-        }
-      }
+        const getRowValues = (inv: InvoiceRecord) => {
+      // Accurately extract consultant name using robust parser
+      const parsed = parseVendorAndConsultant(inv.vendor_name);
+      const consultant = parsed.consultant || parsed.vendor || (inv.vendor_name || "—").trim();
 
       return [
         consultant,
@@ -809,20 +815,69 @@ export function InvoicesView() {
         await navigator.clipboard.writeText(plainTsv);
       }
 
-      setIsCopiedRecently(true);
+            setIsCopiedRecently(true);
       setTimeout(() => setIsCopiedRecently(false), 2000);
 
-      setCopiedNotification(
-        `${targetInvoices.length} row${targetInvoices.length > 1 ? "s" : ""} copied to clipboard formatted for Zoho Mail.`
-      );
-      setTimeout(() => setCopiedNotification(null), 3000);
+      // Check if any copied invoices have abnormal consultant names
+      const { hasAbnormal, abnormalNames } = checkConsultantsAbnormal(targetInvoices);
+
+      if (hasAbnormal) {
+        const nameList =
+          abnormalNames.length <= 2
+            ? abnormalNames.map((n) => `"${n}"`).join(" and ")
+            : abnormalNames.slice(0, 2).map((n) => `"${n}"`).join(", ") +
+              ` (+${abnormalNames.length - 2} more)`;
+
+        setCopiedNotification({
+          type: "warning",
+          title: `⚠️ Abnormal consultant name${abnormalNames.length > 1 ? "s" : ""} detected`,
+          description: `Consultant name ${nameList} looks abnormal. Recheck twice before sending the email after pasting into mail.`,
+          headerMeta: "Zoho Mail Clipboard",
+          metric: "Verify Email",
+          durationMs: 8500,
+        });
+      } else {
+        setCopiedNotification({
+          type: "success",
+          title: `${targetInvoices.length} row${targetInvoices.length > 1 ? "s" : ""} copied to clipboard formatted for Zoho Mail.`,
+          description: "Formatted HTML table ready to paste directly into Zoho Mail.",
+          headerMeta: "Zoho Mail Clipboard",
+          metric: "Copied HTML",
+          durationMs: 3500,
+        });
+      }
     } catch (err) {
       console.error("Clipboard copy error:", err);
       navigator.clipboard.writeText(plainTsv);
       setIsCopiedRecently(true);
       setTimeout(() => setIsCopiedRecently(false), 2000);
-      setCopiedNotification("Data copied to clipboard!");
-      setTimeout(() => setCopiedNotification(null), 2500);
+
+      const { hasAbnormal, abnormalNames } = checkConsultantsAbnormal(targetInvoices);
+      if (hasAbnormal) {
+        const nameList =
+          abnormalNames.length <= 2
+            ? abnormalNames.map((n) => `"${n}"`).join(" and ")
+            : abnormalNames.slice(0, 2).map((n) => `"${n}"`).join(", ") +
+              ` (+${abnormalNames.length - 2} more)`;
+
+        setCopiedNotification({
+          type: "warning",
+          title: `⚠️ Abnormal consultant name${abnormalNames.length > 1 ? "s" : ""} detected`,
+          description: `Consultant name ${nameList} looks abnormal. Recheck twice before sending the email after pasting into mail.`,
+          headerMeta: "Zoho Mail Clipboard",
+          metric: "Verify Email",
+          durationMs: 8500,
+        });
+      } else {
+        setCopiedNotification({
+          type: "success",
+          title: "Data copied to clipboard!",
+          description: "Copied table formatted for Zoho Mail.",
+          headerMeta: "Clipboard",
+          metric: "Copied",
+          durationMs: 2500,
+        });
+      }
     }
   };
 
@@ -874,13 +929,13 @@ export function InvoicesView() {
       {copiedNotification && (
         <div className={TOAST_POSITION_CLASSES["top-center"]}>
           <ExecutiveToast
-            type="success"
-            title={copiedNotification}
-            description="Formatted HTML table ready to paste directly into Zoho Mail."
-            headerMeta="Zoho Mail Clipboard"
-            metric="Copied HTML"
+            type={copiedNotification.type}
+            title={copiedNotification.title}
+            description={copiedNotification.description}
+            headerMeta={copiedNotification.headerMeta || "Zoho Mail Clipboard"}
+            metric={copiedNotification.metric || "Copied"}
             onClose={() => setCopiedNotification(null)}
-            durationMs={3000}
+            durationMs={copiedNotification.durationMs || 3500}
           />
         </div>
       )}
@@ -1331,6 +1386,21 @@ export function InvoicesView() {
                           >
                             {inv.vendor_name}
                           </div>
+                          {(() => {
+                            const parsed = parseVendorAndConsultant(inv.vendor_name);
+                            if (parsed.isAbnormal) {
+                              return (
+                                <div
+                                  className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 select-none"
+                                  title={`Abnormal consultant name: ${parsed.consultant} (${parsed.abnormalReason}). Recheck twice before sending email.`}
+                                >
+                                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span>Recheck consultant (${parsed.consultant})</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </td>
 
                         {/* 2. Invoice (Selectable & standard browser copyable) */}
@@ -1431,6 +1501,21 @@ export function InvoicesView() {
                         <div className="font-bold text-slate-900 text-xs leading-snug break-words">
                           {inv.vendor_name}
                         </div>
+                        {(() => {
+                          const parsed = parseVendorAndConsultant(inv.vendor_name);
+                          if (parsed.isAbnormal) {
+                            return (
+                              <div
+                                className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 select-none"
+                                title={`Abnormal consultant name: ${parsed.consultant} (${parsed.abnormalReason}). Recheck twice before sending email.`}
+                              >
+                                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span>Recheck consultant (${parsed.consultant})</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                         <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-slate-500 font-medium">
                           <span
                             onClick={(e) => e.stopPropagation()}
