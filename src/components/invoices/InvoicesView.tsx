@@ -1386,21 +1386,7 @@ export function InvoicesView() {
                           >
                             {inv.vendor_name}
                           </div>
-                          {(() => {
-                            const parsed = parseVendorAndConsultant(inv.vendor_name);
-                            if (parsed.isAbnormal) {
-                              return (
-                                <div
-                                  className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 select-none"
-                                  title={`Abnormal consultant name: ${parsed.consultant} (${parsed.abnormalReason}). Recheck twice before sending email.`}
-                                >
-                                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                                  <span>Recheck consultant (${parsed.consultant})</span>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
+                          
                         </td>
 
                         {/* 2. Invoice (Selectable & standard browser copyable) */}
@@ -1501,21 +1487,7 @@ export function InvoicesView() {
                         <div className="font-bold text-slate-900 text-xs leading-snug break-words">
                           {inv.vendor_name}
                         </div>
-                        {(() => {
-                          const parsed = parseVendorAndConsultant(inv.vendor_name);
-                          if (parsed.isAbnormal) {
-                            return (
-                              <div
-                                className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 select-none"
-                                title={`Abnormal consultant name: ${parsed.consultant} (${parsed.abnormalReason}). Recheck twice before sending email.`}
-                              >
-                                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                                <span>Recheck consultant (${parsed.consultant})</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
+                        
                         <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-slate-500 font-medium">
                           <span
                             onClick={(e) => e.stopPropagation()}
