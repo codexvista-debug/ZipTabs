@@ -1083,192 +1083,185 @@ export function LoginsView() {
         </div>
       )}
 
-      {/* Header (Single compact row on mobile) */}
-      <div className="flex items-center justify-between gap-2.5 pb-3 sm:pb-6 border-b border-slate-200/60">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
-              <KeyRound className="w-4 h-4 sm:w-5 sm:h-5" />
+      {/* Executive Header & Integrated Command Bar */}
+      <div className="relative rounded-3xl bg-gradient-to-br from-white via-blue-50/35 to-indigo-50/40 border border-slate-200/90 shadow-sm overflow-hidden p-4 sm:p-6">
+        {/* Top Accent Ribbon */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400" />
+        {/* Ambient Decorative Glows */}
+        <div className="pointer-events-none absolute -top-20 -right-16 w-64 h-64 rounded-full bg-blue-500/8 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-16 w-56 h-56 rounded-full bg-indigo-500/8 blur-3xl" />
+
+        <div className="relative flex flex-col gap-4 sm:gap-5">
+          {/* Top Row: Title + Compact Security Pills + Add Login Button */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20 shrink-0 ring-4 ring-blue-50">
+                <KeyRound className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
+                    Logins & Portals
+                  </h1>
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/90 text-emerald-700 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
+                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                    <span>AES-256 Vault</span>
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
+                  Encrypted portal credentials & access keys exclusively synced for <strong className="text-slate-700">@chief</strong>.
+                </p>
+              </div>
             </div>
-            <h1 className="text-base sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
-              Logins & Portals
-            </h1>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl hidden sm:block">
-            Encrypted directory synced across all your devices, exclusively accessible by <strong>@chief</strong>.
-          </p>
-        </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Add Login Button */}
-          <button
-            onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg transition-all cursor-pointer active:scale-95 shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Add Login</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Security Status Banner (Hidden on narrow mobile screens to save screen space) */}
-      <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Globe className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-[11px] text-slate-400 font-medium">Cross-Device Sync</div>
-            <div className="text-xs font-bold text-slate-800">Active (Cloud DB)</div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-[11px] text-slate-400 font-medium">Encryption</div>
-            <div className="text-xs font-bold text-slate-800">AES-256-GCM</div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <Clock className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-[11px] text-slate-400 font-medium">Auto-Lock Timer</div>
-            <div className="text-xs font-bold text-slate-800">10m Inactivity</div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-[11px] text-slate-400 font-medium">Clipboard Protection</div>
-            <div className="text-xs font-bold text-slate-800">30s Auto-Wipe</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Category Filter Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-none">
-          <button
-            onClick={() => setSelectedCategory("All")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              selectedCategory === "All"
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            All ({logins.length})
-          </button>
-          {allCategories.map((cat) => {
-            const count = logins.filter((l) => l.category === cat).length;
-            if (count === 0 && selectedCategory !== cat) return null;
-            return (
+            <div className="flex items-center gap-2 shrink-0">
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  selectedCategory === cat
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                onClick={handleOpenAddModal}
+                className="inline-flex items-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/25 hover:shadow-lg hover:shadow-blue-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Login</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Row: Integrated Category Filter Pills & Live Search */}
+          <div className="pt-3.5 border-t border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* Category Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full scrollbar-none">
+              <button
+                onClick={() => setSelectedCategory("All")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedCategory === "All"
+                    ? "bg-slate-900 text-white shadow-sm shadow-slate-900/15"
+                    : "bg-white/90 border border-slate-200/90 text-slate-600 hover:bg-white hover:border-slate-300"
                 }`}
               >
-                <span>{cat}</span>
+                <span>All Portals</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    selectedCategory === cat
-                      ? "bg-slate-800 text-slate-200"
-                      : "bg-slate-100 text-slate-500"
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                    selectedCategory === "All"
+                      ? "bg-white/20 text-white"
+                      : "bg-slate-100 text-slate-600"
                   }`}
                 >
-                  {count}
+                  {logins.length}
                 </span>
               </button>
-            );
-          })}
+              {allCategories.map((cat) => {
+                const count = logins.filter((l) => l.category === cat).length;
+                if (count === 0 && selectedCategory !== cat) return null;
+                const catStyle = getCategoryBadgeStyle(cat);
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      selectedCategory === cat
+                        ? "bg-slate-900 text-white shadow-sm shadow-slate-900/15"
+                        : "bg-white/90 border border-slate-200/90 text-slate-600 hover:bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedCategory === cat ? "bg-blue-400" : catStyle.dot}`} />
+                    <span>{cat}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                        selectedCategory === cat
+                          ? "bg-white/20 text-white"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
 
-          {/* Quick Add Category inline */}
-          {isAddingCategoryInline ? (
-            <div className="flex items-center gap-1 shrink-0 bg-white border border-blue-400 rounded-xl px-2 py-1 shadow-xs">
+              {/* Quick Add Category inline */}
+              {isAddingCategoryInline ? (
+                <div className="flex items-center gap-1 shrink-0 bg-white border border-blue-400 rounded-xl px-2 py-1 shadow-xs">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Category name..."
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCategory(newCategoryName);
+                      } else if (e.key === "Escape") {
+                        setIsAddingCategoryInline(false);
+                        setNewCategoryName("");
+                      }
+                    }}
+                    className="text-xs px-1 py-0.5 outline-none w-28 text-slate-800 placeholder:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddCategory(newCategoryName)}
+                    className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-lg font-bold hover:bg-blue-700 cursor-pointer"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingCategoryInline(false);
+                      setNewCategoryName("");
+                    }}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 px-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsAddingCategoryInline(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/70 border border-dashed border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer whitespace-nowrap"
+                  title="Add new category"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Category</span>
+                </button>
+              )}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative min-w-[230px] md:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                autoFocus
-                placeholder="Category name..."
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddCategory(newCategoryName);
-                  } else if (e.key === "Escape") {
-                    setIsAddingCategoryInline(false);
-                    setNewCategoryName("");
-                  }
-                }}
-                className="text-xs px-1 py-0.5 outline-none w-28 text-slate-800 placeholder:text-slate-400"
+                placeholder="Search portals, usernames, or notes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-white border border-slate-200/90 rounded-xl shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 font-medium text-slate-800"
               />
-              <button
-                type="button"
-                onClick={() => handleAddCategory(newCategoryName)}
-                className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-lg font-bold hover:bg-blue-700 cursor-pointer"
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAddingCategoryInline(false);
-                  setNewCategoryName("");
-                }}
-                className="text-[10px] text-slate-400 hover:text-slate-600 px-1 cursor-pointer"
-              >
-                ✕
-              </button>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          ) : (
-            <button
-              onClick={() => setIsAddingCategoryInline(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 border border-dashed border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer whitespace-nowrap"
-              title="Add new category"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Category</span>
-            </button>
-          )}
-        </div>
-
-        {/* Search Input */}
-        <div className="relative min-w-[220px] md:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search logins or usernames..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
-          />
+          </div>
         </div>
       </div>
 
       {/* Logins Grid */}
       {isLoadingData ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center flex flex-col items-center justify-center">
-          <RefreshCw className="w-6 h-6 animate-spin text-blue-600 mb-2" />
-          <span className="text-xs font-semibold text-slate-600">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-14 text-center flex flex-col items-center justify-center shadow-xs">
+          <RefreshCw className="w-6 h-6 animate-spin text-blue-600 mb-2.5" />
+          <span className="text-xs font-bold text-slate-600">
             Syncing and decrypting cloud credentials...
           </span>
         </div>
       ) : filteredLogins.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center flex flex-col items-center justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-14 text-center flex flex-col items-center justify-center shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mb-3">
             <FileKey className="w-6 h-6" />
           </div>
           <h3 className="text-sm font-bold text-slate-800">No login records found</h3>
@@ -1279,13 +1272,13 @@ export function LoginsView() {
           </p>
           <button
             onClick={handleOpenAddModal}
-            className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+            className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm cursor-pointer"
           >
             + Add First Login
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredLogins.map((item, idx) => {
             const isVisible = visiblePasswords[item.id] || false;
             const cleanDomain = getCleanDomain(item.url);
@@ -1298,233 +1291,260 @@ export function LoginsView() {
               <div
                 key={item.id}
                 tabIndex={0}
-                style={{ animationDelay: `${Math.min(idx * 30, 360)}ms` }}
+                style={{ animationDelay: `${Math.min(idx * 35, 360)}ms` }}
                 onClick={() => setFocusedCardId(item.id)}
                 onFocus={() => setFocusedCardId(item.id)}
-                className={`relative rounded-2xl p-5 transition-all duration-300 flex flex-col justify-between group overflow-hidden cursor-pointer outline-none select-none animate-card-enter active:scale-[0.985] ${
+                className={`relative rounded-3xl transition-all duration-300 flex flex-col justify-between group overflow-hidden cursor-pointer outline-none select-none animate-card-enter ${
                   isFocused
-                    ? "bg-white border-2 border-blue-600 shadow-xl shadow-blue-500/15 ring-4 ring-blue-500/10 -translate-y-1.5"
-                    : "bg-gradient-to-b from-white via-slate-50/25 to-slate-50/70 border border-slate-200/90 hover:border-blue-400/80 hover:shadow-xl hover:-translate-y-1.5"
+                    ? "bg-white border-2 border-blue-600 shadow-2xl shadow-blue-600/12 ring-4 ring-blue-500/10 -translate-y-1"
+                    : "bg-white border border-slate-200/90 shadow-xs hover:border-blue-300 hover:shadow-xl hover:shadow-slate-900/5 hover:-translate-y-1"
                 }`}
               >
-                {/* Top subtle decorative accent line (Glows on Focus) */}
-                <div
-                  className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400 transition-all ${
-                    isFocused
-                      ? "opacity-100 shadow-[0_0_10px_rgba(59,130,246,0.6)]"
-                      : "opacity-60 group-hover:opacity-100"
-                  }`}
-                />
-
+                {/* Top Card Header Banner */}
                 <div>
-                  {/* Top Bar: Brand Avatar + Title + Category Pill + Actions */}
-                  <div className="flex items-start justify-between gap-3 mb-3.5">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className={`shrink-0 transition-transform duration-200 ${isFocused ? "scale-105" : ""}`}>
-                        <VaultBrandAvatar
-                          iconId={item.icon}
-                          title={item.title}
-                          category={item.category}
-                          url={item.url}
-                          size="md"
-                          showBadge={isMultiple}
-                          badgeNumber={badgeNum}
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <h3
-                            className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate"
+                  <div
+                    className={`relative px-5 pt-5 pb-4 border-b transition-colors ${
+                      isFocused
+                        ? "bg-gradient-to-br from-blue-50/70 via-indigo-50/30 to-white border-blue-100"
+                        : "bg-gradient-to-br from-slate-50/90 via-white to-blue-50/25 border-slate-100 group-hover:from-blue-50/40 group-hover:to-indigo-50/20"
+                    }`}
+                  >
+                    {/* Top Glow Line */}
+                    <div
+                      className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400 transition-opacity ${
+                        isFocused ? "opacity-100" : "opacity-75 group-hover:opacity-100"
+                      }`}
+                    />
+
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        <div className={`shrink-0 transition-transform duration-200 ${isFocused ? "scale-105" : "group-hover:scale-105"}`}>
+                          <VaultBrandAvatar
+                            iconId={item.icon}
                             title={item.title}
-                          >
-                            {item.title}
-                          </h3>
-                          {isFocused && (
-                            <span className="shrink-0 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider shadow-xs animate-in fade-in duration-150">
-                              Focused
-                            </span>
-                          )}
+                            category={item.category}
+                            url={item.url}
+                            size="md"
+                            showBadge={isMultiple}
+                            badgeNumber={badgeNum}
+                          />
                         </div>
 
-                        {/* Line 1: Category Pill */}
-                        <div className="mt-1.5 flex items-center">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border truncate ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${catStyle.dot}`} />
-                            <span>{item.category}</span>
-                          </span>
-                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3
+                              className="text-base font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate"
+                              title={item.title}
+                            >
+                              {item.title}
+                            </h3>
+                          </div>
 
-                        {/* Line 2: Dedicated URL Domain Line for All Cards (Ensures Uniform Card Height) */}
-                        <div className="mt-1 flex items-center min-h-[22px]">
-                          {cleanDomain ? (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] text-slate-500 font-mono truncate bg-slate-100/80 px-2 py-0.5 rounded-md border border-slate-200/70">
-                              <Globe className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                              <span className="truncate max-w-[210px]">{cleanDomain}</span>
+                          {/* Category & Domain Chips Row */}
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border truncate ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${catStyle.dot}`} />
+                              <span>{item.category}</span>
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 italic">
-                              <span>No portal link</span>
-                            </span>
-                          )}
+
+                            {cleanDomain ? (
+                              <a
+                                href={item.url!.startsWith("http") ? item.url : `https://${item.url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[10px] text-slate-600 hover:text-blue-600 font-mono truncate bg-white px-2 py-0.5 rounded-full border border-slate-200/90 hover:border-blue-300 shadow-2xs transition-colors"
+                                title={`Open ${cleanDomain}`}
+                              >
+                                <Globe className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+                                <span className="truncate max-w-[140px]">{cleanDomain}</span>
+                                <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-100/70 px-2 py-0.5 rounded-full border border-slate-200/60">
+                                <span>Internal Key</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Edit & Delete Action Buttons */}
-                    <div className="flex items-center gap-1 shrink-0 bg-slate-100/70 p-0.5 rounded-xl border border-slate-200/60">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(item);
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white rounded-lg transition-colors cursor-pointer"
-                        title="Edit credential"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteConfirmItem({
-                            id: item.id,
-                            title: item.title,
-                            category: item.category,
-                            username: item.username,
-                          });
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        title="Delete credential"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Username / Email Row */}
-                  <div
-                    className={`mt-3 rounded-xl p-2.5 border shadow-2xs space-y-1.5 transition-colors ${
-                      isFocused ? "bg-blue-50/30 border-blue-200/80" : "bg-white/90 border-slate-200/80"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
-                        <User className="w-3 h-3 text-slate-400" />
-                        <span>Username / Email</span>
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard(item.username, `user-${item.id}`, false);
-                        }}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
-                      >
-                        {copiedKey === `user-${item.id}` ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span className="text-emerald-600">Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3" />
-                            <span>Copy</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    <div className="text-xs font-mono font-medium text-slate-800 select-all truncate bg-slate-50/80 px-2.5 py-1.5 rounded-lg border border-slate-200/60">
-                      {item.username}
-                    </div>
-                  </div>
-
-                  {/* Password Row */}
-                  <div
-                    className={`mt-2 rounded-xl p-2.5 border shadow-2xs space-y-1.5 transition-colors ${
-                      isFocused ? "bg-blue-50/30 border-blue-200/80" : "bg-white/90 border-slate-200/80"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
-                          <KeyRound className="w-3 h-3 text-slate-400" />
-                          <span>Password</span>
-                        </span>
-                        {isVisible && (
-                          <span className="text-[9px] text-amber-600 font-bold bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
-                            Auto-hides in 10s
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
+                      {/* Floating Quick Edit / Delete Pill */}
+                      <div className="flex items-center gap-0.5 shrink-0 bg-white/90 p-1 rounded-xl border border-slate-200/80 shadow-2xs">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            togglePasswordVisibility(item.id);
+                            handleOpenEditModal(item);
                           }}
-                          className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer p-0.5"
-                          title={isVisible ? "Hide password" : "Peek password (10s)"}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="Edit credential"
                         >
-                          {isVisible ? (
-                            <EyeOff className="w-3.5 h-3.5 text-amber-600" />
-                          ) : (
-                            <Eye className="w-3.5 h-3.5" />
-                          )}
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyToClipboard(item.password, `pass-${item.id}`, true);
+                            setDeleteConfirmItem({
+                              id: item.id,
+                              title: item.title,
+                              category: item.category,
+                              username: item.username,
+                            });
                           }}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
-                          title="Copy to clipboard (auto-wipes in 30s)"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Delete credential"
                         >
-                          {copiedKey === `pass-${item.id}` ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-600" />
-                              <span className="text-emerald-600">Copied (30s wipe)</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>Copy</span>
-                            </>
-                          )}
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
-                    <div className="text-xs font-mono font-medium text-slate-800 select-all truncate bg-slate-50/80 px-2.5 py-1.5 rounded-lg border border-slate-200/60 tracking-wider">
-                      {isVisible ? item.password : "••••••••••••••••"}
-                    </div>
                   </div>
 
-                  {/* Notes & Security Hints (Modern Slate & Indigo Pill) */}
-                  {item.notes && item.notes.trim() && !item.notes.includes("=") && (
-                    <div className="mt-3 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-xl p-2.5 border border-indigo-100/90 text-[11px] text-slate-700 leading-relaxed shadow-2xs">
-                      <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
-                        <FileText className="w-3 h-3 text-indigo-500 shrink-0" />
-                        <span>Note & 2FA Hint</span>
+                  {/* Card Body: Unified Credential Stack */}
+                  <div className="p-5 space-y-3">
+                    <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 divide-y divide-slate-200/70 overflow-hidden shadow-2xs">
+                      {/* Username Field */}
+                      <div className="p-3 hover:bg-white transition-colors">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                            <User className="w-3 h-3 text-blue-500" />
+                            <span>Username / ID</span>
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyToClipboard(item.username, `user-${item.id}`, false);
+                            }}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                              copiedKey === `user-${item.id}`
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-white text-slate-600 hover:text-blue-600 border border-slate-200/80 hover:border-blue-300 shadow-2xs"
+                            }`}
+                          >
+                            {copiedKey === `user-${item.id}` ? (
+                              <>
+                                <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-2.5 h-2.5" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="text-xs sm:text-[13px] font-mono font-bold text-slate-800 select-all truncate pl-0.5">
+                          {item.username}
+                        </div>
                       </div>
-                      <p className="line-clamp-3 leading-relaxed text-slate-600 text-[11px] font-medium pl-1">
-                        {item.notes}
-                      </p>
+
+                      {/* Password Field */}
+                      <div className="p-3 hover:bg-white transition-colors">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                              <KeyRound className="w-3 h-3 text-indigo-500" />
+                              <span>Password</span>
+                            </span>
+                            {isVisible && (
+                              <span className="text-[9px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 rounded-full border border-amber-200">
+                                10s Peek
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePasswordVisibility(item.id);
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                                isVisible
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-white text-slate-500 hover:text-slate-800 border-slate-200/80 shadow-2xs"
+                              }`}
+                              title={isVisible ? "Hide password" : "Reveal password for 10s"}
+                            >
+                              {isVisible ? (
+                                <>
+                                  <EyeOff className="w-2.5 h-2.5" />
+                                  <span>Hide</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="w-2.5 h-2.5" />
+                                  <span>Peek</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(item.password, `pass-${item.id}`, true);
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                copiedKey === `pass-${item.id}`
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-white text-slate-600 hover:text-blue-600 border border-slate-200/80 hover:border-blue-300 shadow-2xs"
+                              }`}
+                              title="Copy password (auto-wipes in 30s)"
+                            >
+                              {copiedKey === `pass-${item.id}` ? (
+                                <>
+                                  <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                  <span>Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-2.5 h-2.5" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`text-xs sm:text-[13px] font-mono font-bold select-all truncate pl-0.5 ${
+                            isVisible ? "text-indigo-950 tracking-normal" : "text-slate-400 tracking-[0.22em]"
+                          }`}
+                        >
+                          {isVisible ? item.password : "••••••••••••••••"}
+                        </div>
+                      </div>
                     </div>
-                  )}
+
+                    {/* Notes & 2FA Hint Callout */}
+                    {item.notes && item.notes.trim() && !item.notes.includes("=") && (
+                      <div className="rounded-2xl bg-gradient-to-r from-indigo-50/60 via-blue-50/40 to-slate-50 px-3.5 py-2.5 border border-indigo-100/90 flex items-start gap-2.5">
+                        <div className="w-5 h-5 rounded-lg bg-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+                          <FileText className="w-3 h-3" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-wider">
+                            Security Note & 2FA Hint
+                          </div>
+                          <p className="text-[11px] font-medium text-slate-600 line-clamp-2 leading-relaxed mt-0.5">
+                            {item.notes}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Bottom Bar: Updated Date on Left, [Logs] button on left of Blue [Login] Button */}
-                <div className="mt-4 pt-3.5 border-t border-slate-100/90 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium truncate">
-                      <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span>Updated {formatDateMMDDYYYY(item.updatedAt)}</span>
-                    </div>
-                    <span className="hidden sm:inline-block text-[9px] font-extrabold text-slate-400 bg-slate-100/90 border border-slate-200/60 px-1.5 py-0.5 rounded-md shrink-0">
-                      AES-256
-                    </span>
+                {/* Card Footer: Timestamp + Audit History + Launch Portal CTA */}
+                <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-semibold truncate">
+                    <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>{formatDateMMDDYYYY(item.updatedAt)}</span>
                   </div>
 
-                  {/* Right Actions: Logs Button + Blue Login Button */}
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
@@ -1532,13 +1552,13 @@ export function LoginsView() {
                         e.stopPropagation();
                         setViewingLogsItem(item);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-95 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-100/80 hover:border-slate-300 active:scale-95 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer"
                       title="View modification audit logs"
                     >
                       <History className="w-3.5 h-3.5 text-slate-500" />
                       <span>Logs</span>
                       {item.logs && item.logs.length > 0 && (
-                        <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200/60 px-1.5 py-0.2 rounded-full font-extrabold">
+                        <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded-full font-extrabold">
                           {item.logs.length}
                         </span>
                       )}
@@ -1550,10 +1570,11 @@ export function LoginsView() {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all cursor-pointer shrink-0"
-                        title={`Login to ${item.url}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-bold shadow-sm shadow-blue-600/20 hover:shadow-md hover:shadow-blue-600/30 transition-all cursor-pointer shrink-0"
+                        title={`Launch ${item.url}`}
                       >
-                        Login
+                        <span>Launch</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </a>
                     ) : (
                       <button
@@ -1562,9 +1583,9 @@ export function LoginsView() {
                           e.stopPropagation();
                           handleOpenEditModal(item);
                         }}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-slate-300 text-[11px] font-bold text-slate-500 hover:text-blue-600 hover:border-blue-400 transition-colors cursor-pointer"
                       >
-                        <span>+ Add URL</span>
+                        <span>+ Link URL</span>
                       </button>
                     )}
                   </div>
