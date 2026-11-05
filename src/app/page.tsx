@@ -29,7 +29,6 @@ import {
   STORAGE_KEY_NOTES,
 } from "@/lib/urgentNotes";
 import { supabase } from "@/lib/supabase";
-import { decryptNoteFromDb } from "@/lib/workspaceCrypto";
 
 type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "directory" | "drive" | "resources" | "logins" | "master-control" | "lab" | "usage";
 const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "directory", "drive", "resources", "logins", "master-control", "lab", "usage"];
@@ -61,13 +60,12 @@ export default function Home() {
     if (typeof window !== "undefined" && !localStorage.getItem(STORAGE_KEY_NOTES) && supabase) {
       supabase
         .from("app_notes")
-        .select("id, title, content, priority, is_completed, created_at, updated_at, last_opened_at")
+        .select("id, title, priority, is_completed, created_at, updated_at, last_opened_at")
         .in("priority", ["urgent", "high"])
         .eq("is_completed", false)
-        .then(async ({ data }) => {
+        .then(({ data }) => {
           if (data && data.length > 0) {
-            const decrypted = await Promise.all(data.map((n: any) => decryptNoteFromDb(n)));
-            const overdue = decrypted.filter((n: any) => isNoteOverdueUnresolved(n));
+            const overdue = data.filter((n: any) => isNoteOverdueUnresolved(n));
             if (overdue.length > 0) {
               setOverdueUrgentNotes(overdue);
             }

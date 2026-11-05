@@ -28,11 +28,6 @@ import {
   getToastPosition,
   TOAST_POSITION_CLASSES,
 } from "@/components/ui/ExecutiveToast";
-import {
-  getWorkspaceKey,
-  encryptInvoiceForDb,
-  decryptInvoiceFromDb,
-} from "@/lib/workspaceCrypto";
 
 export interface InvoiceRecord {
   id?: string;
@@ -262,7 +257,7 @@ export function InvoicesView() {
     }
   }, [statusMessage]);
 
-  // Fetch invoices from Supabase on mount (with AES-256-GCM decryption & silent legacy upgrade)
+  // Fetch invoices from Supabase on mount
   const loadInvoices = async () => {
     setIsLoading(true);
     if (!supabase) {
@@ -271,7 +266,6 @@ export function InvoicesView() {
     }
 
     try {
-      const key = await getWorkspaceKey();
       const { data, error } = await supabase
         .from("invoices")
         .select("*")
@@ -280,14 +274,8 @@ export function InvoicesView() {
       if (error) {
         console.error("Error loading invoices from Supabase:", error);
       } else if (data) {
-        const decryptedRows: (InvoiceRecord & { _needsEncryptionUpgrade?: boolean })[] = [];
-        for (const rawInv of data) {
-          const dec = await decryptInvoiceFromDb(rawInv, key);
-          decryptedRows.push(dec);
-        }
-
         // Recalculate real-time aging as of today for all invoices
-        const updated = decryptedRows.map((inv) => {
+        const updated = data.map((inv) => {
           if (inv.due_date && inv.due_date !== "—") {
             const dynamicDays = calculateAgingDaysFromDueDate(inv.due_date);
             return {
@@ -303,23 +291,6 @@ export function InvoicesView() {
         try {
           sessionStorage.setItem(INVOICE_CACHE_KEY, JSON.stringify(updated));
         } catch {}
-
-        // Silently upgrade any legacy plaintext invoice rows in Supabase in the background
-        const toUpgrade = updated.filter((r) => (r as any)._needsEncryptionUpgrade && r.id);
-        if (toUpgrade.length > 0 && supabase) {
-          (async () => {
-            try {
-              const batchSize = 50;
-              for (let i = 0; i < toUpgrade.length; i += batchSize) {
-                const slice = toUpgrade.slice(i, i + batchSize);
-                const encBatch = await Promise.all(slice.map((r) => encryptInvoiceForDb(r, key)));
-                await supabase.from("invoices").upsert(encBatch);
-              }
-            } catch (upErr) {
-              console.debug("Silent invoice encryption upgrade skipped:", upErr);
-            }
-          })();
-        }
       }
     } catch (err) {
       console.error("Failed to load invoices:", err);
@@ -538,29 +509,20 @@ export function InvoicesView() {
         .delete()
         .neq("id", "00000000-0000-0000-0000-000000000000");
 
-      // 2. INSERT NEW FRESH INVOICES in batches of 100 (Encrypted with AES-256-GCM + Salted SHA-256)
-      const key = await getWorkspaceKey();
+      // 2. INSERT NEW FRESH INVOICES in batches of 100
       const batchSize = 100;
       for (let i = 0; i < recordsToInsert.length; i += batchSize) {
-        const slice = recordsToInsert.slice(i, i + batchSize);
-        const batch = await Promise.all(
-          slice.map((r) =>
-            encryptInvoiceForDb(
-              {
-                user_id: "chief",
-                vendor_name: r.vendor_name,
-                invoice_number: r.invoice_number || null,
-                amount: r.amount,
-                due_date: r.due_date || null,
-                days_overdue: r.days_overdue,
-                status: r.status || "Overdue",
-                notes: r.notes || null,
-                raw_data: r.raw_data || null,
-              },
-              key
-            )
-          )
-        );
+        const batch = recordsToInsert.slice(i, i + batchSize).map((r) => ({
+          user_id: "chief",
+          vendor_name: r.vendor_name,
+          invoice_number: r.invoice_number || null,
+          amount: r.amount,
+          due_date: r.due_date || null,
+          days_overdue: r.days_overdue,
+          status: r.status || "Overdue",
+          notes: r.notes || null,
+          raw_data: r.raw_data || null,
+        }));
 
         const { error: insertError } = await supabase.from("invoices").insert(batch);
         if (insertError) {

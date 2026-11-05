@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
-import { decryptDriveFileFromDb, decryptNoteFromDb } from "@/lib/workspaceCrypto";
 import {
   HardDrive,
   Database,
@@ -39,7 +38,6 @@ import {
 export interface StoredFile {
   id: string;
   name: string;
-  displayName?: string;
   size: number;
   mimetype?: string;
   created_at: string;
@@ -108,48 +106,17 @@ export function UsageView() {
     try {
       const client = supabase;
       if (client) {
-        const [{ data, error }, driveFilesRes, notesRes] = await Promise.all([
-          client.rpc("get_workspace_usage"),
-          client.from("drive_files").select("id, name, type, storage_path"),
-          client.from("app_notes").select("id, title, content, attachments"),
-        ]);
-
+        const { data, error } = await client.rpc("get_workspace_usage");
         if (error) {
           console.error("Error fetching workspace usage:", error);
         } else if (data) {
-          // Build a storage_path -> decrypted original filename lookup map
-          const pathToRealName = new Map<string, string>();
-
-          if (driveFilesRes.data) {
-            const decDrive = await Promise.all(driveFilesRes.data.map((r: any) => decryptDriveFileFromDb(r)));
-            decDrive.forEach((df) => {
-              if (df.storage_path && df.name) {
-                pathToRealName.set(df.storage_path, df.name);
-              }
-            });
-          }
-
-          if (notesRes.data) {
-            const decNotes = await Promise.all(notesRes.data.map((r: any) => decryptNoteFromDb(r)));
-            decNotes.forEach((n) => {
-              if (Array.isArray(n.attachments)) {
-                n.attachments.forEach((att: any) => {
-                  if (att?.path && att?.name && !String(att.name).startsWith("[Encrypted]")) {
-                    pathToRealName.set(att.path, att.name);
-                  }
-                });
-              }
-            });
-          }
-
-          // Augment files with public URLs and decrypted display names
+          // Augment files with public URLs
           const augmentedFiles = (data.files || []).map((f: StoredFile) => {
             const { data: urlData } = client.storage
               .from("note-attachments")
               .getPublicUrl(f.name);
             return {
               ...f,
-              displayName: pathToRealName.get(f.name),
               url: urlData?.publicUrl || "",
             };
           });
@@ -222,7 +189,7 @@ export function UsageView() {
   // Filtered files list
   const filteredFiles = usage.files.filter((f) => {
     const q = fileSearch.toLowerCase().trim();
-    const fileNameOnly = f.displayName || f.name.split("/").pop() || f.name;
+    const fileNameOnly = f.name.split("/").pop() || f.name;
     const matchesSearch = !q || fileNameOnly.toLowerCase().includes(q) || (f.mimetype && f.mimetype.toLowerCase().includes(q));
     if (!matchesSearch) return false;
 
@@ -554,8 +521,8 @@ export function UsageView() {
                   const isImage = file.mimetype?.startsWith("image/");
                   const isDriveFile = file.name.startsWith("drive/");
                   const rawName = file.name.split("/").pop() || file.name;
-                  // Use decrypted displayName when available, or strip timestamp prefix
-                  const cleanDisplayName = file.displayName || rawName.replace(/^\d{10,13}_/, "");
+                  // Strip timestamp prefix if formatted as 1234567890_filename
+                  const cleanDisplayName = rawName.replace(/^\d{10,13}_/, "");
                   const dateStr = new Date(file.created_at).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
@@ -725,8 +692,8 @@ export function UsageView() {
                     <FileText className="w-5 h-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-zinc-900 truncate" title={confirmDeleteFile.displayName || confirmDeleteFile.name}>
-                      {confirmDeleteFile.displayName || confirmDeleteFile.name.split("/").pop()}
+                    <p className="text-sm font-bold text-zinc-900 truncate" title={confirmDeleteFile.name}>
+                      {confirmDeleteFile.name.split("/").pop()}
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                       <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-zinc-800 bg-white border border-zinc-200 px-2 py-0.5 rounded-md shadow-2xs">
