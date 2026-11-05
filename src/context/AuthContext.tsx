@@ -39,7 +39,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = "ziptabs_logged_user";
 const SESSION_ID_KEY = "ziptabs_session_id";
 const SESSION_CREATED_KEY = "ziptabs_session_created";
-export const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+export const INACTIVITY_TIMEOUT_MS = 3 * 60 * 60 * 1000; // 3 hours (180 minutes)
 export const LAST_ACTIVITY_KEY = "ziptabs_last_activity";
 export const INACTIVITY_LOGOUT_FLAG = "ziptabs_inactivity_logged_out";
 
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          // Check if session has expired due to 60+ minutes of inactivity
+          // Check if session has expired due to 3+ hours of inactivity
           const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
           if (lastActivityStr) {
             const lastActivity = parseInt(lastActivityStr, 10);
@@ -318,7 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // 60-Minute Inactivity Auto-Logout Security Watchdog
+  // 3-Hour Inactivity Auto-Logout Security Watchdog
   useEffect(() => {
     if (!user || typeof window === "undefined") return;
 
@@ -348,7 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.addEventListener(evt, handleUserActivity, { passive: true });
     });
 
-    // Check if session has exceeded 60 minutes of inactivity
+    // Check if session has exceeded 3 hours of inactivity
     const checkSessionInactivity = () => {
       try {
         const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);

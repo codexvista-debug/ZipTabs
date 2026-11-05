@@ -210,7 +210,7 @@ export function AuthScreen() {
                   <div className="flex-1">
                     <div className="font-bold text-amber-300">Signed Out for Inactivity</div>
                     <div className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
-                      You were automatically signed out after 60 minutes of inactivity to protect your account credentials.
+                      You were automatically signed out after 3 hours of inactivity to protect your account credentials.
                     </div>
                   </div>
                   <button

@@ -1062,7 +1062,7 @@ export function MasterControlView() {
             </p>
           </div>
           <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] font-semibold text-slate-400">
-            <span>60m Logout</span>
+            <span>3h Auto-Logout</span>
             <span className="text-emerald-600 flex items-center gap-1 font-bold">
               <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
               <span>Active</span>
