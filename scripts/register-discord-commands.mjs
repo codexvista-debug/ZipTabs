@@ -43,6 +43,25 @@ const commands = [
     name: "status",
     description: "Get real-time operational status of ZipTabs",
   },
+  {
+    name: "clear",
+    description: "Clear messages in this channel",
+    options: [
+      {
+        name: "target",
+        description: "Target messages to purge (default: all)",
+        type: 3, // STRING
+        required: false,
+        choices: [
+          { name: "🧹 All messages (Purge channel)", value: "all" },
+          { name: "10 messages", value: "10" },
+          { name: "25 messages", value: "25" },
+          { name: "50 messages", value: "50" },
+          { name: "100 messages", value: "100" },
+        ],
+      },
+    ],
+  },
 ];
 
 async function registerCommands() {

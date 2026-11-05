@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { supabase } from "@/lib/supabase";
 
 const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN || "8977";
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
 const DISCORD_PUBLIC_KEY =
   process.env.DISCORD_PUBLIC_KEY ||
   "248d01d8cb8c15e8515032863b14b1eaa3faf6c2a0d3eb20ab9ca3a1808fb832";
@@ -307,6 +308,164 @@ async function handleStatusQuery() {
   }
 }
 
+async function handleClearChannel(channelId: string, target: string, callerUser: string) {
+  if (!channelId) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        flags: 64,
+        content: "❌ Unable to identify channel ID for purge.",
+      },
+    });
+  }
+
+  const token = DISCORD_BOT_TOKEN;
+  if (!token) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        flags: 64,
+        content: "❌ Discord Bot Token is not configured.",
+      },
+    });
+  }
+
+  const isAll = target === "all" || !target;
+  let remainingToFetch = isAll ? 100 : Math.min(parseInt(target, 10) || 100, 100);
+  let totalDeleted = 0;
+  let lackedManagePermission = false;
+
+  try {
+    // Fetch messages from channel
+    const fetchRes = await fetch(
+      `https://discord.com/api/v10/channels/${channelId}/messages?limit=${remainingToFetch}`,
+      {
+        headers: {
+          Authorization: `Bot ${token}`,
+        },
+      }
+    );
+
+    if (!fetchRes.ok) {
+      const errText = await fetchRes.text();
+      return NextResponse.json({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          flags: 64,
+          content: `❌ Failed to fetch channel messages (${fetchRes.status}): ${errText}`,
+        },
+      });
+    }
+
+    const messages: Array<{ id: string; author?: { id: string; username?: string }; timestamp: string }> =
+      await fetchRes.json();
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          flags: 64,
+          embeds: [
+            {
+              title: "🧹 Channel Clean",
+              description: "There are no messages in this channel to clear.",
+              color: 0x10b981,
+              footer: { text: "ZipTabs Defense Grid • Channel Maintenance" },
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        },
+      });
+    }
+
+    const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const recentMessages = messages.filter(
+      (m) => new Date(m.timestamp).getTime() > fourteenDaysAgo
+    );
+    const recentIds = recentMessages.map((m) => m.id);
+
+    // Try bulk delete first if 2 or more recent messages exist
+    let bulkSuccess = false;
+    if (recentIds.length >= 2) {
+      const bulkRes = await fetch(
+        `https://discord.com/api/v10/channels/${channelId}/messages/bulk-delete`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bot ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ messages: recentIds }),
+        }
+      );
+
+      if (bulkRes.status === 204 || bulkRes.ok) {
+        bulkSuccess = true;
+        totalDeleted += recentIds.length;
+      } else if (bulkRes.status === 403) {
+        lackedManagePermission = true;
+      }
+    }
+
+    // If bulk delete did not run or lacked permission, delete messages individually
+    if (!bulkSuccess) {
+      for (const msg of messages) {
+        try {
+          const delRes = await fetch(
+            `https://discord.com/api/v10/channels/${channelId}/messages/${msg.id}`,
+            {
+              method: "DELETE",
+              headers: { Authorization: `Bot ${token}` },
+            }
+          );
+          if (delRes.status === 204 || delRes.ok) {
+            totalDeleted++;
+          } else if (delRes.status === 403) {
+            lackedManagePermission = true;
+          }
+        } catch {
+          // ignore individual deletion error
+        }
+      }
+    }
+
+    const permissionNotice = lackedManagePermission
+      ? "\n\n⚠️ **Note**: Vista bot lacks the **'Manage Messages'** permission in your Discord server. It was able to delete bot messages, but to allow purging messages from all users, turn on **'Manage Messages'** in **Server Settings ➔ Roles ➔ Vista**."
+      : "";
+
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        flags: 64, // Ephemeral: strictly visible to caller so channel stays clean
+        embeds: [
+          {
+            title: "🧹 Channel Cleaned",
+            description: `Successfully cleared **${totalDeleted}** message${
+              totalDeleted === 1 ? "" : "s"
+            }.${permissionNotice}`,
+            color: totalDeleted > 0 ? 0x10b981 : 0xf59e0b,
+            fields: [
+              { name: "Target", value: isAll ? "All Messages" : `${target} messages`, inline: true },
+              { name: "Authorized By", value: `@${callerUser}`, inline: true },
+              { name: "PIN Verification", value: "✅ Authorized (Chief PIN)", inline: true },
+            ],
+            footer: { text: "ZipTabs Defense Grid • Channel Purge Complete" },
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+  } catch (err: any) {
+    return NextResponse.json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        flags: 64,
+        content: `❌ Error clearing messages: ${err?.message || "Unknown error"}`,
+      },
+    });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-signature-ed25519");
@@ -418,6 +577,45 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // --- COMMAND: /clear ---
+    if (commandName === "clear") {
+      const target = String(options.target || "all").toLowerCase().trim();
+      const channelId = body.channel_id || body.channel?.id;
+
+      if (providedPin) {
+        if (providedPin !== REQUIRED_PIN) {
+          return sendPinDeniedResponse(commandName, callerUser);
+        }
+        return handleClearChannel(channelId, target, callerUser);
+      }
+
+      // Open private modal popup so PIN is never typed in chat
+      return NextResponse.json({
+        type: InteractionResponseType.MODAL,
+        data: {
+          custom_id: `clear_modal:${target}`,
+          title: "ZipTabs Authorization",
+          components: [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 4,
+                  custom_id: "pin",
+                  label: "Enter Chief PIN",
+                  style: 1,
+                  min_length: 4,
+                  max_length: 10,
+                  placeholder: "••••",
+                  required: true,
+                },
+              ],
+            },
+          ],
+        },
+      });
+    }
+
     return NextResponse.json({
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -466,6 +664,12 @@ export async function POST(req: NextRequest) {
     if (customId.startsWith("lockdown_modal:")) {
       const state = customId.split(":")[1] || "status";
       return handleLockdownAction(state, callerUser);
+    }
+
+    if (customId.startsWith("clear_modal:")) {
+      const target = customId.split(":")[1] || "all";
+      const channelId = body.channel_id || body.channel?.id;
+      return handleClearChannel(channelId, target, callerUser);
     }
 
     if (customId === "status_modal") {
