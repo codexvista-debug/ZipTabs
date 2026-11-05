@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabase } from "@/lib/supabase";
 
-const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN || "7416";
+const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN || "8977";
 const DISCORD_PUBLIC_KEY =
   process.env.DISCORD_PUBLIC_KEY ||
   "248d01d8cb8c15e8515032863b14b1eaa3faf6c2a0d3eb20ab9ca3a1808fb832";

@@ -2,9 +2,9 @@
  * Optional Lightweight Discord Channel Bot Listener
  * 
  * If you prefer typing direct commands in a private Discord channel instead of slash commands:
- *   !lockdown on 7416
- *   !lockdown off 7416
- *   !status 7416
+ *   !lockdown on 8977
+ *   !lockdown off 8977
+ *   !status 8977
  * 
  * Run with:
  *   node scripts/discord-bot.mjs <BOT_TOKEN> <ZIPTABS_BASE_URL>
