@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { decryptInvoiceFromDb, decryptNoteFromDb, decryptDriveFileFromDb } from "@/lib/workspaceCrypto";
 import { getUSFederalHolidaysForYear } from "@/components/calendar/USCalendarView";
 import {
   FileSpreadsheet,
@@ -255,7 +256,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       const [invRes, notesRes, usageRes, driveRes] = await Promise.all([
         supabase
           .from("invoices")
-          .select("id, vendor_name, invoice_number, amount, days_overdue, status, due_date")
+          .select("id, vendor_name, invoice_number, amount, days_overdue, status, due_date, notes, raw_data")
           .order("days_overdue", { ascending: false }),
         supabase
           .from("app_notes")
@@ -277,7 +278,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       let topOvd: InvoiceSummaryItem[] = [];
 
       if (invRes.data) {
-        const rows = invRes.data as InvoiceSummaryItem[];
+        const decryptedInvRows = await Promise.all(invRes.data.map((r: any) => decryptInvoiceFromDb(r)));
+        const rows = decryptedInvRows as InvoiceSummaryItem[];
         setInvoicesCount(rows.length);
 
         const vendors = new Set<string>();
@@ -308,7 +310,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       let recentNotesList: NoteSummaryItem[] = [];
 
       if (notesRes.data) {
-        const notes = notesRes.data as NoteSummaryItem[];
+        const decryptedNoteRows = await Promise.all(notesRes.data.map((r: any) => decryptNoteFromDb(r)));
+        const notes = decryptedNoteRows as NoteSummaryItem[];
         totalNotes = notes.length;
         setNotesCount(totalNotes);
 
@@ -345,8 +348,9 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       // 4. Process Expiring Temp Stash Drive Files (Starting 3 days before auto-purge)
       const expiring: ExpiringDriveFile[] = [];
       if (driveRes.data) {
+        const decryptedDriveRows = await Promise.all(driveRes.data.map((r: any) => decryptDriveFileFromDb(r)));
         const nowMs = Date.now();
-        driveRes.data.forEach((f: any) => {
+        decryptedDriveRows.forEach((f: any) => {
           if (!f.expires_at) return;
           const expMs = new Date(f.expires_at).getTime();
           const diffMs = expMs - nowMs;

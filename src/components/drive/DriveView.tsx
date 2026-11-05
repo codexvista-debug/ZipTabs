@@ -34,6 +34,14 @@ import { UniversalFileViewer } from "./UniversalFileViewer";
 import { downloadFileDirectly } from "@/lib/download";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import {
+  getWorkspaceKey,
+  generateHashedStoragePath,
+  encryptDriveFileForDb,
+  decryptDriveFileFromDb,
+  encryptDriveFolderForDb,
+  decryptDriveFolderFromDb,
+} from "@/lib/workspaceCrypto";
+import {
   ExecutiveToast,
   getToastPosition,
   TOAST_POSITION_CLASSES,
@@ -192,29 +200,76 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     }
   };
 
-  // Fetch folders and files from Supabase
+  // Fetch folders and files from Supabase (with AES-256-GCM decryption & silent legacy migration)
   const loadDriveData = async () => {
     setIsLoading(true);
     try {
       await purgeExpiredFiles();
 
       if (supabase) {
+        const key = await getWorkspaceKey();
         const [foldersRes, filesRes] = await Promise.all([
-          supabase.from("drive_folders").select("*").order("name", { ascending: true }),
+          supabase.from("drive_folders").select("*").order("created_at", { ascending: true }),
           supabase.from("drive_files").select("*").order("created_at", { ascending: false }),
         ]);
 
         if (foldersRes.data) {
-          setFolders(foldersRes.data);
+          const decryptedFolders: DriveFolder[] = [];
+          const foldersToUpgrade: DriveFolder[] = [];
+
+          for (const rawFolder of foldersRes.data) {
+            const dec = await decryptDriveFolderFromDb(rawFolder, key);
+            decryptedFolders.push(dec);
+            if (dec._needsEncryptionUpgrade) {
+              foldersToUpgrade.push(dec);
+            }
+          }
+
+          decryptedFolders.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+          setFolders(decryptedFolders);
           try {
-            localStorage.setItem("ziptabs_drive_folders", JSON.stringify(foldersRes.data));
+            localStorage.setItem("ziptabs_drive_folders", JSON.stringify(decryptedFolders));
           } catch {}
+
+          if (foldersToUpgrade.length > 0 && supabase) {
+            (async () => {
+              for (const f of foldersToUpgrade) {
+                try {
+                  const encPayload = await encryptDriveFolderForDb(f, key);
+                  await supabase.from("drive_folders").upsert(encPayload);
+                } catch {}
+              }
+            })();
+          }
         }
+
         if (filesRes.data) {
-          setFiles(filesRes.data);
+          const decryptedFiles: DriveFile[] = [];
+          const filesToUpgrade: DriveFile[] = [];
+
+          for (const rawFile of filesRes.data) {
+            const dec = await decryptDriveFileFromDb(rawFile, key);
+            decryptedFiles.push(dec);
+            if (dec._needsEncryptionUpgrade) {
+              filesToUpgrade.push(dec);
+            }
+          }
+
+          setFiles(decryptedFiles);
           try {
-            localStorage.setItem("ziptabs_drive_files", JSON.stringify(filesRes.data));
+            localStorage.setItem("ziptabs_drive_files", JSON.stringify(decryptedFiles));
           } catch {}
+
+          if (filesToUpgrade.length > 0 && supabase) {
+            (async () => {
+              for (const f of filesToUpgrade) {
+                try {
+                  const encPayload = await encryptDriveFileForDb(f, key);
+                  await supabase.from("drive_files").upsert(encPayload);
+                } catch {}
+              }
+            })();
+          }
         }
       }
     } catch (err) {
@@ -241,13 +296,13 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "drive_folders" },
-        (payload) => {
+        async (payload) => {
           if (payload.eventType === "INSERT") {
-            const newF = payload.new as DriveFolder;
-            setFolders((prev) => (prev.some((f) => f.id === newF.id) ? prev : [...prev, newF]));
+            const dec = await decryptDriveFolderFromDb(payload.new);
+            setFolders((prev) => (prev.some((f) => f.id === dec.id) ? prev : [...prev, dec]));
           } else if (payload.eventType === "UPDATE") {
-            const updated = payload.new as DriveFolder;
-            setFolders((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+            const dec = await decryptDriveFolderFromDb(payload.new);
+            setFolders((prev) => prev.map((f) => (f.id === dec.id ? dec : f)));
           } else if (payload.eventType === "DELETE") {
             const delId = (payload.old as { id: string })?.id;
             if (delId) setFolders((prev) => prev.filter((f) => f.id !== delId));
@@ -257,13 +312,13 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "drive_files" },
-        (payload) => {
+        async (payload) => {
           if (payload.eventType === "INSERT") {
-            const newFile = payload.new as DriveFile;
-            setFiles((prev) => (prev.some((f) => f.id === newFile.id) ? prev : [newFile, ...prev]));
+            const dec = await decryptDriveFileFromDb(payload.new);
+            setFiles((prev) => (prev.some((f) => f.id === dec.id) ? prev : [dec, ...prev]));
           } else if (payload.eventType === "UPDATE") {
-            const updated = payload.new as DriveFile;
-            setFiles((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+            const dec = await decryptDriveFileFromDb(payload.new);
+            setFiles((prev) => prev.map((f) => (f.id === dec.id ? dec : f)));
           } else if (payload.eventType === "DELETE") {
             const delId = (payload.old as { id: string })?.id;
             if (delId) setFiles((prev) => prev.filter((f) => f.id !== delId));
@@ -336,14 +391,15 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
     if (supabase) {
       try {
-        await supabase.from("drive_folders").insert([newFolder]);
+        const encryptedFolder = await encryptDriveFolderForDb(newFolder);
+        await supabase.from("drive_folders").insert([encryptedFolder]);
       } catch (err) {
         console.error("Failed to insert drive folder:", err);
       }
     }
   };
 
-  // Upload Files Process: All uploads are permanent
+  // Upload Files Process: All uploads are permanent with hashed storage paths & encrypted metadata
   const handleUploadFilesList = async (filesToUpload: File[]) => {
     if (filesToUpload.length === 0) return;
 
@@ -353,9 +409,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     for (let i = 0; i < filesToUpload.length; i++) {
       const file = filesToUpload[i];
       try {
-        const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
         const folderSlug = currentFolderId || "root";
-        const storagePath = `drive/${folderSlug}/${Date.now()}_${cleanName}`;
+        const storagePath = await generateHashedStoragePath(`drive/${folderSlug}`, file.name, `${Date.now()}_${i}`);
 
         if (!supabase) throw new Error("Supabase unavailable");
 
@@ -387,8 +442,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
         setFiles((prev) => [newFileItem, ...prev]);
 
-        // Save metadata to database
-        await supabase.from("drive_files").insert([newFileItem]);
+        // Save encrypted & salted metadata to database
+        const encryptedFileRow = await encryptDriveFileForDb(newFileItem);
+        await supabase.from("drive_files").insert([encryptedFileRow]);
       } catch (err: any) {
         console.error("Failed to upload file:", file.name, err);
         showToast("Upload Failed", `Could not upload "${file.name}".`, "error");

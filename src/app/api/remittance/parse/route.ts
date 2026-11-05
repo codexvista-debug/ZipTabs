@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { extractText } from "unpdf";
 import * as XLSX from "xlsx";
 import { createWorker } from "tesseract.js";
+import { encryptRemittanceForDb, decryptRemittanceFromDb } from "@/lib/workspaceCrypto";
 
 // 1. GET: Fetch active remittances for a vendor (Auto-prunes expired >30 days)
 export async function GET(req: NextRequest) {
@@ -32,8 +33,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
+    const decryptedRemittances = await Promise.all(
+      (data || []).map((row) => decryptRemittanceFromDb(row))
+    );
+
+    // Background migration for any legacy plaintext rows
+    const legacyRows = decryptedRemittances.filter((r) => r._needsEncryptionUpgrade && r.id);
+    if (legacyRows.length > 0) {
+      Promise.all(
+        legacyRows.map(async (r) => {
+          const encPayload = await encryptRemittanceForDb(r);
+          await supabase!.from("vendor_remittances").update(encPayload).eq("id", r.id);
+        })
+      ).catch(() => {});
+    }
+
     return NextResponse.json(
-      { success: true, remittances: data || [] },
+      { success: true, remittances: decryptedRemittances },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
@@ -124,7 +140,7 @@ export async function POST(req: NextRequest) {
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      const recordToInsert = {
+      const recordToInsert = await encryptRemittanceForDb({
         vendor_id: remittance.vendor_id || "pyramid",
         vendor_name: remittance.vendor_name || (remittance.vendor_id === "teksystems" ? "TEKsystems" : "Pyramid Inc"),
         file_name: remittance.file_name || "Remittance_Statement",
@@ -133,12 +149,12 @@ export async function POST(req: NextRequest) {
         total_gross: Number(remittance.total_gross) || 0,
         total_discount: Number(remittance.total_discount) || 0,
         total_deductions: Number(remittance.total_deductions) || 0,
-        invoice_count: remittance.items ? remittance.items.length : Number(remittance.invoice_count) || 0,
+        invoice_count: Number(remittance.invoice_count) || (remittance.items ? remittance.items.length : 0),
         items: remittance.items || [],
         raw_text: remittance.raw_text ? String(remittance.raw_text).slice(0, 5000) : null,
         created_at: now.toISOString(),
         expires_at: expiresAt,
-      };
+      });
 
       const { data: inserted, error: insertError } = await supabase
         .from("vendor_remittances")
@@ -151,10 +167,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: insertError.message }, { status: 500 });
       }
 
+      const decryptedInserted = await decryptRemittanceFromDb(inserted);
+
       return NextResponse.json({
         success: true,
-        savedRemittance: inserted,
-        message: "Remittance statement confirmed and saved to Supabase (30-day storage active).",
+        savedRemittance: decryptedInserted,
+        message: "Remittance statement confirmed and saved to Supabase (AES-256-GCM encrypted, 30-day storage active).",
       });
     } catch (saveErr: any) {
       console.error("Save remittance error:", saveErr);
