@@ -35,13 +35,13 @@ export function getToastPosition(
 
 export const TOAST_POSITION_CLASSES: Record<ToastPosition, string> = {
   "top-center":
-    "fixed top-4 sm:top-5 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-300 flex justify-center",
+    "fixed top-4 sm:top-5 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-300 flex justify-center",
   "top-right":
-    "fixed top-4 sm:top-5 right-4 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl pointer-events-auto animate-in fade-in slide-in-from-top-4 sm:slide-in-from-right-4 duration-300 flex justify-center sm:justify-end",
+    "fixed top-4 sm:top-5 right-4 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl lg:max-w-3xl pointer-events-auto animate-in fade-in slide-in-from-top-4 sm:slide-in-from-right-4 duration-300 flex justify-center sm:justify-end",
   "bottom-right":
-    "fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
+    "fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl lg:max-w-3xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
   "bottom-center":
-    "fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
+    "fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
   none: "",
 };
 
@@ -190,14 +190,17 @@ export function ExecutiveToast({
         {renderIcon("w-3.5 h-3.5")}
       </div>
 
-      {/* Title & Description Content */}
-      <div className="flex items-center gap-1.5 min-w-0 max-w-[220px] sm:max-w-xl shrink pr-1">
-        <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight truncate whitespace-nowrap block">
+      {/* Title & Description Content - Expands fully on desktop/PC so it is never truncated */}
+      <div
+        className="flex items-center gap-1.5 min-w-0 max-w-[200px] sm:max-w-none pr-1"
+        title={`${title}${description ? ` — ${description}` : ""}`}
+      >
+        <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight sm:shrink-0 whitespace-nowrap block truncate sm:overflow-visible">
           {title}
         </span>
         {description && (
-          <span className="text-[11px] sm:text-xs text-slate-500 font-medium hidden md:inline truncate whitespace-nowrap">
-            <span className="text-slate-300 mx-1">•</span>
+          <span className="text-[11px] sm:text-xs text-slate-500 font-medium hidden md:inline whitespace-nowrap min-w-0 sm:max-w-2xl lg:max-w-3xl xl:max-w-none">
+            <span className="text-slate-300 mx-1.5">•</span>
             {description}
           </span>
         )}
@@ -246,7 +249,7 @@ export function ExecutiveToast({
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-32px)] sm:max-w-md ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
+      className={`relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-32px)] sm:max-w-lg lg:max-w-xl ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
     >
       {/* Monolith Dark Header Bar - Ultra-compact on mobile */}
       <div className="bg-zinc-950 text-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 flex items-center justify-between border-b border-zinc-800 gap-2">
@@ -317,7 +320,7 @@ export function ExecutiveToast({
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 overflow-hidden w-full max-w-[calc(100vw-24px)] sm:max-w-md transition-all duration-200 ring-1 ring-zinc-950/10 pointer-events-auto ${extraClasses}`}
+      className={`relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-x-2 border-t border-b border-zinc-200/90 overflow-hidden w-full max-w-[calc(100vw-24px)] sm:max-w-lg lg:max-w-xl transition-all duration-200 ring-1 ring-zinc-950/10 pointer-events-auto ${extraClasses}`}
     >
       {/* Creative Top: Sculpted Dynamic Island Notch */}
       <div className="flex justify-center -mt-px">
