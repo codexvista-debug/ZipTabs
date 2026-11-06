@@ -1285,51 +1285,37 @@ export function DirectoryView() {
                             </div>
                           </td>
 
-                          {/* Phone & Extension with Call Button and Copy */}
+                          {/* Phone & Extension (Full number & ext visible without truncation; Call button removed on PC) */}
                           <td className="py-3.5 px-4">
                             {contact.phone ? (
-                              <div className="flex items-center justify-between gap-2 max-w-[280px]">
-                                <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800 min-w-0">
-                                  <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  <span className="font-bold select-all truncate">{contact.phone}</span>
-                                  {contact.extension && (
-                                    <span
-                                      title={`Extension: ${contact.extension}`}
-                                      className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle ml-1"
-                                    >
-                                      <span className="bg-indigo-600 text-white font-extrabold px-1 py-0.5 tracking-wider text-[8.5px] leading-none">
-                                        EXT
-                                      </span>
-                                      <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
-                                        {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
-                                      </span>
+                              <div className="inline-flex items-center gap-2 font-mono text-xs text-slate-800">
+                                <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span className="font-bold select-all whitespace-nowrap">{contact.phone}</span>
+                                {contact.extension && (
+                                  <span
+                                    title={`Extension: ${contact.extension}`}
+                                    className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle"
+                                  >
+                                    <span className="bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 tracking-wider text-[8px] leading-none">
+                                      EXT
                                     </span>
+                                    <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
+                                      {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
+                                    </span>
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
+                                  title="Copy Phone Number"
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0 ml-0.5"
+                                >
+                                  {copiedField?.id === contact.id && copiedField?.type === "phone" ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
                                   )}
-                                </div>
-
-                                {/* Call & Copy Quick Actions */}
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <a
-                                    href={`tel:${contact.phone.replace(/[^\d+]/g, "")}${contact.extension ? `,${contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}` : ""}`}
-                                    className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 font-bold text-[11px] flex items-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95"
-                                    title={`Call ${contact.phone}${contact.extension ? ` ext. ${contact.extension}` : ""}`}
-                                  >
-                                    <Phone className="w-2.5 h-2.5 text-emerald-600" />
-                                    <span>Call</span>
-                                  </a>
-                                  <button
-                                    type="button"
-                                    onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
-                                    title="Copy Phone Number"
-                                    className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                                  >
-                                    {copiedField?.id === contact.id && copiedField?.type === "phone" ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
+                                </button>
                               </div>
                             ) : (
                               <span className="text-slate-400 italic text-xs">No phone</span>
@@ -1486,13 +1472,13 @@ export function DirectoryView() {
                       <div className="space-y-2 pt-0.5 text-xs">
                         {contact.phone && (
                           <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 gap-2">
-                            <div className="flex items-center gap-1.5 font-mono font-semibold text-slate-800 text-xs min-w-0 flex-1">
+                            <div className="flex items-center gap-2 font-mono font-bold text-slate-800 text-xs min-w-0 flex-1">
                               <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span className="select-all truncate">{contact.phone}</span>
+                              <span className="select-all whitespace-nowrap">{contact.phone}</span>
                               {contact.extension && (
                                 <span
                                   title={`Extension: ${contact.extension}`}
-                                  className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle ml-1"
+                                  className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle"
                                 >
                                   <span className="bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 tracking-wider text-[8px] leading-none">
                                     EXT
@@ -1503,28 +1489,18 @@ export function DirectoryView() {
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-1 shrink-0 ml-1">
-                              <a
-                                href={`tel:${contact.phone.replace(/[^\d+]/g, "")}${contact.extension ? `,${contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}` : ""}`}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition-all"
-                                title={`Call ${contact.phone}${contact.extension ? ` ext. ${contact.extension}` : ""}`}
-                              >
-                                <Phone className="w-3 h-3" />
-                                <span>Call</span>
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer"
-                                title="Copy Phone"
-                              >
-                                {copiedField?.id === contact.id && copiedField?.type === "phone" ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer shrink-0"
+                              title="Copy Phone Number"
+                            >
+                              {copiedField?.id === contact.id && copiedField?.type === "phone" ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
                           </div>
                         )}
 
