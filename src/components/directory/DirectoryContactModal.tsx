@@ -139,8 +139,6 @@ export function DirectoryContactModal({
     return existingCompanies.some((c) => c.company.toLowerCase() === q);
   }, [company, existingCompanies]);
 
-  if (!isOpen) return null;
-
   const isEditMode = Boolean(initialRecord);
   const shouldLockDivision = isEditMode || isDivisionLocked;
 
