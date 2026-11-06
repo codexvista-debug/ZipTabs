@@ -33,6 +33,8 @@ import {
   Loader2,
   Ghost,
   X,
+  Cpu,
+  ExternalLink,
 } from "lucide-react";
 import {
   ExecutiveToast,
@@ -82,6 +84,19 @@ interface SystemSecuritySettings {
   blacklisted_ips: string[];
   updated_at?: string;
   updated_by?: string;
+}
+
+interface AiEngineRecord {
+  id: string;
+  name: string;
+  provider: string;
+  model: string;
+  status: string;
+  maskedKey: string;
+  hashSignature: string;
+  type: string;
+  tier: string;
+  vaultStatus: string;
 }
 
 // Universal Cross-Platform Country Flag (Renders real graphical flags on Windows PC & Mobile)
@@ -148,6 +163,38 @@ export function MasterControlView() {
   const [users, setUsers] = useState<AppUserRecord[]>([]);
   const [ipLocks, setIpLocks] = useState<IpLockRecord[]>([]);
   const [visitors, setVisitors] = useState<SiteVisitorRecord[]>([]);
+
+  // AI Engines state
+  const [aiEngines, setAiEngines] = useState<AiEngineRecord[]>([
+    {
+      id: "groq",
+      name: "Groq Cloud LPU Engine",
+      provider: "Groq, Inc.",
+      model: "qwen/qwen3.8-27b",
+      status: "active",
+      maskedKey: "gsk_••••••••••••AWjH",
+      hashSignature: "sha256:7f9b01a24d8e",
+      type: "Ultra-Fast LPU Text & Component Generation (<200ms)",
+      tier: "Free Tier (Unlimited LPU Inferences)",
+      vaultStatus: "AES-256-GCM Encrypted in Supabase Vault",
+    },
+    {
+      id: "gemini",
+      name: "Google Gemini 2.5",
+      provider: "Google AI Studio",
+      model: "gemini-2.5-flash",
+      status: "active",
+      maskedKey: "AQ.Ab••••••••••••yoZw",
+      hashSignature: "sha256:3a4b92c109df",
+      type: "Multimodal Vision, PDF OCR & 1M-Token Context",
+      tier: "Free Tier (15 RPM / 1,500 req/day)",
+      vaultStatus: "AES-256-GCM Encrypted in Supabase Vault",
+    },
+  ]);
+  const [testingEngineId, setTestingEngineId] = useState<string | null>(null);
+  const [engineTestResults, setEngineTestResults] = useState<
+    Record<string, { latencyMs: number; reply: string; model: string } | null>
+  >({});
 
   // Country code cache mapping IP -> ISO Country (e.g. "IN", "US")
   const [countryMap, setCountryMap] = useState<Record<string, string>>({});
@@ -218,6 +265,9 @@ export function MasterControlView() {
           setUsers(data.users || []);
           setIpLocks(data.ipLocks || []);
           setVisitors(data.visitors || []);
+          if (data.aiEngines && Array.isArray(data.aiEngines)) {
+            setAiEngines(data.aiEngines);
+          }
         }
       }
     } catch (err) {
@@ -226,6 +276,34 @@ export function MasterControlView() {
       setIsLoading(false);
     }
   }, []);
+
+  const handleTestEngine = async (engineId: string) => {
+    setTestingEngineId(engineId);
+    try {
+      const res = await fetch("/api/master-control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test_ai_engine", engine: engineId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEngineTestResults((prev) => ({
+          ...prev,
+          [engineId]: { latencyMs: data.latencyMs, reply: data.reply, model: data.model },
+        }));
+        showNotification(
+          `${data.provider || engineId.toUpperCase()} verified in ${data.latencyMs}ms!`,
+          "success"
+        );
+      } else {
+        showNotification(data.error || "Failed to reach AI engine", "error");
+      }
+    } catch (err: any) {
+      showNotification(err.message || "Network error testing AI engine", "error");
+    } finally {
+      setTestingEngineId(null);
+    }
+  };
 
   // Background Country Resolver for IPs lacking country_code
   useEffect(() => {
@@ -1268,6 +1346,154 @@ export function MasterControlView() {
                       <span>Delete Account</span>
                     </button>
                   )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Section: AI Neural Engines & Vault Integrations */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-purple-600" />
+              <span>AI Neural Engines & Vault Integrations ({aiEngines.length})</span>
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              High-performance server-side LLM inference with Groq LPUs and Google Gemini. Master keys are AES-256-GCM encrypted in Supabase and masked in all client views.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold border bg-purple-50 text-purple-700 border-purple-200 flex items-center gap-1.5">
+              <Lock className="w-3 h-3 text-purple-600" />
+              <span>AES-256 Vault Encrypted</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {aiEngines.map((engine) => {
+            const isGroq = engine.id === "groq";
+            const isTesting = testingEngineId === engine.id;
+            const testResult = engineTestResults[engine.id];
+
+            return (
+              <div
+                key={engine.id}
+                className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/50 to-white p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-4"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                          isGroq
+                            ? "bg-gradient-to-br from-amber-500 to-orange-600 text-white"
+                            : "bg-gradient-to-br from-blue-600 to-indigo-600 text-white"
+                        }`}
+                      >
+                        {isGroq ? <Zap className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-slate-900 text-sm">{engine.name}</h3>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                              engine.status === "active"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-200"
+                            }`}
+                          >
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+                            {engine.status}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                          {engine.provider} • Model: <span className="font-mono font-bold text-slate-800">{engine.model}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                    {engine.type}
+                  </p>
+
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/70 space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Masked Vault Key</span>
+                      <button
+                        onClick={() => copyToClipboard(engine.maskedKey, `ai-key-${engine.id}`)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-blue-600 cursor-pointer transition-colors"
+                        title="Copy Key Identifier"
+                      >
+                        {copiedText === `ai-key-${engine.id}` ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-600">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="font-mono text-xs font-semibold text-slate-800 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200/80 flex items-center justify-between">
+                      <span>{engine.maskedKey}</span>
+                      <span className="text-[10px] font-sans font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        {engine.hashSignature}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                      <span>Plan: <strong className="text-slate-700">{engine.tier}</strong></span>
+                      <span className="text-emerald-600 font-semibold">{engine.vaultStatus}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Test Connection Result & Action */}
+                <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="text-xs min-w-0">
+                    {testResult ? (
+                      <div className="flex items-center gap-2 text-emerald-700 font-medium">
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                        <span className="truncate">
+                          Tested: <strong className="font-bold">{testResult.latencyMs}ms</strong> • &quot;{testResult.reply}&quot;
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 italic">
+                        Ready for benchmark ping
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleTestEngine(engine.id)}
+                    disabled={isTesting}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer shrink-0 ${
+                      isGroq
+                        ? "bg-amber-500 hover:bg-amber-600 text-white"
+                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                    } disabled:opacity-50`}
+                  >
+                    {isTesting ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Pinging...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>Test Connection</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             );
