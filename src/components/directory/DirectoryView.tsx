@@ -59,6 +59,8 @@ import {
   FileText,
   Loader2,
   Globe,
+  LayoutGrid,
+  TableProperties,
 } from "lucide-react";
 
 export function DirectoryView() {
@@ -66,6 +68,8 @@ export function DirectoryView() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeDivision, setActiveDivision] = useState<"employee" | "vendor" | "all">("vendor");
   const [activeSearchFilter, setActiveSearchFilter] = useState<string>("");
+  const [desktopViewMode, setDesktopViewMode] = useState<"table" | "grid">("table");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Selection & quick actions
   const [copiedField, setCopiedField] = useState<{ id: string; type: "phone" | "email" } | null>(null);
@@ -561,7 +565,7 @@ export function DirectoryView() {
         }
         return a.name.localeCompare(b.name);
       });
-  }, [records, activeDivision, activeSearchFilter]);
+  }, [records, activeDivision, activeSearchFilter, searchQuery]);
 
   // Filter directory to show ONLY searched records (replaces broken jumping on mobile)
   const handleSearchFilter = useCallback(
@@ -584,7 +588,7 @@ export function DirectoryView() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeDivision, activeSearchFilter]);
+  }, [activeDivision, activeSearchFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
   const validCurrentPage = Math.min(currentPage, totalPages);
@@ -687,96 +691,236 @@ export function DirectoryView() {
         </button>
       </div>
 
-      {/* 2. GLOBAL SEARCH ALL BAR (Clean full-width trigger with Globe icon) */}
-      <div className="w-full">
-        <button
-          type="button"
-          onClick={() => setIsSearchPaletteOpen(true)}
-          className="w-full flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-blue-400 rounded-2xl text-xs sm:text-sm text-slate-500 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
-        >
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <Search className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform shrink-0" />
-            <span className="font-medium text-slate-600 truncate">
-              Search across employees, vendors, phone numbers, emails...
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 ml-2">
-            <span className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg bg-slate-100 text-[10px] sm:text-[11px] font-mono font-bold text-slate-500 border border-slate-200">
-              Ctrl + K
-            </span>
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 group-hover:bg-blue-100 text-blue-600 border border-blue-200/70 flex items-center justify-center transition-colors shadow-2xs">
-              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+{/* 2. MOBILE CONTROLS (Identical mobile layout preserved exactly) */}
+      <div className="space-y-4 md:hidden">
+        {/* Mobile Search Bar Trigger */}
+        <div className="w-full">
+          <button
+            type="button"
+            onClick={() => setIsSearchPaletteOpen(true)}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl text-xs text-slate-500 shadow-2xs transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <Search className="w-4 h-4 text-blue-600 shrink-0" />
+              <span className="font-medium text-slate-600 truncate">
+                Search across employees, vendors...
+              </span>
             </div>
-          </div>
-        </button>
+            <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 border border-blue-200/70 flex items-center justify-center shadow-2xs shrink-0 ml-2">
+              <Globe className="w-3.5 h-3.5" />
+            </div>
+          </button>
+        </div>
+
+        {/* Mobile Division Segmented Switcher */}
+        <div className="w-full max-w-full overflow-hidden flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setActiveDivision("vendor")}
+            className={`flex-[1.05] min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              activeDivision === "vendor"
+                ? "bg-white text-indigo-700 shadow-xs border border-indigo-200/60"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="whitespace-nowrap">Vendors</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold shrink-0 ${
+                activeDivision === "vendor"
+                  ? "bg-indigo-100 text-indigo-800"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {vendorCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveDivision("employee")}
+            className={`flex-[1.35] min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              activeDivision === "employee"
+                ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 shrink-0" />
+            <span className="whitespace-nowrap">Employees</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold shrink-0 ${
+                activeDivision === "employee"
+                  ? "bg-blue-100 text-blue-800"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {employeeCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveDivision("all")}
+            className={`flex-[0.65] min-w-0 flex items-center justify-center gap-1 py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              activeDivision === "all"
+                ? "bg-white text-slate-900 shadow-xs border border-slate-300/60"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <span className="whitespace-nowrap">All</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold shrink-0 ${
+                activeDivision === "all"
+                  ? "bg-slate-200 text-slate-900 font-black"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {totalCount}
+            </span>
+          </button>
+        </div>
       </div>
 
-      {/* 3. DIVISION SEGMENTED SWITCHER (Proportional width for mobile: Vendors, Employees, All) */}
-      <div className="w-full max-w-full overflow-hidden flex items-center gap-1 sm:gap-1.5 p-1 bg-slate-100 rounded-xl sm:rounded-2xl">
-        <button
-          type="button"
-          onClick={() => setActiveDivision("vendor")}
-          className={`flex-[1.05] sm:flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
-            activeDivision === "vendor"
-              ? "bg-white text-indigo-700 shadow-xs border border-indigo-200/60"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-          <span className="whitespace-nowrap">Vendors</span>
-          <span
-            className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
+      {/* 3. DESKTOP / PC EXECUTIVE TOOLBAR (Compact, highly functional, no awkward 600px stretches) */}
+      <div className="hidden md:flex items-center justify-between gap-4 bg-white p-2.5 rounded-2xl border border-slate-200/80 shadow-xs">
+        {/* Left: Division Tabs (Sleek executive pills) */}
+        <div className="inline-flex items-center gap-1 p-1 bg-slate-100/90 rounded-xl border border-slate-200/50">
+          <button
+            type="button"
+            onClick={() => setActiveDivision("vendor")}
+            className={`flex items-center gap-2 py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeDivision === "vendor"
-                ? "bg-indigo-100 text-indigo-800"
-                : "bg-slate-200 text-slate-600"
+                ? "bg-white text-indigo-700 shadow-xs border border-indigo-200/60"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            {vendorCount}
-          </span>
-        </button>
+            <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Vendors</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeDivision === "vendor"
+                  ? "bg-indigo-100 text-indigo-800"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {vendorCount}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveDivision("employee")}
-          className={`flex-[1.35] sm:flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
-            activeDivision === "employee"
-              ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-          <span className="whitespace-nowrap">Employees</span>
-          <span
-            className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
+          <button
+            type="button"
+            onClick={() => setActiveDivision("employee")}
+            className={`flex items-center gap-2 py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeDivision === "employee"
-                ? "bg-blue-100 text-blue-800"
-                : "bg-slate-200 text-slate-600"
+                ? "bg-white text-blue-700 shadow-xs border border-blue-200/60"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            {employeeCount}
-          </span>
-        </button>
+            <Users className="w-3.5 h-3.5 text-blue-600" />
+            <span>Employees</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeDivision === "employee"
+                  ? "bg-blue-100 text-blue-800"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {employeeCount}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveDivision("all")}
-          className={`flex-[0.65] sm:flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2.5 px-1 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold transition-all cursor-pointer ${
-            activeDivision === "all"
-              ? "bg-white text-slate-900 shadow-xs border border-slate-300/60"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          <span className="whitespace-nowrap">All</span>
-          <span
-            className={`px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shrink-0 ${
+          <button
+            type="button"
+            onClick={() => setActiveDivision("all")}
+            className={`flex items-center gap-2 py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeDivision === "all"
-                ? "bg-slate-200 text-slate-900 font-black"
-                : "bg-slate-200 text-slate-600"
+                ? "bg-white text-slate-900 shadow-xs border border-slate-300/60"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            {totalCount}
-          </span>
-        </button>
+            <span>All Directory</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeDivision === "all"
+                  ? "bg-slate-200 text-slate-900 font-black"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {totalCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Right: Live Search Input + Palette trigger + View mode switch */}
+        <div className="flex items-center gap-2.5 flex-1 max-w-xl justify-end">
+          {/* Live Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, company, phone, email..."
+              className="w-full pl-9 pr-14 py-1.5 bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 outline-none transition-all shadow-2xs"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsSearchPaletteOpen(true)}
+                title="Global Search Palette (Ctrl+K)"
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-slate-200/70 hover:bg-slate-300/80 text-[10px] font-mono font-bold text-slate-500 transition-colors cursor-pointer"
+              >
+                Ctrl+K
+              </button>
+            )}
+          </div>
+
+          {/* Global Search Palette Button with Globe Icon */}
+          <button
+            type="button"
+            onClick={() => setIsSearchPaletteOpen(true)}
+            title="Open Global Directory Search Palette"
+            className="w-8 h-8 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200/80 flex items-center justify-center transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
+          >
+            <Globe className="w-4 h-4" />
+          </button>
+
+          {/* View Mode Toggle: Table vs Cards Grid */}
+          <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200/80 shrink-0">
+            <button
+              type="button"
+              onClick={() => setDesktopViewMode("table")}
+              title="Table View"
+              className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                desktopViewMode === "table"
+                  ? "bg-white text-blue-600 shadow-2xs"
+                  : "text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              <TableProperties className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setDesktopViewMode("grid")}
+              title="Cards Grid View"
+              className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                desktopViewMode === "grid"
+                  ? "bg-white text-blue-600 shadow-2xs"
+                  : "text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Active Search Filter Banner */}
@@ -967,24 +1111,29 @@ export function DirectoryView() {
                     <div className="space-y-1.5 pt-0.5 text-xs">
                       {contact.phone && (
                         <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/70 gap-2">
-                          <div className="flex items-center gap-1.5 font-mono font-semibold text-slate-800 text-[11px] sm:text-xs min-w-0 flex-1">
-                            <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span className="select-all flex items-center gap-1.5 min-w-0 flex-wrap">
-                              <span className="truncate">{contact.phone}</span>
-                              {contact.extension && (
+                          <div className="flex flex-col min-w-0 flex-1 font-mono font-semibold text-slate-800 text-[11px] sm:text-xs">
+                            {/* Phone icon and number strictly on the same line */}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="truncate select-all">{contact.phone}</span>
+                            </div>
+
+                            {/* Extension goes to a new line aligned under the number */}
+                            {contact.extension && (
+                              <div className="pl-5 pt-1 flex items-center">
                                 <span
                                   title={`Extension: ${contact.extension}`}
                                   className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle"
                                 >
-                                  <span className="bg-indigo-600 text-white font-extrabold px-1 py-0.5 tracking-wider text-[8.5px] leading-none">
+                                  <span className="bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 tracking-wider text-[8px] leading-none">
                                     EXT
                                   </span>
                                   <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
                                     {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
                                   </span>
                                 </span>
-                              )}
-                            </span>
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-1 shrink-0 ml-1">
                             <a
@@ -1046,102 +1195,328 @@ export function DirectoryView() {
               })}
             </div>
 
-            {/* 2. DESKTOP / TABLET MULTI-COLUMN TABLE (Visible on md and above) */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
-                    <th className="py-3 px-4">Contact</th>
-                    <th className="py-3 px-4">Division</th>
-                    <th className="py-3 px-4">Company</th>
-                    <th className="py-3 px-4">Phone Number</th>
-                    <th className="py-3 px-4">Email</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {paginatedRecords.map((contact, idx) => {
-                    const isEmployee = contact.division === "employee";
-                    const initials = contact.name
-                      ? contact.name
-                          .split(" ")
-                          .map((p) => p[0])
-                          .filter(Boolean)
-                          .slice(0, 2)
-                          .join("")
-                          .toUpperCase()
-                      : "??";
+{/* 2. DESKTOP / PC VIEWS (Available on md and above) */}
+            {desktopViewMode === "table" ? (
+              /* A: HIGH-DENSITY EXECUTIVE DATA TABLE */
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/90 border-b border-slate-200/80 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                      <th className="py-3.5 px-4 w-[24%]">Contact</th>
+                      <th className="py-3.5 px-4 w-[11%]">Division</th>
+                      <th className="py-3.5 px-4 w-[18%]">Company</th>
+                      <th className="py-3.5 px-4 w-[25%]">Phone &amp; Extension</th>
+                      <th className="py-3.5 px-4 w-[16%]">Email</th>
+                      <th className="py-3.5 px-4 w-[6%] text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedRecords.map((contact, idx) => {
+                      const isEmployee = contact.division === "employee";
+                      const initials = contact.name
+                        ? contact.name
+                            .split(" ")
+                            .map((p) => p[0])
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .join("")
+                            .toUpperCase()
+                        : "??";
 
-                    return (
-                      <tr
-                        key={contact.id}
-                        id={`contact-row-${contact.id}`}
-                        style={{ animationDelay: `${Math.min(idx * 20, 200)}ms` }}
-                        className={`transition-all duration-300 group animate-card-enter ${
-                          focusedRecordId === contact.id
-                            ? "bg-indigo-50/90 ring-2 ring-indigo-500 shadow-md"
-                            : "hover:bg-slate-50/80"
-                        }`}
-                      >
-                        {/* Name & Title */}
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-2xs ${
+                      return (
+                        <tr
+                          key={contact.id}
+                          id={`contact-row-${contact.id}`}
+                          style={{ animationDelay: `${Math.min(idx * 20, 200)}ms` }}
+                          className={`transition-all duration-200 group ${
+                            focusedRecordId === contact.id
+                              ? "bg-indigo-50/90 ring-2 ring-indigo-500 shadow-md"
+                              : "hover:bg-slate-50/70"
+                          }`}
+                        >
+                          {/* Contact Column */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-2xs ${
+                                  isEmployee
+                                    ? "bg-gradient-to-br from-blue-600 to-blue-700"
+                                    : "bg-gradient-to-br from-indigo-600 to-indigo-700"
+                                }`}
+                              >
+                                {initials}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 truncate">
+                                  {contact.name}
+                                </p>
+                                {contact.notes && (
+                                  <p className="text-[11px] text-slate-400 truncate max-w-[200px]" title={contact.notes}>
+                                    {contact.notes}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Division Badge */}
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                                 isEmployee
-                                  ? "bg-gradient-to-br from-blue-600 to-blue-700"
-                                  : "bg-gradient-to-br from-indigo-600 to-indigo-700"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
                               }`}
                             >
-                              {initials}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-900 truncate">
-                                {contact.name}
-                              </p>
-                              {contact.notes && (
-                                <p className="text-[11px] text-slate-400 truncate max-w-[200px]">
-                                  {contact.notes}
-                                </p>
+                              {isEmployee ? (
+                                <User className="w-3 h-3" />
+                              ) : (
+                                <Building2 className="w-3 h-3" />
                               )}
-                            </div>
-                          </div>
-                        </td>
+                              {isEmployee ? "Employee" : "Vendor"}
+                            </span>
+                          </td>
 
-                        {/* Division Badge */}
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                          {/* Company */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+                              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate">{contact.company || "Corporate"}</span>
+                            </div>
+                          </td>
+
+                          {/* Phone & Extension with Call Button and Copy */}
+                          <td className="py-3.5 px-4">
+                            {contact.phone ? (
+                              <div className="flex items-center justify-between gap-2 max-w-[280px]">
+                                <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800 min-w-0">
+                                  <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span className="font-bold select-all truncate">{contact.phone}</span>
+                                  {contact.extension && (
+                                    <span
+                                      title={`Extension: ${contact.extension}`}
+                                      className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle ml-1"
+                                    >
+                                      <span className="bg-indigo-600 text-white font-extrabold px-1 py-0.5 tracking-wider text-[8.5px] leading-none">
+                                        EXT
+                                      </span>
+                                      <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
+                                        {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
+                                      </span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Call & Copy Quick Actions */}
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <a
+                                    href={`tel:${contact.phone.replace(/[^\d+]/g, "")}${contact.extension ? `,${contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}` : ""}`}
+                                    className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 font-bold text-[11px] flex items-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95"
+                                    title={`Call ${contact.phone}${contact.extension ? ` ext. ${contact.extension}` : ""}`}
+                                  >
+                                    <Phone className="w-2.5 h-2.5 text-emerald-600" />
+                                    <span>Call</span>
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
+                                    title="Copy Phone Number"
+                                    className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                  >
+                                    {copiedField?.id === contact.id && copiedField?.type === "phone" ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-xs">No phone</span>
+                            )}
+                          </td>
+
+                          {/* Email with mailto and Copy */}
+                          <td className="py-3.5 px-4">
+                            {contact.email ? (
+                              <div className="flex items-center justify-between gap-1.5 max-w-[220px]">
+                                <div className="flex items-center gap-1.5 text-xs text-slate-700 min-w-0">
+                                  <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  <a
+                                    href={`mailto:${contact.email}`}
+                                    className="truncate hover:text-blue-600 hover:underline select-all"
+                                    title={contact.email}
+                                  >
+                                    {contact.email}
+                                  </a>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(contact.email, contact.id, "email")}
+                                  title="Copy Email Address"
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                                >
+                                  {copiedField?.id === contact.id && copiedField?.type === "email" ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-xs">No email</span>
+                            )}
+                          </td>
+
+                          {/* Actions: Edit, Delete */}
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingRecord(contact);
+                                  setIsContactModalOpen(true);
+                                }}
+                                title="Edit Record"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRecordToDelete(contact)}
+                                title="Delete Record"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              /* B: EXECUTIVE 3-COLUMN CARDS GRID FOR DESKTOP (Matches user's beloved card style) */
+              <div className="hidden md:grid md:grid-cols-2 xl:grid-cols-3 gap-4 p-4 bg-slate-50/50">
+                {paginatedRecords.map((contact, idx) => {
+                  const isEmployee = contact.division === "employee";
+                  const initials = contact.name
+                    ? contact.name
+                        .split(" ")
+                        .map((p) => p[0])
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase()
+                    : "??";
+
+                  return (
+                    <div
+                      key={contact.id}
+                      id={`contact-grid-${contact.id}`}
+                      style={{ animationDelay: `${Math.min(idx * 25, 250)}ms` }}
+                      className={`p-4 space-y-3 transition-all duration-300 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-md hover:-translate-y-0.5 ${
+                        focusedRecordId === contact.id
+                          ? "bg-indigo-50/90 ring-2 ring-indigo-500 shadow-md"
+                          : ""
+                      }`}
+                    >
+                      {/* Top Row: Avatar + Name + Division Badge + Edit/Delete */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-2xs ${
                               isEmployee
-                                ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                ? "bg-gradient-to-br from-blue-600 to-blue-700"
+                                : "bg-gradient-to-br from-indigo-600 to-indigo-700"
                             }`}
                           >
-                            {isEmployee ? (
-                              <User className="w-3 h-3" />
-                            ) : (
-                              <Building2 className="w-3 h-3" />
-                            )}
-                            {isEmployee ? "Employee" : "Vendor"}
-                          </span>
-                        </td>
+                            {initials}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 text-sm truncate">
+                                {contact.name}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  isEmployee
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                }`}
+                              >
+                                {isEmployee ? "Employee" : "Vendor"}
+                              </span>
+                            </div>
+                            <div className="text-xs font-medium text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                              <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{contact.company || "Corporate"}</span>
+                            </div>
+                          </div>
+                        </div>
 
-                        {/* Company */}
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-slate-800">
-                            {contact.company || "—"}
-                          </span>
-                        </td>
+                        {/* Quick Actions (Edit, Delete) */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingRecord(contact);
+                              setIsContactModalOpen(true);
+                            }}
+                            title="Edit Record"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRecordToDelete(contact)}
+                            title="Delete Record"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
 
-                        {/* Phone Number with Copy & Separate Extension Pill */}
-                        <td className="py-3 px-4">
-                          {contact.phone ? (
-                            <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800 flex-wrap">
+                      {/* Middle: Phone & Email in clean executive blocks */}
+                      <div className="space-y-2 pt-0.5 text-xs">
+                        {contact.phone && (
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 gap-2">
+                            <div className="flex items-center gap-1.5 font-mono font-semibold text-slate-800 text-xs min-w-0 flex-1">
+                              <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="select-all truncate">{contact.phone}</span>
+                              {contact.extension && (
+                                <span
+                                  title={`Extension: ${contact.extension}`}
+                                  className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle ml-1"
+                                >
+                                  <span className="bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 tracking-wider text-[8px] leading-none">
+                                    EXT
+                                  </span>
+                                  <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
+                                    {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 ml-1">
+                              <a
+                                href={`tel:${contact.phone.replace(/[^\d+]/g, "")}${contact.extension ? `,${contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}` : ""}`}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition-all"
+                                title={`Call ${contact.phone}${contact.extension ? ` ext. ${contact.extension}` : ""}`}
+                              >
+                                <Phone className="w-3 h-3" />
+                                <span>Call</span>
+                              </a>
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(contact.phone, contact.id, "phone")}
-                                title="Copy Phone Number"
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                                title="Copy Phone"
                               >
                                 {copiedField?.id === contact.id && copiedField?.type === "phone" ? (
                                   <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -1149,37 +1524,28 @@ export function DirectoryView() {
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
                               </button>
-                              <span className="font-semibold select-all flex items-center gap-1.5 flex-wrap">
-                                <span>{contact.phone}</span>
-                                {contact.extension && (
-                                  <span
-                                    title={`Extension: ${contact.extension}`}
-                                    className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle ml-0.5"
-                                  >
-                                    <span className="bg-indigo-600 text-white font-extrabold px-1 py-0.5 tracking-wider text-[8.5px] leading-none">
-                                      EXT
-                                    </span>
-                                    <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
-                                      {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
-                                    </span>
-                                  </span>
-                                )}
-                              </span>
                             </div>
-                          ) : (
-                            <span className="text-slate-400 italic text-xs">No phone</span>
-                          )}
-                        </td>
+                          </div>
+                        )}
 
-                        {/* Email with Copy */}
-                        <td className="py-3 px-4">
-                          {contact.email ? (
-                            <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                        {contact.email && (
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                            <div className="flex items-center gap-2 text-slate-700 text-xs truncate">
+                              <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <a
+                                href={`mailto:${contact.email}`}
+                                className="select-all truncate hover:text-blue-600 hover:underline"
+                                title={contact.email}
+                              >
+                                {contact.email}
+                              </a>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 ml-2">
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(contact.email, contact.id, "email")}
-                                title="Copy Email Address"
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                                title="Copy Email"
                               >
                                 {copiedField?.id === contact.id && copiedField?.type === "email" ? (
                                   <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -1187,45 +1553,22 @@ export function DirectoryView() {
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
                               </button>
-                              <span className="truncate max-w-[180px] select-all">
-                                {contact.email}
-                              </span>
                             </div>
-                          ) : (
-                            <span className="text-slate-400 italic text-xs">No email</span>
-                          )}
-                        </td>
-
-                        {/* Actions: Edit, Delete */}
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingRecord(contact);
-                                setIsContactModalOpen(true);
-                              }}
-                              title="Edit Record"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setRecordToDelete(contact)}
-                              title="Delete Record"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        )}
+
+                        {contact.notes && (
+                          <div className="px-2.5 py-1.5 text-[11px] text-slate-600 bg-slate-50 rounded-xl border border-slate-200/60 flex items-start gap-1.5">
+                            <FileText className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                            <span className="break-words leading-relaxed">{contact.notes}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
