@@ -215,26 +215,26 @@ export function UsageView() {
           </div>
         )}
 
-      {/* Top Header Row (Single compact row on mobile) */}
-      <div className="flex items-center justify-between gap-2.5 pb-3 sm:pb-6 border-b border-slate-200/60">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
-              <HardDrive className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <h1 className="text-base sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
+      {/* 1. TOP HEADER & ACTION BAR */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-teal-500/20 shrink-0">
+            <HardDrive className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
               Workspace & Storage Usage
             </h1>
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
+              Real-time monitoring of Supabase Free Plan file storage, database space, and uploaded documents
+            </p>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 hidden sm:block">
-            Real-time monitoring of Supabase Free Plan file storage, database space, and uploaded documents.
-          </p>
         </div>
 
         {/* Status Badge */}
         <div className="flex items-center shrink-0">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
-            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="hidden sm:inline">Free Plan: </span><span>Healthy</span>
           </div>
         </div>

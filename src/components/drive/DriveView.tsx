@@ -709,20 +709,20 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           </div>
         )}
 
-      {/* Header Row */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
-        <div>
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
-              <FolderOpen className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <h1 className="text-base sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
+      {/* 1. TOP HEADER & ACTION BAR */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20 shrink-0">
+            <FolderOpen className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
               Drive
             </h1>
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
+              OneDrive-style permanent file storage with folder hierarchy, file moves, and a 7-day recycle bin
+            </p>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 hidden sm:block">
-            OneDrive-style permanent file storage with folder hierarchy, file moves, and a 7-day recycle bin.
-          </p>
         </div>
 
         {/* Action Controls: Compact row on mobile */}

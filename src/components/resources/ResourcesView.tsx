@@ -712,23 +712,23 @@ export function ResourcesView() {
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
-      {/* Top Header & Multi-Resource Tab Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
-            <Calculator className="w-5 h-5" />
+      {/* 1. TOP HEADER & MULTI-RESOURCE TAB NAVIGATION */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white flex items-center justify-center shadow-md shadow-violet-500/20 shrink-0">
+            <Calculator className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
                 Resources & Calculators
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+              <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-violet-50 text-violet-700 border border-violet-200 font-mono">
                 SUITE
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Interactive workspace utilities, prompt discount estimators, and financial settlement models.
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
+              Interactive workspace utilities, prompt discount estimators, and financial settlement models
             </p>
           </div>
         </div>

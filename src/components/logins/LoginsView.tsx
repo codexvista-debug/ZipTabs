@@ -1093,14 +1093,14 @@ export function LoginsView() {
 
         <div className="relative flex flex-col gap-4 sm:gap-5">
           {/* Top Row: Title + Compact Security Pills + Add Login Button */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20 shrink-0 ring-4 ring-blue-50">
-                <KeyRound className="w-5 h-5 sm:w-6 sm:h-6" />
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-600 to-rose-600 text-white flex items-center justify-center shadow-md shadow-amber-600/20 shrink-0">
+                <KeyRound className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
+                  <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
                     Logins & Portals
                   </h1>
                   <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/90 text-emerald-700 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
@@ -1108,8 +1108,8 @@ export function LoginsView() {
                     <span>AES-256 Vault</span>
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
-                  Encrypted portal credentials & access keys exclusively synced for <strong className="text-slate-700">@chief</strong>.
+                <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
+                  Encrypted portal credentials & access keys exclusively synced for <strong className="text-slate-700">@chief</strong>
                 </p>
               </div>
             </div>
@@ -1117,10 +1117,10 @@ export function LoginsView() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleOpenAddModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/25 hover:shadow-lg hover:shadow-blue-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
+                className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 shadow-amber-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Login</span>
+                <span className="whitespace-nowrap font-bold">Add Login</span>
               </button>
             </div>
           </div>

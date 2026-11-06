@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { deleteFilesFromStorage } from "@/lib/storage";
 import { getUSFederalHolidaysForYear } from "@/components/calendar/USCalendarView";
 import {
+  LayoutDashboard,
   FileSpreadsheet,
   NotebookPen,
   CalendarDays,
@@ -447,33 +448,38 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
   return (
     <div className="space-y-8 pb-16">
-      {/* Top Header Row with Live Total Receivables */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 sm:pb-8 border-b border-slate-200/60">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-            Dashboard
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Real-time operations hub across Invoices, Notes, US Calendar, and Free Plan Storage.
-          </p>
+      {/* 1. TOP HEADER & ACTION BAR */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-4 sm:mb-6">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
+            <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+              Dashboard
+            </h1>
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
+              Real-time operations hub across Invoices, Notes, US Calendar, and Free Plan Storage
+            </p>
+          </div>
         </div>
 
         {/* Live Aggregated Overdue Balance Header */}
         <div
           onClick={() => onNavigate("invoices")}
-          className="text-left sm:text-right bg-white sm:bg-transparent p-4 sm:p-0 rounded-2xl border sm:border-0 border-slate-200/80 shadow-xs sm:shadow-none cursor-pointer group"
+          className="text-right bg-white sm:bg-transparent p-2.5 sm:p-0 rounded-2xl border sm:border-0 border-slate-200/80 shadow-2xs sm:shadow-none cursor-pointer group shrink-0"
           title="Click to view all overdue invoices"
         >
-          <div className="flex items-center gap-1.5 sm:justify-end">
+          <div className="flex items-center gap-1.5 justify-end">
             <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest block">
               TOTAL OVERDUE BALANCE
             </span>
             <ArrowRight className="w-3 h-3 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight mt-0.5">
+          <div className="text-xl sm:text-3xl font-black text-emerald-600 tracking-tight mt-0.5">
             {isLoading ? "Loading..." : formatCurrency(overdueAmount)}
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
+          <div className="hidden sm:block text-[11px] text-slate-400 mt-0.5 font-medium">
             Across {overdueCount} overdue invoices · {uniqueVendorsCount} active vendors
           </div>
         </div>
