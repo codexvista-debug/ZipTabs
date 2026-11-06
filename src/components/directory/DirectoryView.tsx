@@ -117,20 +117,27 @@ export function DirectoryView() {
 
       const key = await getDirectoryKey();
 
-      const dirRes = await fetch("/api/directory");
-      const dirJson = await dirRes.json();
-      const data = dirJson.data;
-      const error = !dirRes.ok || !dirJson.success ? { message: dirJson.error || "Failed to load directory" } : null;
+      let data: any[] | null = null;
+      try {
+        const dirRes = await fetch("/api/directory");
+        if (dirRes.ok) {
+          const dirJson = await dirRes.json();
+          if (dirJson.success && Array.isArray(dirJson.data)) {
+            data = dirJson.data;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("API directory call failed, falling back to direct connection:", apiErr);
+      }
 
-      if (error) {
-        console.error("Error fetching phone directory:", error);
-        setToast({
-          type: "error",
-          title: "Directory Load Error",
-          description: error.message,
-        });
-        setIsLoading(false);
-        return;
+      if (!data && supabase) {
+        const { data: directData, error: directErr } = await supabase
+          .from("phone_directory")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (!directErr && directData) {
+          data = directData;
+        }
       }
 
       if (data && data.length > 0) {
