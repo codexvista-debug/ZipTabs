@@ -3,10 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 export const SESSION_COOKIE_NAME = "ziptabs_session";
 export const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ||
-  process.env.SUPABASE_ACCESS_TOKEN ||
-  "ziptabs_master_session_hmac_secret_2026";
+function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("FATAL SECURITY CONFIGURATION: SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY is required in production.");
+    }
+    return "dev_local_ziptabs_session_secret_replace_in_env_file_2026";
+  }
+  return secret;
+}
 
 export interface SessionUser {
   id: string;
@@ -44,7 +50,7 @@ async function getHmacKey(): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   return await crypto.subtle.importKey(
     "raw",
-    encoder.encode(SESSION_SECRET),
+    encoder.encode(getSessionSecret()),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"]
