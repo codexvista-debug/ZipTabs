@@ -117,10 +117,10 @@ export function DirectoryView() {
 
       const key = await getDirectoryKey();
 
-      const { data, error } = await supabase
-        .from("phone_directory")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const dirRes = await fetch("/api/directory");
+      const dirJson = await dirRes.json();
+      const data = dirJson.data;
+      const error = !dirRes.ok || !dirJson.success ? { message: dirJson.error || "Failed to load directory" } : null;
 
       if (error) {
         console.error("Error fetching phone directory:", error);
@@ -265,14 +265,17 @@ export function DirectoryView() {
     const dbPayload = await encryptDirectoryRecordForDb(data, key);
 
     if (data.id) {
-      // Update
-      const { error } = await supabase
-        .from("phone_directory")
-        .update({
-          ...dbPayload,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", data.id);
+      // Update via authenticated API
+      const updateRes = await fetch("/api/directory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsert",
+          record: { ...dbPayload, id: data.id, updated_at: new Date().toISOString() },
+        }),
+      });
+      const updateJson = await updateRes.json();
+      const error = !updateRes.ok || !updateJson.success ? new Error(updateJson.error || "Failed to update contact") : null;
 
       if (error) throw error;
 
@@ -300,12 +303,15 @@ export function DirectoryView() {
         description: `${data.name} was successfully encrypted & updated in Supabase.`,
       });
     } else {
-      // Insert
-      const { data: inserted, error } = await supabase
-        .from("phone_directory")
-        .insert(dbPayload)
-        .select()
-        .single();
+      // Insert via authenticated API
+      const insertRes = await fetch("/api/directory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "upsert", record: dbPayload }),
+      });
+      const insertJson = await insertRes.json();
+      const inserted = insertJson.data;
+      const error = !insertRes.ok || !insertJson.success ? new Error(insertJson.error || "Failed to create contact") : null;
 
       if (error) throw error;
 
@@ -338,10 +344,13 @@ export function DirectoryView() {
     setIsDeleting(true);
 
     try {
-      const { error } = await supabase
-        .from("phone_directory")
-        .delete()
-        .eq("id", recordToDelete.id);
+      const delRes = await fetch("/api/directory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id: recordToDelete.id }),
+      });
+      const delJson = await delRes.json();
+      const error = !delRes.ok || !delJson.success ? new Error(delJson.error || "Failed to delete contact") : null;
 
       if (error) throw error;
 
@@ -394,8 +403,13 @@ export function DirectoryView() {
     const batchSize = 50;
     for (let i = 0; i < dbRows.length; i += batchSize) {
       const batch = dbRows.slice(i, i + batchSize);
-      const { error } = await supabase.from("phone_directory").insert(batch);
-      if (error) throw error;
+      const batchRes = await fetch("/api/directory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "batch_insert", records: batch }),
+      });
+      const batchJson = await batchRes.json();
+      if (!batchRes.ok || !batchJson.success) throw new Error(batchJson.error || "Batch import failed");
     }
 
     setToast({
