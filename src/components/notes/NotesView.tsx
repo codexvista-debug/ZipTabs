@@ -1633,17 +1633,31 @@ export function NotesView() {
           </div>
         )}
 
-      {/* Top Header Row */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200/60">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-            <NotebookPen className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
-            <span>Notes & Reminders</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Store documents, screenshots, and track deadlines with 2–3 keyword auto-subjects.
-          </p>
+      {/* 1. TOP HEADER & ACTION BAR */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-4 sm:mb-5">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+            <NotebookPen className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+              Notes & Reminders
+            </h1>
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
+              Store documents, screenshots, and track deadlines with 2–3 keyword auto-subjects
+            </p>
+          </div>
         </div>
+
+        {/* Dynamic New Note Button */}
+        <button
+          type="button"
+          onClick={handleOpenCreate}
+          className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md active:scale-95 transition-all cursor-pointer shrink-0 bg-amber-600 hover:bg-amber-700 shadow-amber-500/20"
+        >
+          <Plus className="w-4 h-4 shrink-0" />
+          <span className="whitespace-nowrap font-bold">New Note</span>
+        </button>
       </div>
 
       {/* Quick Note Inline Composer (Replaces extra KPI cards for rapid note capture & OCR image extraction) */}

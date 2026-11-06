@@ -960,15 +960,20 @@ export function InvoicesView() {
         </div>
       )}
 
-      {/* Top Header Row (Standard clean unboxed layout matching Dashboard) */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-4 pb-2 sm:pb-4 border-b border-slate-200/60 mb-2 sm:mb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-            Overdue Invoices
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 hidden sm:block">
-            Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements.
-          </p>
+      {/* 1. TOP HEADER & ACTION BAR */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+            <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+              Overdue Invoices
+            </h1>
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
+              Import spreadsheets (.csv or .xlsx) to analyze overdue aging balances and prepare vendor statements
+            </p>
+          </div>
         </div>
 
         {/* Sole Action: Upload Button (Compact on mobile, rich dropzone on desktop) */}
@@ -1008,17 +1013,17 @@ export function InvoicesView() {
                 fileInputRef.current.click();
               }
             }}
-            className={`hidden sm:inline-flex group relative items-center gap-3 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer disabled:opacity-50 select-none ${
+            className={`hidden sm:inline-flex group relative items-center gap-3 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold shadow-md transition-all duration-200 cursor-pointer disabled:opacity-50 select-none shrink-0 ${
               isDragHover
-                ? "bg-blue-700 text-white shadow-lg ring-4 ring-blue-500/30 scale-[1.02]"
-                : "bg-[#2563eb] hover:bg-blue-600 active:scale-98 text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35"
+                ? "bg-emerald-700 text-white shadow-lg ring-4 ring-emerald-500/30 scale-[1.02]"
+                : "bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-emerald-500/20"
             }`}
           >
-            <div className="w-8 h-8 rounded-lg sm:rounded-xl bg-white/20 border border-white/25 flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform">
+            <div className="w-7 h-7 rounded-lg bg-white/20 border border-white/25 flex items-center justify-center shrink-0 shadow-2xs group-hover:-translate-y-0.5 transition-transform">
               {isProcessing ? (
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
               ) : (
-                <Upload className="w-4 h-4 text-white" />
+                <Upload className="w-3.5 h-3.5 text-white" />
               )}
             </div>
 
@@ -1026,7 +1031,7 @@ export function InvoicesView() {
               <div className="text-xs sm:text-[13px] font-bold leading-tight tracking-tight text-white flex items-center gap-1.5">
                 <span>{isProcessing ? "Processing File..." : "Upload File"}</span>
               </div>
-              <div className="text-[10px] text-blue-100 font-medium leading-tight mt-0.5">
+              <div className="text-[10px] text-emerald-100 font-medium leading-tight mt-0.5">
                 Drop or select .csv / .xlsx
               </div>
             </div>
@@ -1042,7 +1047,7 @@ export function InvoicesView() {
                 fileInputRef.current.click();
               }
             }}
-            className="sm:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2563eb] hover:bg-blue-600 active:scale-95 text-xs font-bold text-white shadow-sm transition-all cursor-pointer disabled:opacity-50 shrink-0"
+            className="sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-xs font-bold text-white shadow-md shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50 shrink-0"
           >
             {isProcessing ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
