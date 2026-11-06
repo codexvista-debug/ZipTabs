@@ -251,6 +251,9 @@ export function LoginsView() {
   // Active Launch Browser Window / Profile Menu Popover State
   const [activeLaunchMenuId, setActiveLaunchMenuId] = useState<string | null>(null);
 
+  // Modal Password Peek State
+  const [showModalPassword, setShowModalPassword] = useState(false);
+
   // Auto-lock timer ref
   const autoLockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -813,6 +816,7 @@ export function LoginsView() {
   const handleOpenAddModal = () => {
     setEditingId(null);
     setModalError(null);
+    setShowModalPassword(false);
     setIsModalAddingCategory(false);
     setModalNewCategoryName("");
     setFormData({
@@ -831,6 +835,7 @@ export function LoginsView() {
   const handleOpenEditModal = (item: DecryptedLoginCredential) => {
     setEditingId(item.id);
     setModalError(null);
+    setShowModalPassword(false);
     setIsModalAddingCategory(false);
     setModalNewCategoryName("");
     setFormData({
@@ -1204,7 +1209,7 @@ export function LoginsView() {
               </span>
             </div>
             <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
-              Encrypted portal credentials & access keys exclusively synced for <strong className="text-slate-700">@chief</strong>
+              Encrypted portal credentials & access keys stored securely in AES-256 vault
             </p>
           </div>
         </div>
@@ -1429,11 +1434,10 @@ export function LoginsView() {
                 <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                   <th className="py-3.5 px-4">Portal / Service</th>
                   <th className="py-3.5 px-3">Category</th>
-                  <th className="py-3.5 px-3">Browser Profile</th>
                   <th className="py-3.5 px-3">Username / ID</th>
                   <th className="py-3.5 px-3">Password</th>
                   <th className="py-3.5 px-3">URL</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 pr-6 pl-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1443,7 +1447,6 @@ export function LoginsView() {
                   const catStyle = getCategoryBadgeStyle(item.category);
                   const badgeNum = familyVariantAssignments.get(item.id);
                   const isMultiple = badgeNum !== undefined;
-                  const isProfile2 = item.targetProfile === "profile-2";
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
@@ -1474,16 +1477,6 @@ export function LoginsView() {
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${catStyle.dot}`} />
                           <span>{item.category}</span>
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-3 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
-                          isProfile2
-                            ? "bg-purple-50 text-purple-700 border border-purple-200"
-                            : "bg-blue-50 text-blue-700 border border-blue-200"
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isProfile2 ? "bg-purple-500" : "bg-blue-500"}`} />
-                          <span>{isProfile2 ? "Profile 2 (SL)" : "Profile 1"}</span>
                         </span>
                       </td>
                       <td className="py-3.5 px-3 whitespace-nowrap">
@@ -1531,7 +1524,7 @@ export function LoginsView() {
                           <span className="text-slate-400 text-[10px]">—</span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <td className="py-3.5 pr-6 pl-3 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5 justify-end">
                           <button
                             type="button"
@@ -1578,7 +1571,7 @@ export function LoginsView() {
                                     setActiveLaunchMenuId(activeLaunchMenuId === `tbl-${item.id}` ? null : `tbl-${item.id}`);
                                   }}
                                   className="px-1 py-1 bg-indigo-700 hover:bg-indigo-800 text-white border-l border-white/20 transition-colors cursor-pointer"
-                                  title="Browser window & profile options"
+                                  title="Browser window & launch options"
                                 >
                                   <ChevronDown className="w-3 h-3" />
                                 </button>
@@ -1589,25 +1582,12 @@ export function LoginsView() {
                                   <div className="fixed inset-0 z-40" onClick={() => setActiveLaunchMenuId(null)} />
                                   <div
                                     onClick={(e) => e.stopPropagation()}
-                                    className="absolute right-0 top-full mt-1 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
+                                    className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
                                   >
-                                    <div className="px-2 py-1 border-b border-slate-100 flex items-center justify-between text-[10px] font-extrabold uppercase text-slate-400">
-                                      <span>Window Target</span>
-                                      <span className="font-mono text-blue-600 font-bold">{isProfile2 ? "Profile 2" : "Profile 1"}</span>
+                                    <div className="px-2.5 py-1 border-b border-slate-100 flex items-center justify-between text-[10px] font-extrabold uppercase text-slate-400">
+                                      <span>Launch Options</span>
                                     </div>
                                     <div className="space-y-1 pt-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveLaunchMenuId(null);
-                                          const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
-                                          window.open(fullUrl, "_blank");
-                                        }}
-                                        className="w-full text-left p-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-                                      >
-                                        <Globe className="w-3.5 h-3.5 text-blue-500" />
-                                        <span className="font-semibold text-slate-800">Current Window (Tab)</span>
-                                      </button>
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -1617,7 +1597,7 @@ export function LoginsView() {
                                         }}
                                         className="w-full text-left p-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
                                       >
-                                        <Monitor className="w-3.5 h-3.5 text-purple-500" />
+                                        <Monitor className="w-3.5 h-3.5 text-purple-500 shrink-0" />
                                         <span className="font-semibold text-slate-800">Standalone App Window</span>
                                       </button>
                                       <button
@@ -1626,12 +1606,12 @@ export function LoginsView() {
                                           setActiveLaunchMenuId(null);
                                           const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
                                           copyToClipboard(fullUrl, `tbl-link-${item.id}`, false);
-                                          showToast("Link Copied for Profile 2", "Switch to Chrome Profile 2 (Alt+Tab) and press Ctrl+V.", "info");
+                                          showToast("Portal URL Copied", "URL copied to clipboard.", "info");
                                         }}
                                         className="w-full text-left p-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
                                       >
-                                        <Copy className="w-3.5 h-3.5 text-emerald-500" />
-                                        <span className="font-semibold text-slate-800">Copy Link for Profile 2</span>
+                                        <Copy className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                        <span className="font-semibold text-slate-800">Copy Portal URL</span>
                                       </button>
                                       <button
                                         type="button"
@@ -1644,7 +1624,7 @@ export function LoginsView() {
                                         }}
                                         className="w-full text-left p-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
                                       >
-                                        <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                                        <Layers className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                                         <span className="font-semibold text-slate-800">Copy Full Login Bundle</span>
                                       </button>
                                     </div>
@@ -1801,22 +1781,18 @@ export function LoginsView() {
                               e.stopPropagation();
                               copyToClipboard(item.username, `user-${item.id}`, false);
                             }}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                               copiedKey === `user-${item.id}`
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "bg-white text-slate-600 hover:text-blue-600 border border-slate-200/80 hover:border-blue-300 shadow-2xs"
+                                : "bg-white text-slate-400 hover:text-blue-600 border border-slate-200/80 hover:border-blue-300 shadow-2xs"
                             }`}
+                            title={copiedKey === `user-${item.id}` ? "Copied!" : "Copy username"}
+                            aria-label="Copy username"
                           >
                             {copiedKey === `user-${item.id}` ? (
-                              <>
-                                <Check className="w-2.5 h-2.5 text-emerald-600" />
-                                <span>Copied</span>
-                              </>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
                             ) : (
-                              <>
-                                <Copy className="w-2.5 h-2.5" />
-                                <span>Copy</span>
-                              </>
+                              <Copy className="w-3.5 h-3.5" />
                             )}
                           </button>
                         </div>
@@ -1840,30 +1816,25 @@ export function LoginsView() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 shrink-0">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 togglePasswordVisibility(item.id);
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                              className={`p-1.5 rounded-lg transition-all cursor-pointer border ${
                                 isVisible
                                   ? "bg-amber-50 text-amber-700 border-amber-200"
-                                  : "bg-white text-slate-500 hover:text-slate-800 border-slate-200/80 shadow-2xs"
+                                  : "bg-white text-slate-400 hover:text-slate-800 border-slate-200/80 shadow-2xs"
                               }`}
                               title={isVisible ? "Hide password" : "Reveal password for 10s"}
+                              aria-label="Toggle password visibility"
                             >
                               {isVisible ? (
-                                <>
-                                  <EyeOff className="w-2.5 h-2.5" />
-                                  <span>Hide</span>
-                                </>
+                                <EyeOff className="w-3.5 h-3.5" />
                               ) : (
-                                <>
-                                  <Eye className="w-2.5 h-2.5" />
-                                  <span>Peek</span>
-                                </>
+                                <Eye className="w-3.5 h-3.5" />
                               )}
                             </button>
 
@@ -1873,23 +1844,18 @@ export function LoginsView() {
                                 e.stopPropagation();
                                 copyToClipboard(item.password, `pass-${item.id}`, true);
                               }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                                 copiedKey === `pass-${item.id}`
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-white text-slate-600 hover:text-blue-600 border border-slate-200/80 hover:border-blue-300 shadow-2xs"
+                                  : "bg-white text-slate-400 hover:text-blue-600 border border-slate-200/80 hover:border-blue-300 shadow-2xs"
                               }`}
-                              title="Copy password (auto-wipes in 30s)"
+                              title={copiedKey === `pass-${item.id}` ? "Copied!" : "Copy password"}
+                              aria-label="Copy password"
                             >
                               {copiedKey === `pass-${item.id}` ? (
-                                <>
-                                  <Check className="w-2.5 h-2.5 text-emerald-600" />
-                                  <span>Copied</span>
-                                </>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
                               ) : (
-                                <>
-                                  <Copy className="w-2.5 h-2.5" />
-                                  <span>Copy</span>
-                                </>
+                                <Copy className="w-3.5 h-3.5" />
                               )}
                             </button>
                           </div>
@@ -1927,15 +1893,8 @@ export function LoginsView() {
                 {/* Card Footer: Timestamp + Audit History + Split Launch Portal CTA */}
                 <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-semibold truncate">
-                    <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                    <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>{formatDateMMDDYYYY(item.updatedAt)}</span>
-                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-mono font-bold ${
-                      isProfile2
-                        ? "bg-purple-50 text-purple-700 border border-purple-200"
-                        : "bg-blue-50 text-blue-700 border border-blue-200"
-                    }`}>
-                      {isProfile2 ? "Chrome 2 (SL)" : "Chrome 1"}
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -2000,46 +1959,14 @@ export function LoginsView() {
                             />
                             <div
                               onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 bottom-full mb-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
+                              className="absolute right-0 bottom-full mb-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
                             >
-                              <div className="px-2.5 py-1.5 border-b border-slate-100 flex items-center justify-between">
-                                <span className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400">
-                                  Browser Window Target
-                                </span>
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
-                                  isProfile2
-                                    ? "bg-purple-50 text-purple-700 border border-purple-200"
-                                    : "bg-blue-50 text-blue-700 border border-blue-200"
-                                }`}>
-                                  {isProfile2 ? "Profile 2 (SL)" : "Profile 1"}
-                                </span>
+                              <div className="px-2.5 py-1 border-b border-slate-100 flex items-center justify-between text-[10px] font-extrabold uppercase text-slate-400">
+                                <span>Launch Options</span>
                               </div>
 
                               <div className="space-y-1 pt-1.5">
-                                {/* Option 1: Active Window Tab */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveLaunchMenuId(null);
-                                    const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
-                                    window.open(fullUrl, "_blank");
-                                  }}
-                                  className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer group/opt"
-                                >
-                                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5 group-hover/opt:bg-blue-600 group-hover/opt:text-white transition-colors">
-                                    <Globe className="w-3.5 h-3.5" />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-slate-900 group-hover/opt:text-blue-600 transition-colors">
-                                      Current Chrome Window (New Tab)
-                                    </div>
-                                    <div className="text-[10px] text-slate-400 leading-snug">
-                                      Opens in active browser session
-                                    </div>
-                                  </div>
-                                </button>
-
-                                {/* Option 2: Standalone App Window */}
+                                {/* Option 1: Standalone App Window */}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2050,7 +1977,7 @@ export function LoginsView() {
                                   className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer group/opt"
                                 >
                                   <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-0.5 group-hover/opt:bg-purple-600 group-hover/opt:text-white transition-colors">
-                                    <Monitor className="w-3.5 h-3.5" />
+                                    <Monitor className="w-3.5 h-3.5 text-purple-500 shrink-0" />
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <div className="font-bold text-slate-900 group-hover/opt:text-purple-600 transition-colors">
@@ -2062,30 +1989,26 @@ export function LoginsView() {
                                   </div>
                                 </button>
 
-                                {/* Option 3: Copy Link for Profile 2 */}
+                                {/* Option 2: Copy Portal URL */}
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setActiveLaunchMenuId(null);
                                     const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
                                     copyToClipboard(fullUrl, `link-${item.id}`, false);
-                                    showToast(
-                                      "Link Copied for Profile 2",
-                                      "Switch to your second Chrome window (Alt+Tab) and press Ctrl+V.",
-                                      "info"
-                                    );
+                                    showToast("Portal URL Copied", "Link copied to clipboard.", "info");
                                   }}
                                   className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer group/opt"
                                 >
                                   <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 group-hover/opt:bg-emerald-600 group-hover/opt:text-white transition-colors">
-                                    <Copy className="w-3.5 h-3.5" />
+                                    <Copy className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <div className="font-bold text-slate-900 group-hover/opt:text-emerald-600 transition-colors">
-                                      Copy Link for Chrome Profile 2
+                                      Copy Portal URL
                                     </div>
                                     <div className="text-[10px] text-slate-400 leading-snug">
-                                      Fast paste into secondary profile
+                                      Fast copy link to clipboard
                                     </div>
                                   </div>
                                 </button>
@@ -2336,63 +2259,44 @@ export function LoginsView() {
                       <span>Generate Strong</span>
                     </button>
                   </div>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Password, PIN, or passphrase"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm font-mono transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* 3. Website / Portal URL & Target Chrome Profile */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-800 mb-1.5">
-                    Website / Portal URL (optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. https://admin.google.com"
-                    value={formData.url}
-                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-800 mb-1.5">
-                    Target Chrome Profile
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <input
+                      type={showModalPassword ? "text" : "password"}
+                      required
+                      placeholder="Password, PIN, or passphrase"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="w-full px-3.5 py-2.5 pr-10 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm font-mono transition-all"
+                    />
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, targetProfile: "profile-1" })}
-                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        formData.targetProfile === "profile-1"
-                          ? "bg-blue-50 border-blue-500 text-blue-700 shadow-xs"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
+                      onClick={() => setShowModalPassword((prev) => !prev)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded transition-colors cursor-pointer"
+                      title={showModalPassword ? "Hide password" : "Peek password"}
+                      aria-label={showModalPassword ? "Hide password" : "Peek password"}
                     >
-                      <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      <span>Chrome 1 (Main)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, targetProfile: "profile-2" })}
-                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        formData.targetProfile === "profile-2"
-                          ? "bg-purple-50 border-purple-500 text-purple-700 shadow-xs"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="w-2 h-2 rounded-full bg-purple-500" />
-                      <span>Chrome 2 (SL)</span>
+                      {showModalPassword ? (
+                        <EyeOff className="w-4 h-4 text-slate-500" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-slate-400" />
+                      )}
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* 3. Website / Portal URL (optional) */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5">
+                  Website / Portal URL (optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. https://admin.google.com"
+                  value={formData.url}
+                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm transition-all"
+                />
               </div>
 
               {/* 4. Spacious Notes Area */}
