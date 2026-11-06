@@ -26,7 +26,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { provider = "groq", prompt, model, systemPrompt, imageBase64, mimeType } = body;
+    const {
+      provider = "groq",
+      prompt,
+      model,
+      systemPrompt,
+      imageBase64,
+      mimeType,
+      maxTokens = 4096,
+    } = body;
 
     if (!prompt && !imageBase64) {
       return NextResponse.json(
@@ -64,8 +72,8 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           model: selectedModel,
           messages,
-          temperature: 0.7,
-          max_tokens: 2048,
+          temperature: 0.5,
+          max_tokens: maxTokens,
         }),
       });
 
@@ -112,8 +120,9 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      if (prompt) {
-        parts.push({ text: prompt });
+      const fullPrompt = systemPrompt ? `${systemPrompt}\n\nTask: ${prompt}` : prompt;
+      if (fullPrompt) {
+        parts.push({ text: fullPrompt });
       }
 
       const contents = [{ parts }];
@@ -126,8 +135,8 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             contents,
             generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 2048,
+              temperature: 0.4,
+              maxOutputTokens: maxTokens,
             },
           }),
         }
