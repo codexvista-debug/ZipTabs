@@ -85,6 +85,7 @@ export interface NoteItem {
   target_date?: string | null; // YYYY-MM-DD
   priority?: "normal" | "high" | "urgent";
   is_completed?: boolean;
+  completed_at?: string | null;
   attachments?: NoteAttachment[];
   created_at?: string;
   updated_at?: string;
@@ -806,9 +807,10 @@ export function NotesView() {
                       target_date: n.target_date || null,
                       priority: n.priority || "normal",
                       is_completed: n.is_completed || false,
+                      completed_at: n.completed_at || null,
                       attachments: n.attachments || [],
                       created_at: n.created_at || new Date().toISOString(),
-                      updated_at: new Date().toISOString(),
+                      updated_at: n.updated_at || new Date().toISOString(),
                     }))
                   );
                 } catch (e) {
@@ -1454,6 +1456,8 @@ export function NotesView() {
   const handleToggleCompleted = async (note: NoteItem, e: React.MouseEvent) => {
     e.stopPropagation();
     const nextStatus = !note.is_completed;
+    const nowIso = new Date().toISOString();
+    const nextCompletedAt = nextStatus ? nowIso : null;
 
     // Trigger celebratory confetti burst and bounce animation on completion!
     if (nextStatus) {
@@ -1463,15 +1467,27 @@ export function NotesView() {
       }, 1500);
     }
 
-    const updatedList = notes.map((n) => (n.id === note.id ? { ...n, is_completed: nextStatus } : n));
+    const updatedList = notes.map((n) =>
+      n.id === note.id
+        ? { ...n, is_completed: nextStatus, completed_at: nextCompletedAt, updated_at: nowIso }
+        : n
+    );
     saveNotesList(updatedList);
-    setViewingNote((prev) => (prev && prev.id === note.id ? { ...prev, is_completed: nextStatus } : prev));
+    setViewingNote((prev) =>
+      prev && prev.id === note.id
+        ? { ...prev, is_completed: nextStatus, completed_at: nextCompletedAt, updated_at: nowIso }
+        : prev
+    );
 
     if (supabase) {
       try {
         await supabase
           .from("app_notes")
-          .update({ is_completed: nextStatus })
+          .update({
+            is_completed: nextStatus,
+            completed_at: nextCompletedAt,
+            updated_at: nowIso,
+          })
           .eq("id", note.id);
       } catch (err) {
         console.error("Supabase error:", err);
@@ -1593,13 +1609,22 @@ export function NotesView() {
       if (a.is_completed !== b.is_completed) {
         return a.is_completed ? 1 : -1;
       }
-      // Highest priority first (urgent -> high -> normal)
+
+      // If viewing completed notes (or both are completed): Sort by marked done latest on top!
+      if (a.is_completed && b.is_completed) {
+        const doneA = new Date(a.completed_at || a.updated_at || a.created_at || 0).getTime();
+        const doneB = new Date(b.completed_at || b.updated_at || b.created_at || 0).getTime();
+        return doneB - doneA;
+      }
+
+      // For active notes: Highest priority first (urgent -> high -> normal)
       const pA = priorityWeights[a.priority || "normal"] || 1;
       const pB = priorityWeights[b.priority || "normal"] || 1;
       if (pB !== pA) {
         return pB - pA;
       }
-      // Secondary: Newest note first
+
+      // Secondary for active notes: Newest note first
       const timeA = new Date(a.created_at || a.updated_at || 0).getTime();
       const timeB = new Date(b.created_at || b.updated_at || 0).getTime();
       return timeB - timeA;
@@ -2163,14 +2188,26 @@ export function NotesView() {
                           ? note.title
                           : extractKeywordsSubject(note.content || note.title || "")}
                       </h3>
-                      {note.created_at && (
-                        <span
-                          className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-slate-400 bg-slate-50/90 hover:bg-slate-100 hover:text-slate-600 border border-slate-200/80 px-1.5 py-0.5 rounded-md shrink-0 shadow-2xs select-none transition-colors group-hover:border-slate-300"
-                          title={`Created: ${new Date(note.created_at).toLocaleString()}`}
-                        >
-                          <Clock className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" />
-                          <span>{formatFancyRelativeTime(note.created_at)}</span>
-                        </span>
+                      {note.is_completed ? (
+                        (note.completed_at || note.updated_at || note.created_at) && (
+                          <span
+                            className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50/90 border border-emerald-200/80 px-1.5 py-0.5 rounded-md shrink-0 shadow-2xs select-none"
+                            title={`Completed: ${new Date(note.completed_at || note.updated_at || note.created_at!).toLocaleString()}`}
+                          >
+                            <Check className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                            <span>{formatFancyRelativeTime(note.completed_at || note.updated_at || note.created_at)}</span>
+                          </span>
+                        )
+                      ) : (
+                        note.created_at && (
+                          <span
+                            className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-slate-400 bg-slate-50/90 hover:bg-slate-100 hover:text-slate-600 border border-slate-200/80 px-1.5 py-0.5 rounded-md shrink-0 shadow-2xs select-none transition-colors group-hover:border-slate-300"
+                            title={`Created: ${new Date(note.created_at).toLocaleString()}`}
+                          >
+                            <Clock className="w-2.5 h-2.5 text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" />
+                            <span>{formatFancyRelativeTime(note.created_at)}</span>
+                          </span>
+                        )
                       )}
                     </div>
 
@@ -2907,11 +2944,6 @@ export function NotesView() {
                         day: "numeric",
                         year: "numeric",
                       })}
-                      {" · "}
-                      <span className="font-mono font-semibold text-slate-500">
-                        {formatFancyRelativeTime(viewingNote.created_at)} ago
-                      </span>
-                      {viewingNote.updated_at && viewingNote.updated_at !== viewingNote.created_at && " (Edited)"}
                     </span>
                   </div>
                 )}
@@ -3036,7 +3068,6 @@ export function NotesView() {
                 type="button"
                 onClick={(e) => {
                   handleToggleCompleted(viewingNote, e);
-                  setViewingNote({ ...viewingNote, is_completed: !viewingNote.is_completed });
                 }}
                 className={`relative w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all cursor-pointer active:scale-90 shadow-2xs ${
                   viewingNote.is_completed
@@ -3101,7 +3132,6 @@ export function NotesView() {
                   type="button"
                   onClick={(e) => {
                     handleToggleCompleted(viewingNote, e);
-                    setViewingNote({ ...viewingNote, is_completed: !viewingNote.is_completed });
                   }}
                   className={`relative inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95 ${
                     viewingNote.is_completed
