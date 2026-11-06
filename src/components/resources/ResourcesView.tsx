@@ -713,7 +713,7 @@ export function ResourcesView() {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* 1. TOP HEADER ELEMENT (Dynamic Breadcrumb Navigation matching Leopard Finance / Image 2) */}
+      {/* 1. TOP HEADER ELEMENT (Dynamic Breadcrumb Navigation matching Leopard Finance / Invoices / Notes) */}
       {currentView === "discount-calculator" ? (
         <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -727,7 +727,7 @@ export function ResourcesView() {
                   type="button"
                   onClick={() => setCurrentView("hub")}
                   className="inline-flex items-center gap-1 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer group"
-                  title="Back to All Resources Hub"
+                  title="Back to Resources"
                 >
                   <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5] text-slate-400 group-hover:text-blue-600 group-hover:-translate-x-0.5 transition-all" />
                   <span>Resources</span>
@@ -736,26 +736,12 @@ export function ResourcesView() {
                 <h1 className="text-slate-900 truncate">
                   Discount Calculator
                 </h1>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 font-mono">
-                  CALIPER
-                </span>
               </div>
               <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
                 Calculate prompt payment invoice discounts, client savings deductions, and final net remittance with a high-precision percentage caliper.
               </p>
             </div>
           </div>
-
-          {/* Right Action Button: Jump back to Hub */}
-          <button
-            type="button"
-            onClick={() => setCurrentView("hub")}
-            className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
-          >
-            <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
-            <span className="hidden sm:inline">All Resources Hub</span>
-            <span className="sm:hidden">Back</span>
-          </button>
         </div>
       ) : currentView === "remittance-breakdown" ? (
         <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
@@ -770,7 +756,7 @@ export function ResourcesView() {
                   type="button"
                   onClick={() => setCurrentView("hub")}
                   className="inline-flex items-center gap-1 text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer group"
-                  title="Back to All Resources Hub"
+                  title="Back to Resources"
                 >
                   <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5] text-slate-400 group-hover:text-indigo-600 group-hover:-translate-x-0.5 transition-all" />
                   <span>Resources</span>
@@ -779,26 +765,12 @@ export function ResourcesView() {
                 <h1 className="text-slate-900 truncate">
                   Remittance Breakdown
                 </h1>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
-                  RECONCILIATION
-                </span>
               </div>
               <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
                 Vendor remittance calculations, deduction schedules, multi-line parts reconciliation, and payment allocation breakdowns.
               </p>
             </div>
           </div>
-
-          {/* Right Action Button: Jump back to Hub */}
-          <button
-            type="button"
-            onClick={() => setCurrentView("hub")}
-            className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
-          >
-            <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
-            <span className="hidden sm:inline">All Resources Hub</span>
-            <span className="sm:hidden">Back</span>
-          </button>
         </div>
       ) : (
         <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
@@ -807,26 +779,12 @@ export function ResourcesView() {
               <Calculator className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
-                  Resources &amp; Calculators
-                </h1>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-violet-50 text-violet-700 border border-violet-200 font-mono">
-                  SUITE
-                </span>
-              </div>
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+                Resources &amp; Calculators
+              </h1>
               <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
                 Interactive workspace utilities, prompt discount estimators, and financial settlement models
               </p>
-            </div>
-          </div>
-
-          {/* Right side: Pill tabs removed as requested, replaced by clean status beacon */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 border border-slate-200 text-xs font-bold text-slate-600 shadow-2xs font-mono">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="hidden sm:inline">2 Portals Online</span>
-              <span className="sm:hidden">2 Active</span>
             </div>
           </div>
         </div>
@@ -837,28 +795,9 @@ export function ResourcesView() {
       {/* ======================================================== */}
       {currentView === "hub" && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Subheader Section */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
-            <div>
-              <h2 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <span>Workspace Portals &amp; Engines</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Jump into specialized financial engines designed for prompt discount settlements and multi-vendor statement reconciliation.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-700 font-mono font-bold flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                <span>Zero Latency Local Compute</span>
-              </span>
-            </div>
-          </div>
-
-          {/* 2-Column Portal Launchpad Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-7 items-stretch">
-            {/* PORTAL 1: DISCOUNT CALIPER STUDIO */}
+          {/* Executive 2-Column Portal Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pt-1">
+            {/* PORTAL 1: DISCOUNT CALCULATOR */}
             <div
               onClick={() => setCurrentView("discount-calculator")}
               role="button"
@@ -869,114 +808,53 @@ export function ResourcesView() {
                   setCurrentView("discount-calculator");
                 }
               }}
-              className="group relative overflow-hidden rounded-3xl border border-blue-200/90 hover:border-blue-500/90 bg-gradient-to-b from-white via-blue-50/25 to-slate-50/60 p-6 sm:p-7 shadow-xs hover:shadow-2xl hover:shadow-blue-500/15 hover:-translate-y-1.5 transition-all duration-300 cursor-pointer flex flex-col justify-between"
+              className="group relative flex flex-col justify-between p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-500/80 shadow-xs hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-200 cursor-pointer overflow-hidden"
             >
-              {/* Portal Ambient Glow Layer */}
-              <div className="absolute -top-16 -right-16 w-56 h-56 bg-gradient-to-br from-blue-500/15 to-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:scale-125 transition-transform duration-500" />
-              <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-gradient-to-tr from-sky-400/10 to-transparent rounded-full blur-2xl pointer-events-none" />
+              {/* Subtle ambient corner gradient on hover */}
+              <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-bl from-blue-500/10 via-transparent to-transparent rounded-bl-full pointer-events-none group-hover:from-blue-500/15 transition-all duration-300" />
 
-              <div className="relative z-10 space-y-5">
-                {/* Portal Top Bar */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 text-white flex items-center justify-center shadow-lg shadow-blue-600/30 group-hover:scale-105 group-hover:rotate-2 group-hover:shadow-blue-600/50 transition-all duration-300 shrink-0">
-                    <Percent className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+              <div>
+                {/* Top row: Icon + Status Pill */}
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 group-hover:scale-105 group-hover:shadow-blue-500/35 transition-all">
+                    <Percent className="w-6 h-6 stroke-[2.4]" />
                   </div>
-                  <div className="flex flex-col items-end gap-1.5">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-2xs font-mono">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>Ready to Launch</span>
-                    </span>
-                    <span className="text-[10px] font-mono font-bold text-slate-400 tracking-wider">
-                      PORTAL 01
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Ready to Use
+                  </span>
                 </div>
 
-                {/* Portal Header Title & Description */}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight">
-                      Discount Calculator
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black font-mono bg-blue-100 text-blue-800">
-                      CALIPER
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed font-normal">
-                    Calculate prompt payment invoice discounts, client savings deductions, and final net remittance with a high-precision percentage caliper dial.
-                  </p>
-                </div>
+                {/* Title & Description */}
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight">
+                  Discount Calculator
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+                  Calculate prompt payment invoice discounts, client savings deductions, and final net remittance with a high-precision percentage caliper dial.
+                </p>
 
-                {/* Portal Preview Bay (Interactive Look & Feel) */}
-                <div className="bg-white/95 rounded-2xl p-4 sm:p-4.5 border border-slate-200/90 shadow-2xs space-y-3">
-                  <div className="flex items-center justify-between font-mono text-xs pb-2 border-b border-slate-100">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] text-slate-400 font-sans uppercase font-bold tracking-wider block">Gross Billed</span>
-                      <span className="text-slate-800 font-bold text-sm">$14,080.00</span>
-                    </div>
-                    <div className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 font-black border border-amber-200 text-xs">
-                      -4.0% DISC
-                    </div>
-                    <div className="text-right space-y-0.5">
-                      <span className="text-[10px] text-slate-400 font-sans uppercase font-bold tracking-wider block">Net Remittance</span>
-                      <span className="text-blue-600 font-black text-sm">$13,516.80</span>
-                    </div>
-                  </div>
-
-                  {/* Stylized Caliper Needle Preview */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                      <span>0.0%</span>
-                      <span className="text-blue-600 font-bold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping inline-block" />
-                        4.0% Caliper Lock
-                      </span>
-                      <span>20.0%</span>
-                    </div>
-                    <div className="relative h-6 bg-slate-900 rounded-lg overflow-hidden flex items-center px-3 border border-slate-800 shadow-inner">
-                      {/* Caliper tick marks */}
-                      <div className="absolute inset-x-0 h-full flex items-center justify-between px-2 opacity-30 select-none">
-                        {Array.from({ length: 21 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className={`bg-white ${i % 5 === 0 ? "h-3.5 w-[2px] opacity-80" : "h-2 w-[1px] opacity-40"}`}
-                          />
-                        ))}
-                      </div>
-                      {/* Active needle indicator */}
-                      <div className="absolute left-[30%] -translate-x-1/2 flex flex-col items-center">
-                        <div className="w-2.5 h-2.5 bg-blue-400 rotate-45 shadow-sm shadow-blue-400/80" />
-                        <div className="w-0.5 h-3 bg-blue-400 shadow-sm shadow-blue-400/80" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Feature chips */}
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
-                      0.1% Step Dial
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
-                      Mouse Wheel Increments
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                      Instant Zoho Formula
-                    </span>
-                  </div>
+                {/* Feature tags */}
+                <div className="flex items-center gap-1.5 flex-wrap mt-4">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 font-mono">
+                    0.1% Step Dial
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 font-mono">
+                    Zoho Prompt Terms
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 font-mono">
+                    1-Click Net Copy
+                  </span>
                 </div>
               </div>
 
-              {/* Portal Launch Action */}
-              <div className="mt-6 pt-4 border-t border-slate-100/90 relative z-10">
-                <div className="w-full py-3 sm:py-3.5 px-5 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 group-hover:from-blue-700 group-hover:to-indigo-700 text-white font-bold text-xs sm:text-sm tracking-wide shadow-md shadow-blue-600/25 group-hover:shadow-xl group-hover:shadow-blue-600/40 transition-all duration-200 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-200" />
-                    <span>Enter Discount Portal</span>
-                  </span>
-                  <div className="flex items-center gap-1.5 text-xs font-black group-hover:translate-x-1 transition-transform">
-                    <span className="hidden sm:inline">Launch Caliper</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </div>
+              {/* Footer CTA */}
+              <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors font-mono">
+                  PRECISION GAUGE
+                </span>
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 group-hover:translate-x-1 transition-transform">
+                  <span>Open Calculator</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </div>
               </div>
             </div>
@@ -992,106 +870,53 @@ export function ResourcesView() {
                   setCurrentView("remittance-breakdown");
                 }
               }}
-              className="group relative overflow-hidden rounded-3xl border border-indigo-200/90 hover:border-indigo-500/90 bg-gradient-to-b from-white via-indigo-50/25 to-slate-50/60 p-6 sm:p-7 shadow-xs hover:shadow-2xl hover:shadow-indigo-500/15 hover:-translate-y-1.5 transition-all duration-300 cursor-pointer flex flex-col justify-between"
+              className="group relative flex flex-col justify-between p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/90 hover:border-indigo-500/80 shadow-xs hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-200 cursor-pointer overflow-hidden"
             >
-              {/* Portal Ambient Glow Layer */}
-              <div className="absolute -top-16 -right-16 w-56 h-56 bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent rounded-full blur-3xl pointer-events-none group-hover:scale-125 transition-transform duration-500" />
-              <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-gradient-to-tr from-purple-400/10 to-transparent rounded-full blur-2xl pointer-events-none" />
+              {/* Subtle ambient corner gradient on hover */}
+              <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-bl from-indigo-500/10 via-transparent to-transparent rounded-bl-full pointer-events-none group-hover:from-indigo-500/15 transition-all duration-300" />
 
-              <div className="relative z-10 space-y-5">
-                {/* Portal Top Bar */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-700 to-violet-800 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 group-hover:scale-105 group-hover:rotate-2 group-hover:shadow-indigo-600/50 transition-all duration-300 shrink-0">
-                    <Receipt className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.2]" />
+              <div>
+                {/* Top row: Icon + Status Pill */}
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 group-hover:scale-105 group-hover:shadow-indigo-500/35 transition-all">
+                    <Receipt className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <div className="flex flex-col items-end gap-1.5">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1.5 shadow-2xs font-mono">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                      <span>OCR Engine Active</span>
-                    </span>
-                    <span className="text-[10px] font-mono font-bold text-slate-400 tracking-wider">
-                      PORTAL 02
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                    Multi-Vendor Engine
+                  </span>
                 </div>
 
-                {/* Portal Header Title & Description */}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tight">
-                      Remittance Breakdown
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black font-mono bg-indigo-100 text-indigo-800">
-                      RECONCILER
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed font-normal">
-                    Vendor remittance calculations, deduction schedules, multi-line parts reconciliation, and payment allocation breakdowns with OCR.
-                  </p>
-                </div>
+                {/* Title & Description */}
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tight">
+                  Remittance Breakdown
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+                  Vendor remittance calculations, deduction schedules, multi-line parts reconciliation, and payment allocation breakdowns.
+                </p>
 
-                {/* Portal Preview Bay (Interactive Look & Feel) */}
-                <div className="bg-white/95 rounded-2xl p-4 sm:p-4.5 border border-slate-200/90 shadow-2xs space-y-3">
-                  <div className="flex items-center justify-between font-mono text-xs pb-2 border-b border-slate-100">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] text-slate-400 font-sans uppercase font-bold tracking-wider block">Statement Match</span>
-                      <span className="text-emerald-600 font-bold text-xs flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        100% Balanced
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200 font-mono">
-                        Pyramid
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
-                        TEKsystems
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Multi-line statement preview */}
-                  <div className="space-y-1.5 font-mono text-[11px] bg-slate-50 rounded-xl p-2.5 border border-slate-200/70">
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span>Voucher Gross:</span>
-                      <span className="font-bold text-slate-900">$32,450.00</span>
-                    </div>
-                    <div className="flex items-center justify-between text-rose-600">
-                      <span>Deductions / Reserve:</span>
-                      <span className="font-bold">-$1,280.00</span>
-                    </div>
-                    <div className="flex items-center justify-between text-indigo-700 pt-1 border-t border-slate-200 font-bold">
-                      <span>Net Remittance:</span>
-                      <span className="font-black">$31,170.00</span>
-                    </div>
-                  </div>
-
-                  {/* Feature chips */}
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
-                      PDF &amp; Excel Parser
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
-                      Neural OCR Vision
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">
-                      Isolated Rules
-                    </span>
-                  </div>
+                {/* Feature tags */}
+                <div className="flex items-center gap-1.5 flex-wrap mt-4">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 font-mono">
+                    PDF &amp; Excel Parser
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 font-mono">
+                    Neural OCR Vision
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 font-mono">
+                    Auto-Reconciled
+                  </span>
                 </div>
               </div>
 
-              {/* Portal Launch Action */}
-              <div className="mt-6 pt-4 border-t border-slate-100/90 relative z-10">
-                <div className="w-full py-3 sm:py-3.5 px-5 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-700 to-violet-700 group-hover:from-indigo-700 group-hover:to-violet-800 text-white font-bold text-xs sm:text-sm tracking-wide shadow-md shadow-indigo-600/25 group-hover:shadow-xl group-hover:shadow-indigo-600/40 transition-all duration-200 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-200" />
-                    <span>Enter Remittance Portal</span>
-                  </span>
-                  <div className="flex items-center gap-1.5 text-xs font-black group-hover:translate-x-1 transition-transform">
-                    <span className="hidden sm:inline">Launch Reconciler</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </div>
+              {/* Footer CTA */}
+              <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors font-mono">
+                  STATEMENT RECONCILER
+                </span>
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 group-hover:translate-x-1 transition-transform">
+                  <span>Open Breakdown</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </div>
               </div>
             </div>
