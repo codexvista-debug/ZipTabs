@@ -134,21 +134,43 @@ export function ExecutiveToast({
       ? "Info"
       : "Synced");
 
-  // Icon renderer based on type
-  const renderIcon = (sizeClass = "w-4 h-4") => {
-    if (isDestructive) return <Trash2 className={`${sizeClass} text-rose-600`} />;
+  // Clean title of any accidental leading emojis so no double icons/emojis ever render across any tabs
+  const cleanTitle = (title || "")
+    .replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\s·•-]+/u, "")
+    .trim() || title;
+
+  const getIconContainerStyle = () => {
+    if (isDestructive) return "bg-rose-100 border border-rose-200/90 text-rose-700 shadow-2xs";
     switch (type) {
       case "error":
-        return <ShieldAlert className={`${sizeClass} text-rose-600 animate-pulse`} />;
+        return "bg-rose-100 border border-rose-200/90 text-rose-700 shadow-2xs";
       case "warning":
-        return <AlertTriangle className={`${sizeClass} text-amber-600`} />;
+        return "bg-amber-100 border border-amber-300/90 text-amber-800 shadow-2xs";
       case "security":
-        return <Lock className={`${sizeClass} text-indigo-600`} />;
+        return "bg-indigo-100 border border-indigo-200/90 text-indigo-700 shadow-2xs";
       case "info":
-        return <Sparkles className={`${sizeClass} text-blue-600 animate-pulse`} />;
+        return "bg-sky-100 border border-sky-200/90 text-sky-700 shadow-2xs";
       case "success":
       default:
-        return <CheckCircle2 className={`${sizeClass} text-emerald-600`} />;
+        return "bg-emerald-100 border border-emerald-200/90 text-emerald-800 shadow-2xs";
+    }
+  };
+
+  // Icon renderer based on type
+  const renderIcon = (sizeClass = "w-4 h-4") => {
+    if (isDestructive) return <Trash2 className={`${sizeClass} text-rose-600`} strokeWidth={2.2} />;
+    switch (type) {
+      case "error":
+        return <ShieldAlert className={`${sizeClass} text-rose-600 fill-rose-300/40 animate-pulse`} strokeWidth={2.2} />;
+      case "warning":
+        return <AlertTriangle className={`${sizeClass} text-amber-700 fill-amber-400`} strokeWidth={2.2} />;
+      case "security":
+        return <Lock className={`${sizeClass} text-indigo-600 fill-indigo-300/40`} strokeWidth={2.2} />;
+      case "info":
+        return <Sparkles className={`${sizeClass} text-sky-600 fill-sky-300/40 animate-pulse`} strokeWidth={2.2} />;
+      case "success":
+      default:
+        return <CheckCircle2 className={`${sizeClass} text-emerald-600 fill-emerald-300/40`} strokeWidth={2.2} />;
     }
   };
 
@@ -186,17 +208,17 @@ export function ExecutiveToast({
       </div>
 
       {/* Precision Icon Badge */}
-      <div className="hidden sm:flex items-center justify-center shrink-0 w-6 h-6 rounded-full bg-slate-50 border border-slate-200/80 shadow-2xs">
+      <div className={`hidden sm:flex items-center justify-center shrink-0 w-6 h-6 rounded-full shadow-2xs ${getIconContainerStyle()}`}>
         {renderIcon("w-3.5 h-3.5")}
       </div>
 
       {/* Title & Description Content - Expands fully on desktop/PC so it is never truncated */}
       <div
         className="flex items-center gap-1.5 min-w-0 flex-1 pr-1"
-        title={`${title}${description ? ` — ${description}` : ""}`}
+        title={`${cleanTitle}${description ? ` — ${description}` : ""}`}
       >
         <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight whitespace-nowrap truncate">
-          {title}
+          {cleanTitle}
         </span>
         {description && (
           <span className="text-[11px] sm:text-xs text-slate-500 font-medium hidden md:inline whitespace-nowrap min-w-0">
@@ -281,12 +303,12 @@ export function ExecutiveToast({
 
       {/* Card Body - Single-line slim executive profile */}
       <div className="px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2.5 sm:gap-3">
-        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${getIconContainerStyle()}`}>
           {renderIcon("w-3.5 h-3.5 sm:w-4 sm:h-4")}
         </div>
         <div className="min-w-0 flex-1 flex items-center gap-1.5 sm:gap-2 overflow-hidden">
           <span className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight whitespace-nowrap shrink-0">
-            {title}
+            {cleanTitle}
           </span>
           {description && (
             <span className="text-[11px] sm:text-xs text-zinc-500 font-medium truncate min-w-0">
@@ -351,7 +373,7 @@ export function ExecutiveToast({
           {/* Recessed Precision Icon Well */}
           <div className="relative shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-zinc-50 border border-zinc-200/90 shadow-inner flex items-center justify-center">
             <span className={`absolute inset-0 rounded-xl border animate-ping opacity-15 ${getAccentColor()}`} />
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-white border border-zinc-200 shadow-2xs flex items-center justify-center">
+            <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center ${getIconContainerStyle()}`}>
               {renderIcon("w-3.5 h-3.5")}
             </div>
           </div>
@@ -359,7 +381,7 @@ export function ExecutiveToast({
           {/* Title & Description in 1 Single Line */}
           <div className="min-w-0 flex-1 flex items-center gap-1.5 sm:gap-2 overflow-hidden">
             <span className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight whitespace-nowrap shrink-0">
-              {title}
+              {cleanTitle}
             </span>
             {description && (
               <span className="text-[11px] sm:text-xs text-zinc-500 font-medium truncate min-w-0">

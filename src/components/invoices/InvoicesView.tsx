@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import {
   parseVendorAndConsultant,
   checkConsultantsAbnormal,
+  ParsedVendorResult,
 } from "@/lib/invoiceUtils";
 import {
   Upload,
@@ -255,6 +256,11 @@ export function InvoicesView() {
     headerMeta?: string;
     metric?: string;
     durationMs?: number;
+  } | null>(null);
+  const [abnormalAcknowledgeData, setAbnormalAcknowledgeData] = useState<{
+    targetInvoices: InvoiceRecord[];
+    abnormalItems: ParsedVendorResult[];
+    abnormalNames: string[];
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -748,13 +754,12 @@ export function InvoicesView() {
   // Ordered: 1. Consultant (extracted after "-"), 2. Invoice, 3. Amount Due, 4. Due Date, 5. Aging (no "days")
   // Vivid blue header #0070C0, bold white text, clean black 1px borders
   // ==========================================
-  const copyFormattedForZoho = async (targetInvoices: InvoiceRecord[]) => {
+  const executeZohoCopy = async (targetInvoices: InvoiceRecord[], wasAcknowledged = false) => {
     if (targetInvoices.length === 0) return;
 
     const headers = ["Consultant", "Invoice", "Amount Due", "Due Date", "Aging"];
 
-        const getRowValues = (inv: InvoiceRecord) => {
-      // Accurately extract consultant name using robust parser
+    const getRowValues = (inv: InvoiceRecord) => {
       const parsed = parseVendorAndConsultant(inv.vendor_name);
       const consultant = parsed.consultant || parsed.vendor || (inv.vendor_name || "—").trim();
 
@@ -763,11 +768,10 @@ export function InvoicesView() {
         inv.invoice_number || "—",
         `$${inv.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         formatDateMMDDYYYY(inv.due_date),
-        inv.days_overdue ?? 0, // Clean number only, without "days"
+        inv.days_overdue ?? 0,
       ];
     };
 
-    // Generate rich HTML table matching Zoho Mail specs
     const headerHtml = headers
       .map(
         (h, i) =>
@@ -792,10 +796,8 @@ export function InvoicesView() {
       })
       .join("");
 
-    // Self-contained block container with zero phantom margin and a safe trailing break
     const fullHtml = `<div style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" style="border-collapse: collapse; border: 1px solid #000000; font-family: Calibri, Arial, sans-serif; font-size: 13px; margin: 0; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table></div><div style="font-family: Calibri, Arial, sans-serif; font-size: 13px; line-height: 1.2; margin: 2px 0 0 0; padding: 0;"><br></div>`;
 
-    // Plain text TSV fallback for Excel/Notepad
     const plainTsv = [
       headers.join("\t"),
       ...targetInvoices.map((inv) => getRowValues(inv).join("\t")),
@@ -815,26 +817,17 @@ export function InvoicesView() {
         await navigator.clipboard.writeText(plainTsv);
       }
 
-            setIsCopiedRecently(true);
+      setIsCopiedRecently(true);
       setTimeout(() => setIsCopiedRecently(false), 2000);
 
-      // Check if any copied invoices have abnormal consultant names
-      const { hasAbnormal, abnormalNames } = checkConsultantsAbnormal(targetInvoices);
-
-      if (hasAbnormal) {
-        const nameList =
-          abnormalNames.length <= 2
-            ? abnormalNames.map((n) => `"${n}"`).join(" and ")
-            : abnormalNames.slice(0, 2).map((n) => `"${n}"`).join(", ") +
-              ` (+${abnormalNames.length - 2} more)`;
-
+      if (wasAcknowledged) {
         setCopiedNotification({
-          type: "warning",
-          title: `⚠️ Abnormal consultant name${abnormalNames.length > 1 ? "s" : ""} detected`,
-          description: `Consultant name ${nameList} looks abnormal. Recheck twice before sending the email after pasting into mail.`,
+          type: "success",
+          title: `${targetInvoices.length} row${targetInvoices.length > 1 ? "s" : ""} copied to clipboard (Acknowledged)`,
+          description: "Formatted for Zoho Mail. Please double-check consultant names in your email draft.",
           headerMeta: "Zoho Mail Clipboard",
-          metric: "Verify Email",
-          durationMs: 8500,
+          metric: "Copied HTML",
+          durationMs: 4000,
         });
       } else {
         setCopiedNotification({
@@ -852,33 +845,39 @@ export function InvoicesView() {
       setIsCopiedRecently(true);
       setTimeout(() => setIsCopiedRecently(false), 2000);
 
-      const { hasAbnormal, abnormalNames } = checkConsultantsAbnormal(targetInvoices);
-      if (hasAbnormal) {
-        const nameList =
-          abnormalNames.length <= 2
-            ? abnormalNames.map((n) => `"${n}"`).join(" and ")
-            : abnormalNames.slice(0, 2).map((n) => `"${n}"`).join(", ") +
-              ` (+${abnormalNames.length - 2} more)`;
-
-        setCopiedNotification({
-          type: "warning",
-          title: `⚠️ Abnormal consultant name${abnormalNames.length > 1 ? "s" : ""} detected`,
-          description: `Consultant name ${nameList} looks abnormal. Recheck twice before sending the email after pasting into mail.`,
-          headerMeta: "Zoho Mail Clipboard",
-          metric: "Verify Email",
-          durationMs: 8500,
-        });
-      } else {
-        setCopiedNotification({
-          type: "success",
-          title: "Data copied to clipboard!",
-          description: "Copied table formatted for Zoho Mail.",
-          headerMeta: "Clipboard",
-          metric: "Copied",
-          durationMs: 2500,
-        });
-      }
+      setCopiedNotification({
+        type: "success",
+        title: "Data copied to clipboard!",
+        description: "Copied table formatted for Zoho Mail.",
+        headerMeta: "Clipboard",
+        metric: "Copied",
+        durationMs: 2500,
+      });
     }
+  };
+
+  /**
+   * Evaluates if any consultant names are abnormal before copying.
+   * If abnormal: intercepts copy and displays an acknowledgment popup.
+   * If normal: copies immediately in the first go.
+   */
+  const copyFormattedForZoho = (targetInvoices: InvoiceRecord[]) => {
+    if (targetInvoices.length === 0) return;
+
+    const { hasAbnormal, abnormalItems, abnormalNames } = checkConsultantsAbnormal(targetInvoices);
+
+    if (hasAbnormal) {
+      // Intercept: Require explicit popup acknowledgement before copying
+      setAbnormalAcknowledgeData({
+        targetInvoices,
+        abnormalItems,
+        abnormalNames,
+      });
+      return;
+    }
+
+    // Clean normal names: Copy immediately in first go
+    executeZohoCopy(targetInvoices, false);
   };
 
   // Keyboard shortcut Ctrl+C / Cmd+C when rows are selected, Escape to clear
@@ -937,6 +936,111 @@ export function InvoicesView() {
             onClose={() => setCopiedNotification(null)}
             durationMs={copiedNotification.durationMs || 3500}
           />
+        </div>
+      )}
+
+      {/* Abnormal Consultant Name Confirmation Modal */}
+      {abnormalAcknowledgeData && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-150"
+          onClick={() => setAbnormalAcknowledgeData(null)}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-6 pb-4 border-b border-slate-100 flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-amber-100 border border-amber-300/80 flex items-center justify-center text-amber-800 shadow-2xs shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-700 fill-amber-400" strokeWidth={2.2} />
+              </div>
+              <div className="flex-1 min-w-0 pr-2">
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-50 text-amber-800 border border-amber-200 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Quality Check Required</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug">
+                  Abnormal Consultant Name Detected
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Please review the flagged name{abnormalAcknowledgeData.abnormalNames.length > 1 ? "s" : ""} before copying to clipboard for Zoho Mail.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAbnormalAcknowledgeData(null)}
+                className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 space-y-4 max-h-[50vh] overflow-y-auto">
+              {/* Caution Notice Box */}
+              <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/90 text-xs text-amber-900 leading-relaxed flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p>
+                  Internal billing or installment tags (e.g. <strong className="font-semibold text-amber-950">&quot;-2p&quot;</strong>, stray digits, or unusual punctuation) were found in the consultant name. Recheck twice before sending to avoid exposing internal vendor tags.
+                </p>
+              </div>
+
+              {/* List of Flagged Consultant Records */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-mono uppercase font-semibold text-slate-400 tracking-wider">
+                  Flagged Consultant{abnormalAcknowledgeData.abnormalItems.length > 1 ? "s" : ""} ({abnormalAcknowledgeData.abnormalItems.length})
+                </div>
+                <div className="space-y-2 divide-y divide-slate-100">
+                  {abnormalAcknowledgeData.abnormalItems.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="pt-2 first:pt-0 flex items-start justify-between gap-3 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-200/70"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 text-sm tracking-tight">
+                            {item.consultant || "—"}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200/80">
+                            {item.abnormalReason}
+                          </span>
+                        </div>
+                        {item.vendor && (
+                          <div className="text-[11px] text-slate-500 mt-1 truncate">
+                            Vendor: <span className="font-medium text-slate-700">{item.vendor}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-4 sm:p-6 pt-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setAbnormalAcknowledgeData(null)}
+                className="px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetInvs = abnormalAcknowledgeData.targetInvoices;
+                  setAbnormalAcknowledgeData(null);
+                  executeZohoCopy(targetInvs, true);
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 active:scale-95 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Acknowledge &amp; Copy</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
