@@ -45,6 +45,12 @@ import {
   User,
   History,
   ArrowRight,
+  ChevronDown,
+  LayoutGrid,
+  List,
+  Layers,
+  Monitor,
+  Loader2,
 } from "lucide-react";
 import {
   ExecutiveToast,
@@ -165,6 +171,7 @@ export interface DecryptedLoginCredential {
   icon?: string;
   updatedAt: string;
   logs?: VaultLoginLog[];
+  targetProfile?: "profile-1" | "profile-2" | "any";
 }
 
 export function getCleanDomain(url?: string): string {
@@ -231,6 +238,19 @@ export function LoginsView() {
   const [viewingLogsItem, setViewingLogsItem] = useState<DecryptedLoginCredential | null>(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
 
+  // View Mode: Cards Grid vs Compact Table
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+
+  // Category Deletion Confirmation Modal State
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  const [isDeletingCategory, setIsDeletingCategory] = useState(false);
+
+  // Sensitive Audit Logs Peeking State
+  const [peekedLogFields, setPeekedLogFields] = useState<Record<string, boolean>>({});
+
+  // Active Launch Browser Window / Profile Menu Popover State
+  const [activeLaunchMenuId, setActiveLaunchMenuId] = useState<string | null>(null);
+
   // Auto-lock timer ref
   const autoLockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -275,6 +295,57 @@ export function LoginsView() {
     setModalNewCategoryName("");
   };
 
+  // Delete Category with database re-assignment & safe fallback to "General"
+  const handleDeleteCategory = async (catToDelete: string) => {
+    if (!catToDelete || catToDelete === "General") return;
+    setIsDeletingCategory(true);
+    try {
+      // 1. Identify affected logins
+      const affected = logins.filter((l) => l.category === catToDelete);
+      if (affected.length > 0 && vaultKey) {
+        for (const item of affected) {
+          const updatedItem: DecryptedLoginCredential = {
+            ...item,
+            category: "General",
+            updatedAt: new Date().toISOString().split("T")[0],
+          };
+          await saveEncryptedCredentialToSupabase(updatedItem, vaultKey);
+        }
+        setLogins((prev) =>
+          prev.map((l) => (l.category === catToDelete ? { ...l, category: "General" } : l))
+        );
+      }
+
+      // 2. Remove from customCategories state & localStorage
+      const updatedCategories = customCategories.filter((c) => c !== catToDelete);
+      setCustomCategories(updatedCategories);
+      try {
+        localStorage.setItem("ziptabs_vault_categories", JSON.stringify(updatedCategories));
+      } catch {}
+
+      // 3. Reset selectedCategory filter if it was active
+      if (selectedCategory === catToDelete) {
+        setSelectedCategory("All");
+      }
+
+      // 4. Update modal formData if it was currently selected
+      if (formData.category === catToDelete) {
+        setFormData((prev) => ({ ...prev, category: "General" }));
+      }
+
+      showToast(
+        "Category Deleted",
+        `Category "${catToDelete}" removed.${affected.length > 0 ? ` ${affected.length} login(s) reassigned to General.` : ""}`,
+        "info"
+      );
+    } catch (err: any) {
+      showToast("Error Deleting Category", err.message || "Failed to remove category", "error");
+    } finally {
+      setIsDeletingCategory(false);
+      setCategoryToDelete(null);
+    }
+  };
+
   // Toast Notification with Semantic Spatial Placement
   const [toast, setToast] = useState<{
     title: string;
@@ -308,6 +379,7 @@ export function LoginsView() {
     url: "",
     notes: "",
     icon: "",
+    targetProfile: "profile-1" as "profile-1" | "profile-2" | "any",
   });
 
   const generateStrongPassword = () => {
@@ -385,6 +457,7 @@ export function LoginsView() {
       notes?: string;
       icon?: string;
       logs?: VaultLoginLog[];
+      targetProfile?: "profile-1" | "profile-2" | "any";
     },
     key: CryptoKey
   ) => {
@@ -423,6 +496,7 @@ export function LoginsView() {
       notes: item.notes?.trim() || "",
       icon: item.icon,
       logs: item.logs || [],
+      targetProfile: item.targetProfile || "profile-1",
       hashes: {
         title_hash: titleHash,
         username_hash: usernameHash,
@@ -510,6 +584,7 @@ export function LoginsView() {
           let decNotes: string | undefined = undefined;
           let decIcon: string | undefined = undefined;
           let decLogs: VaultLoginLog[] | undefined = undefined;
+          let decTargetProfile: "profile-1" | "profile-2" | "any" = "profile-1";
           let isLegacyPlaintext = !row.username.startsWith("[Hashed]");
 
           if (row.encrypted_notes) {
@@ -527,11 +602,13 @@ export function LoginsView() {
                     decNotes = parsed.notes || undefined;
                     decIcon = parsed.icon || undefined;
                     decLogs = Array.isArray(parsed.logs) ? parsed.logs : undefined;
+                    decTargetProfile = parsed.targetProfile || "profile-1";
                     isLegacyPlaintext = false;
                   } else {
                     decNotes = parsed.notes || parsed.note || undefined;
                     decIcon = parsed.icon || undefined;
                     decLogs = Array.isArray(parsed.logs) ? parsed.logs : undefined;
+                    decTargetProfile = parsed.targetProfile || "profile-1";
                   }
                 } else {
                   decNotes = decryptedRaw;
@@ -572,6 +649,7 @@ export function LoginsView() {
             icon: decIcon,
             updatedAt: row.updated_at ? row.updated_at.split("T")[0] : "2026-10-28",
             logs: decLogs,
+            targetProfile: decTargetProfile,
           };
 
           decryptedList.push(item);
@@ -745,6 +823,7 @@ export function LoginsView() {
       url: "",
       notes: "",
       icon: "",
+      targetProfile: "profile-1",
     });
     setIsModalOpen(true);
   };
@@ -762,6 +841,7 @@ export function LoginsView() {
       url: item.url || "",
       notes: item.notes || "",
       icon: item.icon || "",
+      targetProfile: item.targetProfile || "profile-1",
     });
     setIsModalOpen(true);
   };
@@ -899,6 +979,7 @@ export function LoginsView() {
         notes: formData.notes?.trim() || undefined,
         icon: finalIcon,
         logs: updatedLogs,
+        targetProfile: formData.targetProfile || "profile-1",
       };
 
       await saveEncryptedCredentialToSupabase(toSave, vaultKey);
@@ -914,6 +995,7 @@ export function LoginsView() {
         icon: finalIcon,
         updatedAt: nowIso.split("T")[0],
         logs: updatedLogs,
+        targetProfile: formData.targetProfile || "profile-1",
       };
 
       if (editingId) {
@@ -1165,28 +1247,46 @@ export function LoginsView() {
                 const count = logins.filter((l) => l.category === cat).length;
                 if (count === 0 && selectedCategory !== cat) return null;
                 const catStyle = getCategoryBadgeStyle(cat);
+                const isRemovable = cat !== "General";
                 return (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                      selectedCategory === cat
-                        ? "bg-slate-900 text-white shadow-sm shadow-slate-900/15"
-                        : "bg-white/90 border border-slate-200/90 text-slate-600 hover:bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${selectedCategory === cat ? "bg-blue-400" : catStyle.dot}`} />
-                    <span>{cat}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                  <div key={cat} className="relative group/pill flex items-center shrink-0">
+                    <button
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                         selectedCategory === cat
-                          ? "bg-white/20 text-white"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
+                          ? "bg-slate-900 text-white shadow-sm shadow-slate-900/15"
+                          : "bg-white/90 border border-slate-200/90 text-slate-600 hover:bg-white hover:border-slate-300"
+                      } ${isRemovable ? "pr-7" : ""}`}
                     >
-                      {count}
-                    </span>
-                  </button>
+                      <span className={`w-1.5 h-1.5 rounded-full ${selectedCategory === cat ? "bg-blue-400" : catStyle.dot}`} />
+                      <span>{cat}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                          selectedCategory === cat
+                            ? "bg-white/20 text-white"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+
+                    {/* Delete category trigger button on pill */}
+                    {isRemovable && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCategoryToDelete(cat);
+                        }}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-60 group-hover/pill:opacity-100 cursor-pointer"
+                        title={`Delete category "${cat}"`}
+                        aria-label={`Delete category "${cat}"`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
 
@@ -1240,25 +1340,57 @@ export function LoginsView() {
               )}
             </div>
 
-            {/* Search Input */}
-            <div className="relative min-w-[230px] md:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search portals, usernames, or notes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-slate-50/70 border border-slate-200/90 rounded-xl shadow-2xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 font-medium text-slate-800"
-              />
-              {searchQuery && (
+            {/* Right: Search Input + View Mode Switcher */}
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-[200px] md:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search portals, usernames, or notes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-slate-50/70 border border-slate-200/90 rounded-xl shadow-2xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 font-medium text-slate-800"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* View Mode Switcher: Grid Cards vs Compact Table */}
+              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 shadow-2xs shrink-0">
                 <button
                   type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  onClick={() => setViewMode("grid")}
+                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                    viewMode === "grid"
+                      ? "bg-white text-blue-600 shadow-xs"
+                      : "text-slate-400 hover:text-slate-700"
+                  }`}
+                  title="Grid Cards View"
+                  aria-label="Grid Cards View"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <LayoutGrid className="w-4 h-4" />
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                    viewMode === "table"
+                      ? "bg-white text-blue-600 shadow-xs"
+                      : "text-slate-400 hover:text-slate-700"
+                  }`}
+                  title="Compact Table View"
+                  aria-label="Compact Table View"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
             </div>
       </div>
 
@@ -1288,8 +1420,251 @@ export function LoginsView() {
             + Add First Login
           </button>
         </div>
+      ) : viewMode === "table" ? (
+        /* Compact Table / List View Alternative */
+        <div className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-xs animate-in fade-in duration-150">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  <th className="py-3.5 px-4">Portal / Service</th>
+                  <th className="py-3.5 px-3">Category</th>
+                  <th className="py-3.5 px-3">Browser Profile</th>
+                  <th className="py-3.5 px-3">Username / ID</th>
+                  <th className="py-3.5 px-3">Password</th>
+                  <th className="py-3.5 px-3">URL</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredLogins.map((item) => {
+                  const isVisible = visiblePasswords[item.id] || false;
+                  const cleanDomain = getCleanDomain(item.url);
+                  const catStyle = getCategoryBadgeStyle(item.category);
+                  const badgeNum = familyVariantAssignments.get(item.id);
+                  const isMultiple = badgeNum !== undefined;
+                  const isProfile2 = item.targetProfile === "profile-2";
+
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          <VaultBrandAvatar
+                            iconId={item.icon}
+                            title={item.title}
+                            category={item.category}
+                            url={item.url}
+                            size="sm"
+                            showBadge={isMultiple}
+                            badgeNumber={badgeNum}
+                          />
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-slate-900 block truncate max-w-[180px]">
+                              {item.title}
+                            </span>
+                            {item.notes && (
+                              <span className="text-[10px] text-slate-400 truncate max-w-[180px] block">
+                                {item.notes}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${catStyle.dot}`} />
+                          <span>{item.category}</span>
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                          isProfile2
+                            ? "bg-purple-50 text-purple-700 border border-purple-200"
+                            : "bg-blue-50 text-blue-700 border border-blue-200"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isProfile2 ? "bg-purple-500" : "bg-blue-500"}`} />
+                          <span>{isProfile2 ? "Profile 2 (SL)" : "Profile 1"}</span>
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 font-mono font-bold text-slate-800">
+                          <span className="select-all">{item.username}</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(item.username, `tbl-u-${item.id}`, false)}
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                            title="Copy username"
+                          >
+                            {copiedKey === `tbl-u-${item.id}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 font-mono font-bold">
+                          <span className={isVisible ? "text-slate-900 select-all" : "text-slate-400 tracking-widest select-none"}>
+                            {isVisible ? item.password : "••••••••"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => togglePasswordVisibility(item.id)}
+                            className="p-1 text-slate-400 hover:text-slate-700 rounded transition-colors cursor-pointer"
+                            title={isVisible ? "Hide" : "Peek (10s)"}
+                          >
+                            {isVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(item.password, `tbl-p-${item.id}`, true)}
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                            title="Copy password"
+                          >
+                            {copiedKey === `tbl-p-${item.id}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        {cleanDomain ? (
+                          <span className="text-[11px] font-mono text-slate-600 truncate max-w-[130px] block" title={item.url}>
+                            {cleanDomain}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[10px]">—</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setViewingLogsItem(item)}
+                            className="px-2 py-1 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                          >
+                            Logs
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(item)}
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmItem({ id: item.id, title: item.title, category: item.category, username: item.username })}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Launch button with Profile / Window Dropdown */}
+                          {item.url && (
+                            <div className="relative inline-block text-left">
+                              <div className="inline-flex items-center rounded-lg overflow-hidden shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                                    window.open(fullUrl, "_blank");
+                                  }}
+                                  className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[11px] transition-colors cursor-pointer"
+                                >
+                                  Launch
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveLaunchMenuId(activeLaunchMenuId === `tbl-${item.id}` ? null : `tbl-${item.id}`);
+                                  }}
+                                  className="px-1 py-1 bg-indigo-700 hover:bg-indigo-800 text-white border-l border-white/20 transition-colors cursor-pointer"
+                                  title="Browser window & profile options"
+                                >
+                                  <ChevronDown className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              {activeLaunchMenuId === `tbl-${item.id}` && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setActiveLaunchMenuId(null)} />
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 top-full mt-1 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
+                                  >
+                                    <div className="px-2 py-1 border-b border-slate-100 flex items-center justify-between text-[10px] font-extrabold uppercase text-slate-400">
+                                      <span>Window Target</span>
+                                      <span className="font-mono text-blue-600 font-bold">{isProfile2 ? "Profile 2" : "Profile 1"}</span>
+                                    </div>
+                                    <div className="space-y-1 pt-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveLaunchMenuId(null);
+                                          const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                                          window.open(fullUrl, "_blank");
+                                        }}
+                                        className="w-full text-left p-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <Globe className="w-3.5 h-3.5 text-blue-500" />
+                                        <span className="font-semibold text-slate-800">Current Window (Tab)</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveLaunchMenuId(null);
+                                          const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                                          window.open(fullUrl, `portal_${item.id}`, "width=1280,height=850,menubar=no,toolbar=no,location=yes,status=no,resizable=yes");
+                                        }}
+                                        className="w-full text-left p-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <Monitor className="w-3.5 h-3.5 text-purple-500" />
+                                        <span className="font-semibold text-slate-800">Standalone App Window</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveLaunchMenuId(null);
+                                          const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                                          copyToClipboard(fullUrl, `tbl-link-${item.id}`, false);
+                                          showToast("Link Copied for Profile 2", "Switch to Chrome Profile 2 (Alt+Tab) and press Ctrl+V.", "info");
+                                        }}
+                                        className="w-full text-left p-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <Copy className="w-3.5 h-3.5 text-emerald-500" />
+                                        <span className="font-semibold text-slate-800">Copy Link for Profile 2</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveLaunchMenuId(null);
+                                          const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                                          const bundle = `URL: ${fullUrl}\nUsername: ${item.username}\nPassword: ${item.password}`;
+                                          copyToClipboard(bundle, `tbl-bun-${item.id}`, true);
+                                          showToast("Bundle Copied", "URL, username & password copied to clipboard.", "success");
+                                        }}
+                                        className="w-full text-left p-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                                        <span className="font-semibold text-slate-800">Copy Full Login Bundle</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        /* Redesigned Balanced Cards Grid (High-Density Cockpit, No Stretched Void) */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
           {filteredLogins.map((item, idx) => {
             const isVisible = visiblePasswords[item.id] || false;
             const cleanDomain = getCleanDomain(item.url);
@@ -1297,6 +1672,7 @@ export function LoginsView() {
             const badgeNum = familyVariantAssignments.get(item.id);
             const isMultiple = badgeNum !== undefined;
             const isFocused = focusedCardId === item.id;
+            const isProfile2 = item.targetProfile === "profile-2";
 
             return (
               <div
@@ -1314,7 +1690,7 @@ export function LoginsView() {
                 {/* Top Card Header Banner */}
                 <div>
                   <div
-                    className={`relative px-5 pt-5 pb-4 border-b transition-colors ${
+                    className={`relative px-5 pt-4.5 pb-3.5 border-b transition-colors ${
                       isFocused
                         ? "bg-gradient-to-br from-blue-50/70 via-indigo-50/30 to-white border-blue-100"
                         : "bg-gradient-to-br from-slate-50/90 via-white to-blue-50/25 border-slate-100 group-hover:from-blue-50/40 group-hover:to-indigo-50/20"
@@ -1327,8 +1703,8 @@ export function LoginsView() {
                       }`}
                     />
 
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className={`shrink-0 transition-transform duration-200 ${isFocused ? "scale-105" : "group-hover:scale-105"}`}>
                           <VaultBrandAvatar
                             iconId={item.icon}
@@ -1342,19 +1718,17 @@ export function LoginsView() {
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3
-                              className="text-base font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate"
-                              title={item.title}
-                            >
-                              {item.title}
-                            </h3>
-                          </div>
+                          <h3
+                            className="text-base font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors tracking-tight truncate"
+                            title={item.title}
+                          >
+                            {item.title}
+                          </h3>
 
-                          {/* Category & Domain Chips Row */}
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {/* Category & Domain & Chrome Profile Chips Row */}
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
                             <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border truncate ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border truncate ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full ${catStyle.dot}`} />
                               <span>{item.category}</span>
@@ -1370,14 +1744,10 @@ export function LoginsView() {
                                 title={`Open ${cleanDomain}`}
                               >
                                 <Globe className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-                                <span className="truncate max-w-[140px]">{cleanDomain}</span>
+                                <span className="truncate max-w-[110px]">{cleanDomain}</span>
                                 <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
                               </a>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-100/70 px-2 py-0.5 rounded-full border border-slate-200/60">
-                                <span>Internal Key</span>
-                              </span>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -1385,6 +1755,7 @@ export function LoginsView() {
                       {/* Floating Quick Edit / Delete Pill */}
                       <div className="flex items-center gap-0.5 shrink-0 bg-white/90 p-1 rounded-xl border border-slate-200/80 shadow-2xs">
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOpenEditModal(item);
@@ -1395,6 +1766,7 @@ export function LoginsView() {
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeleteConfirmItem({
@@ -1413,17 +1785,18 @@ export function LoginsView() {
                     </div>
                   </div>
 
-                  {/* Card Body: Unified Credential Stack */}
-                  <div className="p-5 space-y-3">
-                    <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 divide-y divide-slate-200/70 overflow-hidden shadow-2xs">
-                      {/* Username Field */}
-                      <div className="p-3 hover:bg-white transition-colors">
-                        <div className="flex items-center justify-between gap-2 mb-1">
+                  {/* Card Body: High-Density Credential Cockpit (Side-by-side, No Stretched Void) */}
+                  <div className="p-4 sm:p-5 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {/* Username Box */}
+                      <div className="p-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 hover:bg-white hover:border-slate-300 transition-all flex flex-col justify-between shadow-2xs">
+                        <div className="flex items-center justify-between gap-1 mb-1.5">
                           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                             <User className="w-3 h-3 text-blue-500" />
-                            <span>Username / ID</span>
+                            <span>Username</span>
                           </span>
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               copyToClipboard(item.username, `user-${item.id}`, false);
@@ -1452,23 +1825,24 @@ export function LoginsView() {
                         </div>
                       </div>
 
-                      {/* Password Field */}
-                      <div className="p-3 hover:bg-white transition-colors">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <div className="flex items-center gap-1.5">
+                      {/* Password Box */}
+                      <div className="p-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 hover:bg-white hover:border-slate-300 transition-all flex flex-col justify-between shadow-2xs">
+                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                          <div className="flex items-center gap-1">
                             <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                               <KeyRound className="w-3 h-3 text-indigo-500" />
                               <span>Password</span>
                             </span>
                             {isVisible && (
-                              <span className="text-[9px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 rounded-full border border-amber-200">
-                                10s Peek
+                              <span className="text-[9px] text-amber-700 font-bold bg-amber-50 px-1 py-0.1 rounded-full border border-amber-200">
+                                10s
                               </span>
                             )}
                           </div>
 
                           <div className="flex items-center gap-1">
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 togglePasswordVisibility(item.id);
@@ -1494,6 +1868,7 @@ export function LoginsView() {
                             </button>
 
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 copyToClipboard(item.password, `pass-${item.id}`, true);
@@ -1525,7 +1900,7 @@ export function LoginsView() {
                             isVisible ? "text-indigo-950 tracking-normal" : "text-slate-400 tracking-[0.22em]"
                           }`}
                         >
-                          {isVisible ? item.password : "••••••••••••••••"}
+                          {isVisible ? item.password : "••••••••••••"}
                         </div>
                       </div>
                     </div>
@@ -1538,7 +1913,7 @@ export function LoginsView() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-wider">
-                            Security Note & 2FA Hint
+                            Security Note &amp; 2FA Hint
                           </div>
                           <p className="text-[11px] font-medium text-slate-600 line-clamp-2 leading-relaxed mt-0.5">
                             {item.notes}
@@ -1549,11 +1924,18 @@ export function LoginsView() {
                   </div>
                 </div>
 
-                {/* Card Footer: Timestamp + Audit History + Launch Portal CTA */}
+                {/* Card Footer: Timestamp + Audit History + Split Launch Portal CTA */}
                 <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-semibold truncate">
                     <Clock className="w-3 h-3 text-slate-400 shrink-0" />
                     <span>{formatDateMMDDYYYY(item.updatedAt)}</span>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-mono font-bold ${
+                      isProfile2
+                        ? "bg-purple-50 text-purple-700 border border-purple-200"
+                        : "bg-blue-50 text-blue-700 border border-blue-200"
+                    }`}>
+                      {isProfile2 ? "Chrome 2 (SL)" : "Chrome 1"}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -1576,17 +1958,171 @@ export function LoginsView() {
                     </button>
 
                     {item.url ? (
-                      <a
-                        href={item.url.startsWith("http") ? item.url : `https://${item.url}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-bold shadow-sm shadow-blue-600/20 hover:shadow-md hover:shadow-blue-600/30 transition-all cursor-pointer shrink-0"
-                        title={`Launch ${item.url}`}
-                      >
-                        <span>Launch</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </a>
+                      /* Split Launch Button with Browser Window & Chrome Profile Popover */
+                      <div className="relative inline-block text-left">
+                        <div className="inline-flex items-center rounded-xl overflow-hidden shadow-sm shadow-blue-600/20">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                              window.open(fullUrl, "_blank");
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer"
+                            title={`Launch ${item.url}`}
+                          >
+                            <span>Launch</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveLaunchMenuId(activeLaunchMenuId === item.id ? null : item.id);
+                            }}
+                            className="px-2 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white border-l border-white/20 transition-colors cursor-pointer"
+                            title="Choose browser window / profile"
+                            aria-label="Browser window options"
+                          >
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${activeLaunchMenuId === item.id ? "rotate-180" : ""}`} />
+                          </button>
+                        </div>
+
+                        {/* Window / Profile Popover Menu */}
+                        {activeLaunchMenuId === item.id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveLaunchMenuId(null);
+                              }}
+                            />
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 bottom-full mb-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
+                            >
+                              <div className="px-2.5 py-1.5 border-b border-slate-100 flex items-center justify-between">
+                                <span className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400">
+                                  Browser Window Target
+                                </span>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                                  isProfile2
+                                    ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                    : "bg-blue-50 text-blue-700 border border-blue-200"
+                                }`}>
+                                  {isProfile2 ? "Profile 2 (SL)" : "Profile 1"}
+                                </span>
+                              </div>
+
+                              <div className="space-y-1 pt-1.5">
+                                {/* Option 1: Active Window Tab */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveLaunchMenuId(null);
+                                    const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                                    window.open(fullUrl, "_blank");
+                                  }}
+                                  className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer group/opt"
+                                >
+                                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5 group-hover/opt:bg-blue-600 group-hover/opt:text-white transition-colors">
+                                    <Globe className="w-3.5 h-3.5" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-slate-900 group-hover/opt:text-blue-600 transition-colors">
+                                      Current Chrome Window (New Tab)
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 leading-snug">
+                                      Opens in active browser session
+                                    </div>
+                                  </div>
+                                </button>
+
+                                {/* Option 2: Standalone App Window */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveLaunchMenuId(null);
+                                    const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                                    window.open(fullUrl, `portal_${item.id}`, "width=1280,height=850,menubar=no,toolbar=no,location=yes,status=no,resizable=yes");
+                                  }}
+                                  className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer group/opt"
+                                >
+                                  <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-0.5 group-hover/opt:bg-purple-600 group-hover/opt:text-white transition-colors">
+                                    <Monitor className="w-3.5 h-3.5" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-slate-900 group-hover/opt:text-purple-600 transition-colors">
+                                      Standalone App Window
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 leading-snug">
+                                      Border-free popup window to snap/dock
+                                    </div>
+                                  </div>
+                                </button>
+
+                                {/* Option 3: Copy Link for Profile 2 */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveLaunchMenuId(null);
+                                    const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
+                                    copyToClipboard(fullUrl, `link-${item.id}`, false);
+                                    showToast(
+                                      "Link Copied for Profile 2",
+                                      "Switch to your second Chrome window (Alt+Tab) and press Ctrl+V.",
+                                      "info"
+                                    );
+                                  }}
+                                  className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer group/opt"
+                                >
+                                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 group-hover/opt:bg-emerald-600 group-hover/opt:text-white transition-colors">
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-slate-900 group-hover/opt:text-emerald-600 transition-colors">
+                                      Copy Link for Chrome Profile 2
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 leading-snug">
+                                      Fast paste into secondary profile
+                                    </div>
+                                  </div>
+                                </button>
+
+                                {/* Option 4: Copy Full Login Bundle */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveLaunchMenuId(null);
+                                    const fullUrl = item.url ? (item.url.startsWith("http") ? item.url : `https://${item.url}`) : "";
+                                    const bundle = `URL: ${fullUrl}\nUsername: ${item.username}\nPassword: ${item.password}`;
+                                    copyToClipboard(bundle, `bundle-${item.id}`, true);
+                                    showToast(
+                                      "Full Login Bundle Copied",
+                                      "URL, username & password copied to clipboard.",
+                                      "success"
+                                    );
+                                  }}
+                                  className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer group/opt"
+                                >
+                                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5 group-hover/opt:bg-indigo-600 group-hover/opt:text-white transition-colors">
+                                    <Layers className="w-3.5 h-3.5" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-slate-900 group-hover/opt:text-indigo-600 transition-colors">
+                                      Copy Credentials Bundle
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 leading-snug">
+                                      URL, username &amp; password for other window
+                                    </div>
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     ) : (
                       <button
                         type="button"
@@ -1680,20 +2216,33 @@ export function LoginsView() {
                   />
                 </div>
 
-                {/* Dynamic Category Selector with "+ New Category" */}
+                {/* Dynamic Category Selector with "+ New Category" and "Delete Selected" */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="font-bold text-slate-800">Category *</label>
-                    {!isModalAddingCategory && (
-                      <button
-                        type="button"
-                        onClick={() => setIsModalAddingCategory(true)}
-                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>New Category</span>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2.5">
+                      {formData.category && formData.category !== "General" && (
+                        <button
+                          type="button"
+                          onClick={() => setCategoryToDelete(formData.category)}
+                          className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+                          title={`Delete "${formData.category}" category`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Delete Selected</span>
+                        </button>
+                      )}
+                      {!isModalAddingCategory && (
+                        <button
+                          type="button"
+                          onClick={() => setIsModalAddingCategory(true)}
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>New Category</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {isModalAddingCategory ? (
@@ -1798,18 +2347,52 @@ export function LoginsView() {
                 </div>
               </div>
 
-              {/* 3. Website / Portal URL */}
-              <div>
-                <label className="block font-bold text-slate-800 mb-1.5">
-                  Website / Portal URL (optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. https://admin.google.com or https://workforcenow.adp.com"
-                  value={formData.url}
-                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm transition-all"
-                />
+              {/* 3. Website / Portal URL & Target Chrome Profile */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1.5">
+                    Website / Portal URL (optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. https://admin.google.com"
+                    value={formData.url}
+                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 text-xs sm:text-sm transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1.5">
+                    Target Chrome Profile
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, targetProfile: "profile-1" })}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        formData.targetProfile === "profile-1"
+                          ? "bg-blue-50 border-blue-500 text-blue-700 shadow-xs"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span>Chrome 1 (Main)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, targetProfile: "profile-2" })}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        formData.targetProfile === "profile-2"
+                          ? "bg-purple-50 border-purple-500 text-purple-700 shadow-xs"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-purple-500" />
+                      <span>Chrome 2 (SL)</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* 4. Spacious Notes Area */}
@@ -1969,7 +2552,10 @@ export function LoginsView() {
       {viewingLogsItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            onClick={() => setViewingLogsItem(null)}
+            onClick={() => {
+              setViewingLogsItem(null);
+              setPeekedLogFields({});
+            }}
             className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
           />
 
@@ -2004,7 +2590,10 @@ export function LoginsView() {
               </div>
               <button
                 type="button"
-                onClick={() => setViewingLogsItem(null)}
+                onClick={() => {
+                  setViewingLogsItem(null);
+                  setPeekedLogFields({});
+                }}
                 className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-900 transition-colors flex items-center justify-center cursor-pointer shrink-0"
                 aria-label="Close"
               >
@@ -2064,6 +2653,7 @@ export function LoginsView() {
                             <div className="space-y-2 pt-1">
                               {log.changes.map((ch, cIdx) => {
                                 const isSecret = ch.field === "password";
+                                const isSensitive = ch.field === "password" || ch.field === "username";
                                 const label =
                                   ch.label ||
                                   (isSecret
@@ -2082,6 +2672,8 @@ export function LoginsView() {
 
                                 const oldCopyKey = `log-old-${log.id || idx}-${cIdx}`;
                                 const newCopyKey = `log-new-${log.id || idx}-${cIdx}`;
+                                const isOldPeeked = Boolean(peekedLogFields[oldCopyKey]);
+                                const isNewPeeked = Boolean(peekedLogFields[newCopyKey]);
 
                                 return (
                                   <div
@@ -2094,11 +2686,35 @@ export function LoginsView() {
                                       </span>
                                       {hasOld ? (
                                         <div className="inline-flex items-center gap-1.5 flex-wrap text-xs">
-                                          {/* Old Striked-out Value with Copy Button */}
+                                          {/* Old Striked-out Value with Peek & Copy Buttons */}
                                           <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100/80 border border-slate-200/70 text-slate-500 font-mono text-xs">
-                                            <span className="font-medium line-through select-all break-all">
-                                              {ch.oldValue}
-                                            </span>
+                                            {isSensitive && !isOldPeeked ? (
+                                              <span className="font-medium tracking-[0.2em] text-slate-400 select-none">
+                                                ••••••••••••
+                                              </span>
+                                            ) : (
+                                              <span className="font-medium line-through select-all break-all">
+                                                {ch.oldValue}
+                                              </span>
+                                            )}
+
+                                            {isSensitive && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setPeekedLogFields((prev) => ({ ...prev, [oldCopyKey]: !prev[oldCopyKey] }));
+                                                }}
+                                                className={`p-1 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center shrink-0 ${
+                                                  isOldPeeked ? "bg-amber-100 text-amber-700" : "hover:bg-slate-200/80 text-slate-400 hover:text-slate-700"
+                                                }`}
+                                                title={isOldPeeked ? "Hide sensitive value" : "Peek sensitive value"}
+                                                aria-label="Peek sensitive value"
+                                              >
+                                                {isOldPeeked ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                              </button>
+                                            )}
+
                                             <button
                                               type="button"
                                               onClick={(e) => {
@@ -2129,11 +2745,35 @@ export function LoginsView() {
                                             <ArrowRight className="w-3 h-3 text-slate-500" />
                                           </div>
 
-                                          {/* New Value with Copy Button */}
+                                          {/* New Value with Peek & Copy Buttons */}
                                           <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50/90 border border-blue-200/70 text-blue-700 font-mono text-xs">
-                                            <span className="font-bold select-all break-all">
-                                              {ch.newValue}
-                                            </span>
+                                            {isSensitive && !isNewPeeked ? (
+                                              <span className="font-bold tracking-[0.2em] text-blue-400 select-none">
+                                                ••••••••••••
+                                              </span>
+                                            ) : (
+                                              <span className="font-bold select-all break-all">
+                                                {ch.newValue}
+                                              </span>
+                                            )}
+
+                                            {isSensitive && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setPeekedLogFields((prev) => ({ ...prev, [newCopyKey]: !prev[newCopyKey] }));
+                                                }}
+                                                className={`p-1 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center shrink-0 ${
+                                                  isNewPeeked ? "bg-amber-100 text-amber-700" : "hover:bg-blue-100 text-blue-400 hover:text-blue-700"
+                                                }`}
+                                                title={isNewPeeked ? "Hide sensitive value" : "Peek sensitive value"}
+                                                aria-label="Peek sensitive value"
+                                              >
+                                                {isNewPeeked ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                              </button>
+                                            )}
+
                                             <button
                                               type="button"
                                               onClick={(e) => {
@@ -2158,9 +2798,33 @@ export function LoginsView() {
                                         </div>
                                       ) : (
                                         <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50/90 border border-blue-200/70 text-blue-700 font-mono text-xs">
-                                          <span className="font-bold select-all break-all text-xs">
-                                            {ch.newValue || (isSecret ? "Configured" : "None")}
-                                          </span>
+                                          {isSensitive && !isNewPeeked ? (
+                                            <span className="font-bold tracking-[0.2em] text-blue-400 select-none">
+                                              ••••••••••••
+                                            </span>
+                                          ) : (
+                                            <span className="font-bold select-all break-all text-xs">
+                                              {ch.newValue || (isSecret ? "Configured" : "None")}
+                                            </span>
+                                          )}
+
+                                          {isSensitive && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPeekedLogFields((prev) => ({ ...prev, [newCopyKey]: !prev[newCopyKey] }));
+                                              }}
+                                              className={`p-1 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center shrink-0 ${
+                                                isNewPeeked ? "bg-amber-100 text-amber-700" : "hover:bg-blue-100 text-blue-400 hover:text-blue-700"
+                                              }`}
+                                              title={isNewPeeked ? "Hide sensitive value" : "Peek sensitive value"}
+                                              aria-label="Peek sensitive value"
+                                            >
+                                              {isNewPeeked ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                            </button>
+                                          )}
+
                                           {ch.newValue && ch.newValue !== "None" && (
                                             <button
                                               type="button"
@@ -2207,10 +2871,79 @@ export function LoginsView() {
               </span>
               <button
                 type="button"
-                onClick={() => setViewingLogsItem(null)}
+                onClick={() => {
+                  setViewingLogsItem(null);
+                  setPeekedLogFields({});
+                }}
                 className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-98"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Deletion Confirmation Modal */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => !isDeletingCategory && setCategoryToDelete(null)}
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+          />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md p-6 z-10 animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100 shadow-xs">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                  Delete Category &quot;{categoryToDelete}&quot;?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Are you sure you want to permanently remove this category?
+                </p>
+                {logins.filter((l) => l.category === categoryToDelete).length > 0 ? (
+                  <div className="mt-3 font-bold text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs leading-relaxed">
+                    ⚠️ {logins.filter((l) => l.category === categoryToDelete).length} login credential(s) currently under this category will safely be reassigned to &quot;General&quot;.
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-400">
+                    No active login credentials are using this category.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isDeletingCategory}
+                onClick={() => setCategoryToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingCategory}
+                onClick={() => handleDeleteCategory(categoryToDelete)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isDeletingCategory ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Category</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
