@@ -35,13 +35,13 @@ export function getToastPosition(
 
 export const TOAST_POSITION_CLASSES: Record<ToastPosition, string> = {
   "top-center":
-    "fixed top-4 sm:top-5 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-300 flex justify-center",
+    "fixed top-4 sm:top-5 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-20px)] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-300 flex justify-center",
   "top-right":
-    "fixed top-4 sm:top-5 right-4 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl lg:max-w-3xl pointer-events-auto animate-in fade-in slide-in-from-top-4 sm:slide-in-from-right-4 duration-300 flex justify-center sm:justify-end",
+    "fixed top-4 sm:top-5 right-4 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-20px)] sm:max-w-2xl lg:max-w-3xl pointer-events-auto animate-in fade-in slide-in-from-top-4 sm:slide-in-from-right-4 duration-300 flex justify-center sm:justify-end",
   "bottom-right":
-    "fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-2xl lg:max-w-3xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
+    "fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 z-50 w-auto max-w-[calc(100vw-20px)] sm:max-w-2xl lg:max-w-3xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 sm:slide-in-from-right-3 duration-200 flex justify-center sm:justify-end",
   "bottom-center":
-    "fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-32px)] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
+    "fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[calc(100vw-20px)] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200 flex justify-center",
   none: "",
 };
 
@@ -180,9 +180,9 @@ export function ExecutiveToast({
       className={`relative bg-white/95 backdrop-blur-xl rounded-full shadow-[0_14px_36px_-6px_rgba(0,0,0,0.16)] border border-slate-200/90 pl-1.5 pr-2.5 sm:pr-3 py-1.5 flex items-center gap-2 sm:gap-2.5 max-w-full ring-1 ring-slate-950/5 pointer-events-auto transition-all duration-200 hover:scale-[1.01] overflow-hidden ${extraClasses}`}
     >
       {/* Dark Capsule Notch Tag with Pulsing LED Beacon */}
-      <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-zinc-950 text-white rounded-full text-[9px] sm:text-[10px] font-mono tracking-wider font-bold shrink-0 shadow-xs border border-zinc-800">
+      <div className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 bg-zinc-950 text-white rounded-full text-[8.5px] sm:text-[10px] font-mono tracking-wider font-bold shrink-0 shadow-xs border border-zinc-800">
         <span className={`w-1.5 h-1.5 rounded-full ${getAccentColor()} animate-pulse`} />
-        <span className="truncate max-w-[90px] sm:max-w-[130px]">{defaultMetric.toUpperCase()}</span>
+        <span className="truncate max-w-[65px] sm:max-w-[130px]">{defaultMetric.toUpperCase()}</span>
       </div>
 
       {/* Precision Icon Badge */}
@@ -192,28 +192,31 @@ export function ExecutiveToast({
 
       {/* Title & Description Content - Expands fully on desktop/PC so it is never truncated */}
       <div
-        className="flex items-center gap-1.5 min-w-0 max-w-[200px] sm:max-w-none pr-1"
+        className="flex items-center gap-1.5 min-w-0 flex-1 pr-1"
         title={`${title}${description ? ` — ${description}` : ""}`}
       >
-        <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight sm:shrink-0 whitespace-nowrap block truncate sm:overflow-visible">
+        <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight whitespace-nowrap truncate">
           {title}
         </span>
         {description && (
-          <span className="text-[11px] sm:text-xs text-slate-500 font-medium hidden md:inline whitespace-nowrap min-w-0 sm:max-w-2xl lg:max-w-3xl xl:max-w-none">
+          <span className="text-[11px] sm:text-xs text-slate-500 font-medium hidden md:inline whitespace-nowrap min-w-0">
             <span className="text-slate-300 mx-1.5">•</span>
             {description}
           </span>
         )}
       </div>
 
-      {/* Action Button */}
+      {/* Action Button - Icon-only on mobile to save space, text on desktop */}
       {action && (
         <button
           type="button"
           onClick={action.onClick}
-          className="px-2.5 sm:px-3 py-1 rounded-full bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer whitespace-nowrap active:scale-95"
+          title={action.label}
+          aria-label={action.label}
+          className="w-7 h-7 sm:w-auto sm:px-3 sm:py-1 rounded-full bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shadow-2xs transition-all shrink-0 cursor-pointer whitespace-nowrap active:scale-95 flex items-center justify-center gap-1"
         >
-          {action.label}
+          <span className="hidden sm:inline">{action.label}</span>
+          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
         </button>
       )}
 
@@ -249,7 +252,7 @@ export function ExecutiveToast({
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-32px)] sm:min-w-[380px] sm:max-w-xl lg:max-w-2xl ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
+      className={`relative bg-white rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-zinc-200/90 overflow-hidden w-auto max-w-[calc(100vw-20px)] sm:min-w-[400px] sm:max-w-2xl lg:max-w-3xl xl:max-w-4xl ring-1 ring-zinc-950/10 pointer-events-auto transition-transform hover:scale-[1.01] ${extraClasses}`}
     >
       {/* Monolith Dark Header Bar */}
       <div className="bg-zinc-950 text-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 flex items-center justify-between border-b border-zinc-800 gap-2">
@@ -276,28 +279,32 @@ export function ExecutiveToast({
         </div>
       </div>
 
-      {/* Card Body - Slim executive profile */}
-      <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-3">
-        <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
+      {/* Card Body - Single-line slim executive profile */}
+      <div className="px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2.5 sm:gap-3">
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
           {renderIcon("w-3.5 h-3.5 sm:w-4 sm:h-4")}
         </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight leading-snug">
+        <div className="min-w-0 flex-1 flex items-center gap-1.5 sm:gap-2 overflow-hidden">
+          <span className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight whitespace-nowrap shrink-0">
             {title}
-          </h4>
+          </span>
           {description && (
-            <p className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 leading-snug">
+            <span className="text-[11px] sm:text-xs text-zinc-500 font-medium truncate min-w-0">
+              <span className="text-zinc-300 mx-1.5 select-none">•</span>
               {description}
-            </p>
+            </span>
           )}
         </div>
         {action && (
           <button
             type="button"
             onClick={action.onClick}
-            className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-xs active:scale-95 ml-1"
+            title={action.label}
+            aria-label={action.label}
+            className="w-7 h-7 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-[10px] sm:text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-xs active:scale-95 ml-1 flex items-center justify-center gap-1.5"
           >
-            {action.label}
+            <span className="hidden sm:inline">{action.label}</span>
+            <ArrowRight className="w-3.5 h-3.5 shrink-0" />
           </button>
         )}
       </div>
@@ -339,45 +346,48 @@ export function ExecutiveToast({
       <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-zinc-800 via-zinc-300 to-transparent pointer-events-none" />
 
       {/* Main Content Area */}
-      <div className="p-3 sm:p-4 pt-2.5 sm:pt-3">
-        <div className="flex items-start sm:items-center gap-3 sm:gap-3.5">
+      <div className="p-2.5 sm:p-3 pt-2">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           {/* Recessed Precision Icon Well */}
-          <div className="relative shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-zinc-50 border border-zinc-200/90 shadow-inner flex items-center justify-center mt-0.5 sm:mt-0">
+          <div className="relative shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-zinc-50 border border-zinc-200/90 shadow-inner flex items-center justify-center">
             <span className={`absolute inset-0 rounded-xl border animate-ping opacity-15 ${getAccentColor()}`} />
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-zinc-200 shadow-2xs flex items-center justify-center">
-              {renderIcon("w-3.5 h-3.5 sm:w-4 sm:h-4")}
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-white border border-zinc-200 shadow-2xs flex items-center justify-center">
+              {renderIcon("w-3.5 h-3.5")}
             </div>
           </div>
 
-          {/* Title & Description */}
-          <div className="min-w-0 flex-1">
-            <h4 className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight leading-snug break-words">
+          {/* Title & Description in 1 Single Line */}
+          <div className="min-w-0 flex-1 flex items-center gap-1.5 sm:gap-2 overflow-hidden">
+            <span className="text-xs sm:text-sm font-black text-zinc-900 tracking-tight whitespace-nowrap shrink-0">
               {title}
-            </h4>
+            </span>
             {description && (
-              <p className="text-[11px] sm:text-xs text-zinc-500 mt-0.5 leading-relaxed break-words">
+              <span className="text-[11px] sm:text-xs text-zinc-500 font-medium truncate min-w-0">
+                <span className="text-zinc-300 mx-1.5 select-none">•</span>
                 {description}
-              </p>
+              </span>
             )}
           </div>
 
-          {/* Action Button */}
+          {/* Action Button - Icon on mobile, label on desktop */}
           {action && (
-            <div className="shrink-0 flex items-center self-start sm:self-center">
+            <div className="shrink-0 flex items-center self-center">
               <button
                 type="button"
                 onClick={action.onClick}
-                className="px-3 sm:px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-[11px] sm:text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0"
+                title={action.label}
+                aria-label={action.label}
+                className="w-7 h-7 sm:w-auto sm:px-3 sm:py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-[11px] sm:text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
               >
-                <span>{action.label}</span>
-                <ArrowRight className="w-3 h-3 text-zinc-300" />
+                <span className="hidden sm:inline">{action.label}</span>
+                <ArrowRight className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
               </button>
             </div>
           )}
 
           {/* Close Button */}
           {onClose && (
-            <div className="shrink-0 self-start sm:self-center -mr-1">
+            <div className="shrink-0 self-center">
               <button
                 type="button"
                 onClick={onClose}
