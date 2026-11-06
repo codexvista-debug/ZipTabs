@@ -1067,7 +1067,7 @@ export function LoginsView() {
 
   // 3. UNLOCKED VAULT VIEW
   return (
-    <div className="space-y-3.5 sm:space-y-6 pb-16 max-w-7xl mx-auto relative">
+    <div className="space-y-4 sm:space-y-6 pb-16 relative">
       {/* Toast Notification (Architectural Executive Chassis with Semantic Spatial Placement) */}
       {toast && (
         <div className={TOAST_POSITION_CLASSES[toast.position || getToastPosition(toast.title)]}>
@@ -1083,50 +1083,41 @@ export function LoginsView() {
         </div>
       )}
 
-      {/* Executive Header & Integrated Command Bar */}
-      <div className="relative rounded-3xl bg-gradient-to-br from-white via-blue-50/35 to-indigo-50/40 border border-slate-200/90 shadow-sm overflow-hidden p-4 sm:p-6">
-        {/* Top Accent Ribbon */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400" />
-        {/* Ambient Decorative Glows */}
-        <div className="pointer-events-none absolute -top-20 -right-16 w-64 h-64 rounded-full bg-blue-500/8 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -left-16 w-56 h-56 rounded-full bg-indigo-500/8 blur-3xl" />
-
-        <div className="relative flex flex-col gap-4 sm:gap-5">
-          {/* Top Row: Title + Compact Security Pills + Add Login Button */}
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-600 to-rose-600 text-white flex items-center justify-center shadow-md shadow-amber-600/20 shrink-0">
-                <KeyRound className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
-                    Logins & Portals
-                  </h1>
-                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/90 text-emerald-700 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
-                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                    <span>AES-256 Vault</span>
-                  </span>
-                </div>
-                <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
-                  Encrypted portal credentials & access keys exclusively synced for <strong className="text-slate-700">@chief</strong>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleOpenAddModal}
-                className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 shadow-amber-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="whitespace-nowrap font-bold">Add Login</span>
-              </button>
-            </div>
+      {/* 1. TOP HEADER & ACTION BAR */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-600 to-rose-600 text-white flex items-center justify-center shadow-md shadow-amber-600/20 shrink-0">
+            <KeyRound className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+                Logins & Portals
+              </h1>
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/90 text-emerald-700 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
+                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                <span>AES-256 Vault</span>
+              </span>
+            </div>
+            <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
+              Encrypted portal credentials & access keys exclusively synced for <strong className="text-slate-700">@chief</strong>
+            </p>
+          </div>
+        </div>
 
-          {/* Bottom Row: Integrated Category Filter Pills & Live Search */}
-          <div className="pt-3.5 border-t border-slate-200/70 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleOpenAddModal}
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 shadow-amber-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="whitespace-nowrap font-bold">Add Login</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. CATEGORY PILLS & LIVE SEARCH TOOLBAR */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
             {/* Category Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full scrollbar-none">
               <button
@@ -1235,7 +1226,7 @@ export function LoginsView() {
                 placeholder="Search portals, usernames, or notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-white border border-slate-200/90 rounded-xl shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 font-medium text-slate-800"
+                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-slate-50/70 border border-slate-200/90 rounded-xl shadow-2xs focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 font-medium text-slate-800"
               />
               {searchQuery && (
                 <button
@@ -1247,8 +1238,6 @@ export function LoginsView() {
                 </button>
               )}
             </div>
-          </div>
-        </div>
       </div>
 
       {/* Logins Grid */}

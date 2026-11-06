@@ -711,7 +711,7 @@ export function ResourcesView() {
   };
 
   return (
-    <div className="space-y-6 pb-20 max-w-7xl mx-auto">
+    <div className="space-y-6 pb-20">
       {/* 1. TOP HEADER & MULTI-RESOURCE TAB NAVIGATION */}
       <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -793,7 +793,7 @@ export function ResourcesView() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Tool Card 1: Discount Calculator (Vibrant Light Mode Card) */}
             <div
               onClick={() => setCurrentView("discount-calculator")}

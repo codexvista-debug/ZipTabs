@@ -938,7 +938,7 @@ export function MasterControlView() {
   }
 
   return (
-    <div className="space-y-6 pb-20 max-w-7xl mx-auto">
+    <div className="space-y-6 pb-20">
       {/* Premium Elevated Toast Notification (Semantic Spatial Placement) */}
       {actionMessage && (
         <div className={TOAST_POSITION_CLASSES[getToastPosition(actionMessage.text)]}>
