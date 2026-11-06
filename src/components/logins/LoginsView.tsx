@@ -451,8 +451,15 @@ export function LoginsView() {
       updated_at: nowIso,
     };
 
-    const { error } = await supabase.from("vault_credentials").upsert(dbPayload);
-    if (error) throw error;
+    const res = await fetch("/api/vault", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dbPayload),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(j.error || "Failed to save vault credential via API");
+    }
   };
 
   // Fetch from Supabase and Decrypt
@@ -461,15 +468,26 @@ export function LoginsView() {
     setIsLoadingData(true);
 
     try {
-      const { data, error } = await supabase
-        .from("vault_credentials")
-        .select("*")
-        .eq("owner_username", "chief")
-        .order("created_at", { ascending: false });
+      let data: any[] | null = null;
+      try {
+        const res = await fetch("/api/vault");
+        if (res.ok) {
+          const j = await res.json();
+          if (j.success && Array.isArray(j.data)) {
+            data = j.data;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Vault API call failed, falling back to direct connection:", apiErr);
+      }
 
-      if (error) {
-        console.error("Supabase fetch vault error:", error);
-        return;
+      if (!data && supabase) {
+        const { data: directData } = await supabase
+          .from("vault_credentials")
+          .select("*")
+          .eq("owner_username", "chief")
+          .order("created_at", { ascending: false });
+        if (directData) data = directData;
       }
 
       if (!data || data.length === 0) {
@@ -750,12 +768,16 @@ export function LoginsView() {
 
   const handleDelete = async (id: string) => {
     const target = logins.find((item) => item.id === id);
-    if (supabase) {
-      await supabase
-        .from("vault_credentials")
-        .delete()
-        .eq("id", id)
-        .eq("owner_username", "chief");
+    try {
+      await fetch(`/api/vault?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    } catch {
+      if (supabase) {
+        await supabase
+          .from("vault_credentials")
+          .delete()
+          .eq("id", id)
+          .eq("owner_username", "chief");
+      }
     }
 
     setLogins((prev) => prev.filter((item) => item.id !== id));

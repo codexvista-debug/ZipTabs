@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { getClientIp, getClientCountry } from "@/lib/serverIp";
-
-
+import { getSessionUser } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   const clientIp = getClientIp(req);
@@ -16,10 +15,11 @@ export async function GET(req: NextRequest) {
   try {
     const userAgent = req.headers.get("user-agent") || "unknown";
     const reqSessionId = req.headers.get("x-session-id")?.trim() || "";
-    const reqSessionCreated = parseInt(req.headers.get("x-session-created") || "0", 10) || 0;
-    const authUser = req.headers.get("x-auth-user")?.trim().toLowerCase();
+    const verifiedSession = await getSessionUser(req);
+    const authUser = verifiedSession?.username?.toLowerCase() || null;
+    const reqSessionCreated = verifiedSession?.createdAt || parseInt(req.headers.get("x-session-created") || "0", 10) || 0;
 
-    // 0. Asynchronous Non-Blocking Visitor Telemetry (Does NOT block critical auth verification)
+    // 0. Authenticated Visitor Telemetry (Validates session before attributing username)
     (async () => {
       try {
         await db.rpc("record_site_visitor", {
@@ -29,12 +29,12 @@ export async function GET(req: NextRequest) {
           p_country: clientCountry,
         });
 
-        if (reqSessionId || authUser) {
+        if (verifiedSession) {
           await db
             .from("site_visitors")
             .update({
               active_session_id: reqSessionId || null,
-              username: authUser || null,
+              username: authUser,
             })
             .eq("ip", clientIp);
         }

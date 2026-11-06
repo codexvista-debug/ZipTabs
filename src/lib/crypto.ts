@@ -18,7 +18,11 @@ export async function sha256SaltedHex(text: string, salt = VAULT_CRYPTO_SALT): P
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function hashPassword(password: string): Promise<string> {
+/**
+ * Legacy static SHA-256 password hash (single iteration).
+ * Maintained strictly for backward compatibility verification during login.
+ */
+export async function hashPasswordSha256Legacy(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password + ":" + SALT);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -26,20 +30,113 @@ export async function hashPassword(password: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Modern PBKDF2-HMAC-SHA256 password hashing with 100,000 iterations and unique 16-byte cryptographically random salt.
+ * Output format: pbkdf2:<iterations>:<salt_hex>:<hash_hex>
+ */
+export async function hashPasswordPbkdf2(
+  password: string,
+  iterations = 100000,
+  providedSaltHex?: string
+): Promise<string> {
+  const enc = new TextEncoder();
+  let saltBytes: Uint8Array;
+  if (providedSaltHex) {
+    const matched = providedSaltHex.match(/.{1,2}/g) || [];
+    saltBytes = new Uint8Array(matched.map((byte) => parseInt(byte, 16)));
+  } else {
+    saltBytes = new Uint8Array(16);
+    crypto.getRandomValues(saltBytes);
+  }
+
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
+
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: saltBytes as unknown as BufferSource,
+      iterations,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256
+  );
+
+  const derivedHex = Array.from(new Uint8Array(derivedBits))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const saltHex = Array.from(saltBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  return `pbkdf2:${iterations}:${saltHex}:${derivedHex}`;
+}
+
+/**
+ * Standard password hashing entrypoint: defaults to PBKDF2 (100,000 iterations).
+ */
+export async function hashPassword(password: string): Promise<string> {
+  return await hashPasswordPbkdf2(password);
+}
+
+/**
+ * Checks whether a stored password string is in a legacy format (plaintext or single-iteration SHA-256)
+ * that should be automatically upgraded to PBKDF2 on next login.
+ */
+export function isLegacyPasswordHash(storedHashOrPlain?: string | null): boolean {
+  if (!storedHashOrPlain) return false;
+  return !storedHashOrPlain.startsWith("pbkdf2:");
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Verifies a password attempt against stored PBKDF2 hash, legacy SHA-256 hash, or legacy plaintext.
+ */
 export async function verifyPassword(
   attempt: string,
   storedHashOrPlain: string
 ): Promise<boolean> {
   if (!storedHashOrPlain) return false;
 
-  // 1. Check against SHA-256 hash
-  const computedHash = await hashPassword(attempt);
-  if (computedHash === storedHashOrPlain) {
+  // 1. PBKDF2 hash verification
+  if (storedHashOrPlain.startsWith("pbkdf2:")) {
+    const parts = storedHashOrPlain.split(":");
+    if (parts.length === 4) {
+      const iterations = parseInt(parts[1], 10);
+      const saltHex = parts[2];
+      const expectedHashHex = parts[3];
+
+      if (!isNaN(iterations) && saltHex && expectedHashHex) {
+        const recomputed = await hashPasswordPbkdf2(attempt, iterations, saltHex);
+        const recomputedParts = recomputed.split(":");
+        const recomputedHashHex = recomputedParts[3];
+        return timingSafeEqual(expectedHashHex, recomputedHashHex);
+      }
+    }
+  }
+
+  // 2. Legacy SHA-256 check
+  const legacyHash = await hashPasswordSha256Legacy(attempt);
+  if (timingSafeEqual(legacyHash, storedHashOrPlain)) {
     return true;
   }
 
-  // 2. Backward compatibility fallback for legacy plaintext (e.g. before migration)
-  if (attempt === storedHashOrPlain) {
+  // 3. Backward compatibility fallback for legacy plaintext (e.g. initial setup)
+  if (timingSafeEqual(attempt, storedHashOrPlain)) {
     return true;
   }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
-import { hashPassword, verifyPassword } from "@/lib/crypto";
+import { hashPassword, verifyPassword, isLegacyPasswordHash } from "@/lib/crypto";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { getClientIp, getClientCountry } from "@/lib/serverIp";
 
@@ -58,13 +58,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Authentication database query error. Please retry." },
         { status: 500 }
-      );
-    }
-
-    if (!userRecord) {
-      return NextResponse.json(
-        { success: false, error: `Account '${cleanUsername}' not found.` },
-        { status: 404 }
       );
     }
 
@@ -180,16 +173,21 @@ export async function POST(req: NextRequest) {
     let passwordMatches = false;
     if (userRecord) {
       passwordMatches = await verifyPassword(cleanPassword, userRecord.password);
-      // Auto-upgrade legacy plain text password to SHA-256 hash in background
-      if (passwordMatches && userRecord.password === cleanPassword && supabase) {
-        const client = supabase;
-        hashPassword(cleanPassword).then((newHash) => {
-          client
-            .from("app_users")
-            .update({ password: newHash })
-            .eq("id", userRecord.id)
-            .then(() => {});
-        }).catch(() => {});
+      // Auto-upgrade legacy password (plaintext or legacy SHA-256) to modern PBKDF2 in background
+      if (passwordMatches && isLegacyPasswordHash(userRecord.password) && db) {
+        hashPassword(cleanPassword)
+          .then((newHash) => {
+            db
+              .from("app_users")
+              .update({ password: newHash })
+              .eq("id", userRecord.id)
+              .then(() => {
+                console.log(`[AUTH] Automatically upgraded password to PBKDF2 for user: ${userRecord.username}`);
+              });
+          })
+          .catch((err) => {
+            console.error("[AUTH] Failed to auto-upgrade password to PBKDF2:", err);
+          });
       }
     }
 

@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 
-const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN || "8977";
+const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN?.trim() || "";
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
-const DISCORD_PUBLIC_KEY =
-  process.env.DISCORD_PUBLIC_KEY ||
-  "248d01d8cb8c15e8515032863b14b1eaa3faf6c2a0d3eb20ab9ca3a1808fb832";
+const DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY || "";
 
 // Discord Interaction Types
 const InteractionType = {
@@ -508,7 +506,7 @@ export async function POST(req: NextRequest) {
 
       // If user typed PIN as an argument, verify it directly
       if (providedPin) {
-        if (providedPin !== REQUIRED_PIN) {
+        if (!REQUIRED_PIN || providedPin !== REQUIRED_PIN) {
           return sendPinDeniedResponse(commandName, callerUser);
         }
         return handleLockdownAction(state, callerUser);
@@ -545,7 +543,7 @@ export async function POST(req: NextRequest) {
     // --- COMMAND: /status ---
     if (commandName === "status") {
       if (providedPin) {
-        if (providedPin !== REQUIRED_PIN) {
+        if (!REQUIRED_PIN || providedPin !== REQUIRED_PIN) {
           return sendPinDeniedResponse(commandName, callerUser);
         }
         return handleStatusQuery();
@@ -584,7 +582,7 @@ export async function POST(req: NextRequest) {
       const channelId = body.channel_id || body.channel?.id;
 
       if (providedPin) {
-        if (providedPin !== REQUIRED_PIN) {
+        if (!REQUIRED_PIN || providedPin !== REQUIRED_PIN) {
           return sendPinDeniedResponse(commandName, callerUser);
         }
         return handleClearChannel(channelId, target, callerUser);
@@ -640,7 +638,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (submittedPin !== REQUIRED_PIN) {
+    if (!REQUIRED_PIN || submittedPin !== REQUIRED_PIN) {
       return NextResponse.json({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
