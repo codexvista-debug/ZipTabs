@@ -556,13 +556,14 @@ export function DirectoryView() {
       .sort((a, b) => b.count - a.count || a.company.localeCompare(b.company));
   }, [records]);
 
-  // Filtered and Sorted Records (Vendor, Employee, All + Search Filter)
+  // Filtered and Sorted Records (Vendor, Employee, All + Live Search Query & Palette Filter)
   const filteredRecords = useMemo(() => {
+    const q = (searchQuery || activeSearchFilter).trim().toLowerCase();
+    const cleanNum = q.replace(/\D/g, "");
+
     return records
       .filter((r) => {
-        if (activeSearchFilter) {
-          const q = activeSearchFilter.toLowerCase();
-          const cleanNum = q.replace(/\D/g, "");
+        if (q) {
           const nameMatch = r.name.toLowerCase().includes(q);
           const compMatch = r.company.toLowerCase().includes(q);
           const emailMatch = r.email ? r.email.toLowerCase().includes(q) : false;
@@ -587,6 +588,25 @@ export function DirectoryView() {
         return a.name.localeCompare(b.name);
       });
   }, [records, activeDivision, activeSearchFilter, searchQuery]);
+
+  // Check if search query has matches in other divisions (e.g. searching on Vendors but match is in Employees)
+  const crossDivisionMatchCount = useMemo(() => {
+    const q = (searchQuery || activeSearchFilter).trim().toLowerCase();
+    if (!q || activeDivision === "all") return 0;
+    const cleanNum = q.replace(/\D/g, "");
+    return records.filter((r) => {
+      if (r.division === activeDivision) return false;
+      const nameMatch = r.name.toLowerCase().includes(q);
+      const compMatch = r.company.toLowerCase().includes(q);
+      const emailMatch = r.email ? r.email.toLowerCase().includes(q) : false;
+      const notesMatch = r.notes ? r.notes.toLowerCase().includes(q) : false;
+      const phoneMatch =
+        r.phone.toLowerCase().includes(q) ||
+        (cleanNum.length >= 3 && r.phone.replace(/\D/g, "").includes(cleanNum));
+      const extMatch = r.extension ? r.extension.toLowerCase().includes(q) : false;
+      return nameMatch || compMatch || emailMatch || notesMatch || phoneMatch || extMatch;
+    }).length;
+  }, [records, activeDivision, searchQuery, activeSearchFilter]);
 
   // Filter directory to show ONLY searched records (replaces broken jumping on mobile)
   const handleSearchFilter = useCallback(
@@ -1645,6 +1665,7 @@ export function DirectoryView() {
         }}
         onSave={handleSaveContact}
         initialRecord={editingRecord}
+        existingRecords={records}
         defaultDivision={
           editingRecord
             ? editingRecord.division

@@ -15,6 +15,7 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   Plus,
   ChevronDown,
@@ -45,6 +46,7 @@ interface DirectoryContactModalProps {
   defaultDivision?: "employee" | "vendor";
   isDivisionLocked?: boolean;
   existingCompanies?: CompanySuggestion[];
+  existingRecords?: DirectoryRecord[];
 }
 
 export function DirectoryContactModal({
@@ -55,7 +57,9 @@ export function DirectoryContactModal({
   defaultDivision = "employee",
   isDivisionLocked = false,
   existingCompanies = [],
+  existingRecords = [],
 }: DirectoryContactModalProps) {
+  const [ackDuplicate, setAckDuplicate] = useState(false);
   const [division, setDivision] = useState<"employee" | "vendor">(defaultDivision);
   const [company, setCompany] = useState("");
   const [name, setName] = useState("");
@@ -140,6 +144,26 @@ export function DirectoryContactModal({
   const isEditMode = Boolean(initialRecord);
   const shouldLockDivision = isEditMode || isDivisionLocked;
 
+  // Live duplicate phone number detection across directory records
+  const duplicatePhoneRecord = useMemo(() => {
+    if (!existingRecords || existingRecords.length === 0 || !phone.trim()) return null;
+    const cleanNew = phone.replace(/\D/g, "");
+    const normNew = cleanNew.length === 11 && cleanNew.startsWith("1") ? cleanNew.slice(1) : cleanNew;
+    if (normNew.length < 7) return null;
+
+    return (
+      existingRecords.find((r) => {
+        if (initialRecord && r.id === initialRecord.id) return false;
+        const cleanExisting = (r.phone || "").replace(/\D/g, "");
+        const normExisting =
+          cleanExisting.length === 11 && cleanExisting.startsWith("1")
+            ? cleanExisting.slice(1)
+            : cleanExisting;
+        return normExisting.length >= 7 && normExisting === normNew;
+      }) || null
+    );
+  }, [existingRecords, phone, initialRecord]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -151,6 +175,15 @@ export function DirectoryContactModal({
 
     if (!phone.trim() && !email.trim()) {
       setError("Please provide at least a phone number or email address.");
+      return;
+    }
+
+    // Warn about duplicate phone number before saving
+    if (duplicatePhoneRecord && !ackDuplicate) {
+      setAckDuplicate(true);
+      setError(
+        `⚠️ Duplicate Number Warning: ${formatUSAPhone(phone, false)} is already registered to ${duplicatePhoneRecord.name} at ${duplicatePhoneRecord.company} (${duplicatePhoneRecord.division === "vendor" ? "Vendor" : "Employee"}). If you are certain you want to save this duplicate, click "Save Contact" once more to confirm.`
+      );
       return;
     }
 
@@ -479,11 +512,27 @@ export function DirectoryContactModal({
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(formatAsYouTypeUSAPhone(e.target.value))}
+                  onChange={(e) => {
+                    setPhone(formatAsYouTypeUSAPhone(e.target.value));
+                    setAckDuplicate(false);
+                  }}
                   placeholder="1 (555) 000-0000"
                   className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all bg-white font-mono"
                 />
               </div>
+              {duplicatePhoneRecord && (
+                <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1 shadow-2xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-amber-800 text-[11px] uppercase tracking-wider">
+                      Duplicate Phone Detected
+                    </p>
+                    <p className="text-amber-700 text-xs mt-0.5">
+                      Already registered to <strong className="font-bold text-amber-950 underline decoration-amber-400">{duplicatePhoneRecord.name}</strong> at <strong className="font-bold text-amber-950">{duplicatePhoneRecord.company}</strong> ({duplicatePhoneRecord.division === "vendor" ? "Vendor" : "Employee"}).
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
