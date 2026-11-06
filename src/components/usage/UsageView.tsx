@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
+import { deleteFilesFromStorage } from "@/lib/storage";
 import {
   HardDrive,
   Database,
@@ -156,12 +157,10 @@ export function UsageView() {
     setConfirmDeleteFile(null);
     try {
       if (supabase) {
-        const { error } = await supabase.storage
-          .from("note-attachments")
-          .remove([file.name]);
+        const res = await deleteFilesFromStorage([file.name]);
 
-        if (error) {
-          showToast(`Error deleting file: ${error.message}`);
+        if (!res.success) {
+          showToast(`Error deleting file: ${res.error}`);
         } else {
           // If this file was uploaded from Drive, also clean up the database record
           await supabase.from("drive_files").delete().eq("storage_path", file.name);

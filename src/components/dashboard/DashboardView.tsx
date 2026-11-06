@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { deleteFilesFromStorage } from "@/lib/storage";
 import { getUSFederalHolidaysForYear } from "@/components/calendar/USCalendarView";
 import {
   FileSpreadsheet,
@@ -424,7 +425,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     if (supabase) {
       try {
         if (file.storage_path) {
-          await supabase.storage.from("note-attachments").remove([file.storage_path]);
+          await deleteFilesFromStorage([file.storage_path]);
         }
         await supabase.from("drive_files").delete().eq("id", file.id);
       } catch (err) {

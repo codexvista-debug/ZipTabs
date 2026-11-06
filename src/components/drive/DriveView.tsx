@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { UniversalFileViewer } from "./UniversalFileViewer";
 import { downloadFileDirectly } from "@/lib/download";
-import { getSecureFileUrl, getSecureDownloadUrl, preloadSignedUrls } from "@/lib/storage";
+import { getSecureFileUrl, getSecureDownloadUrl, preloadSignedUrls, uploadFileToStorage, deleteFilesFromStorage } from "@/lib/storage";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import {
   ExecutiveToast,
@@ -163,7 +163,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       if (purged && purged.length > 0) {
         const storagePaths = purged.map((p: any) => p.purged_storage_path).filter(Boolean);
         if (storagePaths.length > 0) {
-          await supabase.storage.from("note-attachments").remove(storagePaths);
+          await deleteFilesFromStorage(storagePaths);
         }
       }
     } catch (err) {
@@ -183,7 +183,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         const paths = expired.map((e) => e.storage_path).filter(Boolean);
         const ids = expired.map((e) => e.id);
         if (paths.length > 0) {
-          await supabase.storage.from("note-attachments").remove(paths);
+          await deleteFilesFromStorage(paths);
         }
         await supabase.from("drive_files").delete().in("id", ids);
         setFiles((prev) => prev.filter((f) => !ids.includes(f.id)));
@@ -362,16 +362,9 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
         if (!supabase) throw new Error("Supabase unavailable");
 
-        // Upload to storage bucket
-        const { error: uploadError } = await supabase.storage
-          .from("note-attachments")
-          .upload(storagePath, file, { cacheControl: "3600", upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from("note-attachments")
-          .getPublicUrl(storagePath);
+        // Upload to storage bucket via authenticated endpoint
+        const uploadResult = await uploadFileToStorage(storagePath, file);
+        if (!uploadResult.success) throw new Error(uploadResult.error || "Upload failed");
 
         const newFileItem: DriveFile = {
           id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
@@ -501,7 +494,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     if (supabase) {
       try {
         if (file.storage_path) {
-          await supabase.storage.from("note-attachments").remove([file.storage_path]);
+          await deleteFilesFromStorage([file.storage_path]);
         }
         await supabase.from("drive_files").delete().eq("id", file.id);
       } catch (err) {
@@ -525,7 +518,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     if (supabase) {
       try {
         if (storagePaths.length > 0) {
-          await supabase.storage.from("note-attachments").remove(storagePaths);
+          await deleteFilesFromStorage(storagePaths);
         }
         await supabase.from("drive_files").delete().in("id", ids);
       } catch (err) {
@@ -553,7 +546,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     if (supabase) {
       try {
         if (storagePaths.length > 0) {
-          await supabase.storage.from("note-attachments").remove(storagePaths);
+          await deleteFilesFromStorage(storagePaths);
         }
         await supabase.from("drive_folders").delete().eq("id", folder.id);
       } catch (err) {

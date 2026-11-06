@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { FullAttachmentViewer, AttachmentViewerFile } from "@/components/ui/FullAttachmentViewer";
 import { downloadFileDirectly } from "@/lib/download";
-import { getSecureFileUrl, getSecureDownloadUrl, preloadSignedUrls } from "@/lib/storage";
+import { getSecureFileUrl, getSecureDownloadUrl, preloadSignedUrls, uploadFileToStorage, deleteFilesFromStorage } from "@/lib/storage";
 import { FileBrandIcon } from "@/components/ui/FileBrandIcon";
 import { extractTextFromImageFile } from "@/lib/ocr";
 import {
@@ -1230,17 +1230,10 @@ export function NotesView() {
         const uniqueSuffix = `${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
         const storagePath = `${noteId}/${uniqueSuffix}_${cleanName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("note-attachments")
-          .upload(storagePath, file, { cacheControl: "3600", upsert: true });
-
-        if (uploadError) {
-          throw uploadError;
+        const uploadResult = await uploadFileToStorage(storagePath, file);
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error || "Upload failed");
         }
-
-        const { data } = supabase.storage
-          .from("note-attachments")
-          .getPublicUrl(storagePath);
 
         const newAttachment: NoteAttachment = {
           id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
@@ -1511,7 +1504,7 @@ export function NotesView() {
         if (note.attachments && note.attachments.length > 0) {
           const filePaths = note.attachments.map((a) => a.path).filter(Boolean);
           if (filePaths.length > 0) {
-            await supabase.storage.from("note-attachments").remove(filePaths);
+            await deleteFilesFromStorage(filePaths);
           }
         }
         await supabase.from("app_notes").delete().eq("id", note.id);

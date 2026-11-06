@@ -112,3 +112,56 @@ export function getSecureDownloadUrl(pathOrUrl?: string | null, filename?: strin
   }
   return url;
 }
+
+/**
+ * Securely uploads a file via the authenticated /api/storage/upload endpoint.
+ */
+export async function uploadFileToStorage(
+  storagePath: string,
+  file: File | Blob
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("path", storagePath);
+
+    const res = await fetch("/api/storage/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return { success: false, error: data.error || "Upload failed." };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Network upload error." };
+  }
+}
+
+/**
+ * Securely deletes files via the authenticated /api/storage/delete endpoint.
+ */
+export async function deleteFilesFromStorage(
+  storagePaths: string[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const validPaths = storagePaths.filter(Boolean);
+    if (validPaths.length === 0) return { success: true };
+
+    const res = await fetch("/api/storage/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths: validPaths }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return { success: false, error: data.error || "Delete failed." };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Network delete error." };
+  }
+}
