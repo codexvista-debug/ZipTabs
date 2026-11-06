@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
+import { getAiApiKey } from "@/lib/aiVault";
 
 /**
  * /api/ai
@@ -47,10 +48,10 @@ export async function POST(req: NextRequest) {
 
     // 1. GROQ PROVIDER (Ultra-fast inference on LPUs)
     if (provider === "groq") {
-      const apiKey = process.env.GROQ_API_KEY;
+      const apiKey = await getAiApiKey("groq");
       if (!apiKey) {
         return NextResponse.json(
-          { success: false, error: "Groq API Key is not configured on server." },
+          { success: false, error: "Groq API Key is not configured on server or database vault." },
           { status: 500 }
         );
       }
@@ -100,10 +101,10 @@ export async function POST(req: NextRequest) {
 
     // 2. GEMINI PROVIDER (Multimodal Vision & High-Capacity Reasoning)
     if (provider === "gemini") {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = await getAiApiKey("gemini");
       if (!apiKey) {
         return NextResponse.json(
-          { success: false, error: "Gemini API Key is not configured on server." },
+          { success: false, error: "Gemini API Key is not configured on server or database vault." },
           { status: 500 }
         );
       }

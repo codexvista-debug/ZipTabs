@@ -3,6 +3,7 @@ import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { verifyPassword } from "@/lib/crypto";
 import { getSessionUser } from "@/lib/session";
 import { getClientIp } from "@/lib/serverIp";
+import { getAiApiKey } from "@/lib/aiVault";
 
 
 
@@ -74,8 +75,8 @@ export async function GET(req: NextRequest) {
       vanish_mode_enabled: isLockdown,
     };
 
-    const groqKey = process.env.GROQ_API_KEY || "";
-    const geminiKey = process.env.GEMINI_API_KEY || "";
+    const groqKey = (await getAiApiKey("groq")) || "";
+    const geminiKey = (await getAiApiKey("gemini")) || "";
 
     const maskKey = (key: string) => {
       if (!key) return "Not Configured";
@@ -416,9 +417,9 @@ export async function POST(req: NextRequest) {
       const start = Date.now();
 
       if (engine === "groq") {
-        const key = process.env.GROQ_API_KEY;
+        const key = await getAiApiKey("groq");
         if (!key) {
-          return NextResponse.json({ success: false, error: "Groq API key not configured on server" }, { status: 400 });
+          return NextResponse.json({ success: false, error: "Groq API key not configured on server or vault" }, { status: 400 });
         }
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
@@ -450,9 +451,9 @@ export async function POST(req: NextRequest) {
       }
 
       if (engine === "gemini") {
-        const key = process.env.GEMINI_API_KEY;
+        const key = await getAiApiKey("gemini");
         if (!key) {
-          return NextResponse.json({ success: false, error: "Gemini API key not configured on server" }, { status: 400 });
+          return NextResponse.json({ success: false, error: "Gemini API key not configured on server or vault" }, { status: 400 });
         }
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
           method: "POST",
