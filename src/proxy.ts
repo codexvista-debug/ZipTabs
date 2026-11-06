@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
+import { extractClientIp } from "@/lib/serverIp";
 
 // In-memory security cache to avoid hammering Supabase while keeping <2s real-time responsiveness
 let cachedSettings: {
@@ -10,18 +11,7 @@ let cachedSettings: {
 
 const CACHE_TTL_MS = 2000; // 2 seconds TTL
 
-function extractClientIp(req: NextRequest): string {
-  const forwardedFor = req.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    const ips = forwardedFor.split(",").map((s) => s.trim());
-    if (ips[0]) return ips[0];
-  }
-  const realIp = req.headers.get("x-real-ip");
-  if (realIp) return realIp.trim();
-  const cfIp = req.headers.get("cf-connecting-ip");
-  if (cfIp) return cfIp.trim();
-  return (req as any).ip || "127.0.0.1";
-}
+
 
 async function getSecuritySettings(): Promise<{ isVanishMode: boolean; allowedIps: string[] }> {
   const now = Date.now();

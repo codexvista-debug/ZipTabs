@@ -2,19 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { verifyPassword } from "@/lib/crypto";
 import { getSessionUser } from "@/lib/session";
+import { getClientIp } from "@/lib/serverIp";
 
-export function getClientIp(req: NextRequest): string {
-  const forwardedFor = req.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    const ips = forwardedFor.split(",").map((s) => s.trim());
-    if (ips[0]) return ips[0];
-  }
-  const realIp = req.headers.get("x-real-ip");
-  if (realIp) return realIp.trim();
-  const cfIp = req.headers.get("cf-connecting-ip");
-  if (cfIp) return cfIp.trim();
-  return "127.0.0.1";
-}
+
 
 // GET: Fetch system settings, users, IP locks, and current client IP
 export async function GET(req: NextRequest) {
