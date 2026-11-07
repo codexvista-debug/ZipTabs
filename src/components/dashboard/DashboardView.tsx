@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { deleteFilesFromStorage } from "@/lib/storage";
 import { getUSFederalHolidaysForYear } from "@/components/calendar/USCalendarView";
+import { getWorkspaceCache } from "@/lib/workspacePreloader";
 import {
   LayoutDashboard,
   FileSpreadsheet,
@@ -103,7 +104,9 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     return null;
   });
 
-  const [isLoading, setIsLoading] = useState(!cachedSnapshot);
+  const [isLoading, setIsLoading] = useState(
+    !cachedSnapshot && !getWorkspaceCache().hydratedAt
+  );
 
   // Live Metrics
   const [invoicesCount, setInvoicesCount] = useState<number>(cachedSnapshot?.invoicesCount ?? 0);
@@ -248,26 +251,33 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     ? `${MONTH_NAMES[currentMonthIdx].slice(0, 3)} 15`
     : `${MONTH_NAMES[currentMonthIdx].slice(0, 3)} ${daysInMonth}`;
 
-  // Fetch all live data concurrently
+  // Fetch all live data concurrently (adopting preloaded workspace cache first)
   const loadDashboardData = async () => {
     try {
-      let invoicesData: any[] = [];
-      let notesData: any[] = [];
-      let driveExpiringData: any[] = [];
-      let usageData: any = null;
+      const wsCache = getWorkspaceCache();
+      const isFreshCache = wsCache.hydratedAt > 0 && Date.now() - wsCache.hydratedAt < 60_000;
 
-      try {
-        const [invApi, notesApi, driveApi, usageApi] = await Promise.all([
-          fetch("/api/invoices").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch("/api/notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch("/api/drive?mode=expiring").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-          fetch("/api/usage").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-        ]);
-        if (invApi?.success && Array.isArray(invApi.data)) invoicesData = invApi.data;
-        if (notesApi?.success && Array.isArray(notesApi.notes)) notesData = notesApi.notes;
-        if (driveApi?.success && Array.isArray(driveApi.expiringFiles)) driveExpiringData = driveApi.expiringFiles;
-        if (usageApi?.success && usageApi.data) usageData = usageApi.data;
-      } catch {}
+      let invoicesData: any[] = Array.isArray(wsCache.invoices) ? wsCache.invoices : [];
+      let notesData: any[] = Array.isArray(wsCache.notes) ? wsCache.notes : [];
+      let driveExpiringData: any[] = Array.isArray(wsCache.driveFiles)
+        ? wsCache.driveFiles.filter((f: any) => f.retention_type === "temporary" && f.expires_at)
+        : [];
+      let usageData: any = wsCache.usageData || null;
+
+      if (!isFreshCache) {
+        try {
+          const [invApi, notesApi, driveApi, usageApi] = await Promise.all([
+            fetch("/api/invoices").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+            fetch("/api/notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+            fetch("/api/drive?mode=expiring").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+            fetch("/api/usage").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          ]);
+          if (invApi?.success && Array.isArray(invApi.data)) invoicesData = invApi.data;
+          if (notesApi?.success && Array.isArray(notesApi.notes)) notesData = notesApi.notes;
+          if (driveApi?.success && Array.isArray(driveApi.expiringFiles)) driveExpiringData = driveApi.expiringFiles;
+          if (usageApi?.success && usageApi.data) usageData = usageApi.data;
+        } catch {}
+      }
 
       // 1. Process Invoices
       let totalAmt = 0;

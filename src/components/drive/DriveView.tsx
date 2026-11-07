@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
+import { getWorkspaceCache, setCachedDrive } from "@/lib/workspacePreloader";
 import {
   FolderOpen,
   FolderPlus,
@@ -89,10 +90,44 @@ export function formatBytes(bytes: number, decimals = 1): string {
 }
 
 export function DriveView({ onNavigateUsage }: DriveViewProps) {
-  const [folders, setFolders] = useState<DriveFolder[]>([]);
-  const [files, setFiles] = useState<DriveFile[]>([]);
+  const [folders, setFolders] = useState<DriveFolder[]>(() => {
+    const pre = getWorkspaceCache().driveFolders;
+    if (Array.isArray(pre)) return pre;
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("ziptabs_drive_folders");
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return [];
+  });
+  const [files, setFiles] = useState<DriveFile[]>(() => {
+    const pre = getWorkspaceCache().driveFiles;
+    if (Array.isArray(pre)) return pre;
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("ziptabs_drive_files");
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return [];
+  });
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (Array.isArray(getWorkspaceCache().driveFiles)) return false;
+    if (typeof window !== "undefined") {
+      try {
+        if (localStorage.getItem("ziptabs_drive_files")) return false;
+      } catch {}
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (!isLoading) {
+      setCachedDrive(folders, files);
+    }
+  }, [folders, files, isLoading]);
 
   // Tab: "files" (Drive Files) | "trash" (Recycle Bin - 7 day auto-purge)
   const [driveTab, setDriveTab] = useState<"files" | "trash">("files");
@@ -180,9 +215,15 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
   // Fetch folders and files from authenticated API
   const loadDriveData = async () => {
-    setIsLoading(true);
+    const hasPreloaded =
+      Array.isArray(getWorkspaceCache().driveFiles) ||
+      (typeof window !== "undefined" && !!localStorage.getItem("ziptabs_drive_files"));
+    if (!hasPreloaded) {
+      setIsLoading(true);
+    }
     try {
-      await purgeExpiredFiles();
+      // Run expired file purge asynchronously without blocking UI load
+      purgeExpiredFiles().catch(() => {});
 
       let foldersData: DriveFolder[] | null = null;
       let filesData: DriveFile[] | null = null;
@@ -229,7 +270,12 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
   // Initial Load & Realtime Subscription
   useEffect(() => {
-    loadDriveData();
+    const cache = getWorkspaceCache();
+    if (!Array.isArray(cache.driveFiles) || Date.now() - cache.hydratedAt > 60_000) {
+      loadDriveData();
+    } else {
+      purgeExpiredFiles().catch(() => {});
+    }
 
     if (!supabase) return;
 

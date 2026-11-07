@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
+import { getWorkspaceCache, setCachedNotes } from "@/lib/workspacePreloader";
 import {
   NotebookPen,
   Plus,
@@ -466,10 +467,56 @@ function unrecordDeletedNoteId(id: string) {
 }
 
 export function NotesView() {
-  const [notes, setNotes] = useState<NoteItem[]>([]);
-  const [customCategories, setCustomCategories] = useState<CategoryConfig[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [notes, setNotes] = useState<NoteItem[]>(() => {
+    const deletedIds = getDeletedNoteIds();
+    const preloaded = getWorkspaceCache().notes;
+    if (Array.isArray(preloaded)) {
+      return preloaded.filter((n) => !deletedIds.has(n.id));
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("ziptabs_app_notes");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            return parsed.filter((n: NoteItem) => !deletedIds.has(n.id));
+          }
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [customCategories, setCustomCategories] = useState<CategoryConfig[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("ziptabs_custom_categories");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            return parsed.map((c: any) => ({ ...c, icon: Tag }));
+          }
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (Array.isArray(getWorkspaceCache().notes)) return false;
+    if (typeof window !== "undefined") {
+      try {
+        if (localStorage.getItem("ziptabs_app_notes")) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Sync in-memory workspace cache whenever notes update
+  useEffect(() => {
+    if (!isLoading) {
+      setCachedNotes(notes);
+    }
+  }, [notes, isLoading]);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [statusTab, setStatusTab] = useState<"active" | "completed">("active");
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | "attention">("all");
@@ -728,7 +775,12 @@ export function NotesView() {
 
   // Load notes from Supabase (with permanent tombstone tracking & clean localStorage sync)
   const loadNotes = async () => {
-    setIsLoading(true);
+    const hasPreloadedNotes =
+      Array.isArray(getWorkspaceCache().notes) ||
+      (typeof window !== "undefined" && !!localStorage.getItem("ziptabs_app_notes"));
+    if (!hasPreloadedNotes) {
+      setIsLoading(true);
+    }
 
     const deletedIds = getDeletedNoteIds();
 
@@ -748,6 +800,18 @@ export function NotesView() {
           const notesJson = await notesRes.json();
           if (notesJson.success && Array.isArray(notesJson.notes)) {
             data = notesJson.notes;
+          }
+          if (notesJson.success && Array.isArray(notesJson.categories)) {
+            const loadedCats: CategoryConfig[] = notesJson.categories.map((d: any) => ({
+              id: d.id,
+              label: d.label || d.name,
+              color: d.color || "text-slate-700 bg-slate-100 border-slate-200",
+              icon: Tag,
+            }));
+            setCustomCategories(loadedCats);
+            try {
+              localStorage.setItem("ziptabs_custom_categories", JSON.stringify(loadedCats));
+            } catch {}
           }
         }
       } catch (apiErr) {
@@ -891,7 +955,6 @@ export function NotesView() {
   };
 
   useEffect(() => {
-    loadCategories();
     // Batch preload ephemeral signed URLs so image thumbnails and attachments render instantly
     const initialPaths: string[] = [];
     for (const n of notes) {
@@ -904,7 +967,10 @@ export function NotesView() {
     if (initialPaths.length > 0) {
       preloadSignedUrls(initialPaths);
     }
-    loadNotes();
+    const cache = getWorkspaceCache();
+    if (!Array.isArray(cache.notes) || Date.now() - cache.hydratedAt > 60_000) {
+      loadNotes();
+    }
 
     // Supabase Realtime Subscription: keeps PC and Phone synced instantly without page reload
     if (!supabase) return;

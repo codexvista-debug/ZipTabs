@@ -13,6 +13,16 @@ const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
 };
 
+// Server-side in-memory decrypted row cache (keyed by id + ciphertext signature)
+// Avoids re-running 4,800 AES-256-GCM decryptions on every tab switch while preserving full auth verification.
+const decryptedRowCache = new Map<string, { sig: string; data: any }>();
+let cachedFullDirectory: { timestamp: number; list: any[] } | null = null;
+const DIRECTORY_LIST_TTL_MS = 15_000; // 15s hot cache, immediately invalidated on any write/delete
+
+function invalidateDirectoryServerCache() {
+  cachedFullDirectory = null;
+}
+
 function unwrapDirectoryRowFromStorage(row: RawSupabaseDirectoryRow): RawSupabaseDirectoryRow {
   const cRes = unwrapVaultField(row.encrypted_company);
   const nRes = unwrapVaultField(row.encrypted_name);
@@ -56,6 +66,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    if (cachedFullDirectory && Date.now() - cachedFullDirectory.timestamp < DIRECTORY_LIST_TTL_MS) {
+      return NextResponse.json(
+        { success: true, data: cachedFullDirectory.list },
+        { headers: NO_STORE_HEADERS }
+      );
+    }
+
     const { data, error } = await db
       .from("phone_directory")
       .select("*")
@@ -74,9 +91,16 @@ export async function GET(req: NextRequest) {
     const decryptedList = await Promise.all(
       rows.map(async (row) => {
         if (row.encrypted_name && row.iv) {
+          const sig = `${row.updated_at || ""}:${row.iv}:${row.encrypted_name}:${row.encrypted_phone}`;
+          const cached = decryptedRowCache.get(row.id);
+          if (cached && cached.sig === sig) {
+            return cached.data;
+          }
           try {
             const unwrapped = unwrapDirectoryRowFromStorage(row);
-            return await decryptSupabaseDirectoryRow(unwrapped, key);
+            const dec = await decryptSupabaseDirectoryRow(unwrapped, key);
+            decryptedRowCache.set(row.id, { sig, data: dec });
+            return dec;
           } catch (err) {
             console.warn("[Directory Gateway] Could not decrypt row:", row.id, err);
             return row;
@@ -85,6 +109,8 @@ export async function GET(req: NextRequest) {
         return row;
       })
     );
+
+    cachedFullDirectory = { timestamp: Date.now(), list: decryptedList };
 
     return NextResponse.json(
       { success: true, data: decryptedList },
@@ -116,6 +142,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    invalidateDirectoryServerCache();
     const body = await req.json();
     const action = body.action || "upsert";
 
@@ -135,6 +162,7 @@ export async function POST(req: NextRequest) {
           { status: 500, headers: NO_STORE_HEADERS }
         );
       }
+      decryptedRowCache.delete(id);
 
       return NextResponse.json({ success: true }, { headers: NO_STORE_HEADERS });
     }

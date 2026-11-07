@@ -34,7 +34,7 @@ type TabType = "dashboard" | "invoices" | "notes" | "calendar" | "directory" | "
 const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "directory", "drive", "resources", "logins", "master-control", "lab", "usage"];
 
 export default function Home() {
-  const { user, isAuthenticated, isLoading, lockoutInfo } = useAuth();
+  const { user, isAuthenticated, isLoading, loadingProgress, loadingStatus, lockoutInfo } = useAuth();
   const isChief =
     user?.username?.toLowerCase() === "chief" ||
     user?.role === "Chief Administrator";
@@ -194,9 +194,9 @@ export default function Home() {
     );
   }
 
-  // 1. Loading Session State (Instantaneous unlock for active sessions; guards against unauth flash)
+  // 1. Loading Session State (Preloads & decrypts workspace tabs during loading screen)
   if (isLoading) {
-    return <WorkspaceLoadingScreen />;
+    return <WorkspaceLoadingScreen progress={loadingProgress} statusText={loadingStatus} />;
   }
 
   // 2. Unauthenticated State OR IP Locked Out / Lockdown Active -> Show Gate Screen

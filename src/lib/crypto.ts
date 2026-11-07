@@ -163,31 +163,47 @@ export function base64ToBuffer(base64: string): Uint8Array {
   return bytes;
 }
 
+const derivedKeyCache = new Map<string, Promise<CryptoKey>>();
+
+export function clearDerivedKeyCache(): void {
+  derivedKeyCache.clear();
+}
+
 /**
  * Derives a 256-bit AES-GCM CryptoKey using PBKDF2 (SHA-256, 100,000 iterations).
+ * Memoized in memory per session so identical key derivations do not block the UI thread repeatedly.
  */
 export async function deriveVaultKey(secret: string, customSalt = VAULT_SALT): Promise<CryptoKey> {
-  const enc = new TextEncoder();
-  const baseKey = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret) as unknown as BufferSource,
-    "PBKDF2",
-    false,
-    ["deriveKey"]
-  );
+  const cacheKey = `${customSalt}:${secret}`;
+  const existing = derivedKeyCache.get(cacheKey);
+  if (existing) return existing;
 
-  return await crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt: enc.encode(customSalt) as unknown as BufferSource,
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    baseKey,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
+  const promise = (async () => {
+    const enc = new TextEncoder();
+    const baseKey = await crypto.subtle.importKey(
+      "raw",
+      enc.encode(secret) as unknown as BufferSource,
+      "PBKDF2",
+      false,
+      ["deriveKey"]
+    );
+
+    return await crypto.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt: enc.encode(customSalt) as unknown as BufferSource,
+        iterations: 100000,
+        hash: "SHA-256",
+      },
+      baseKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  })();
+
+  derivedKeyCache.set(cacheKey, promise);
+  return promise;
 }
 
 /**

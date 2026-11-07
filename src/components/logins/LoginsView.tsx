@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { getWorkspaceCache, setCachedVaultState } from "@/lib/workspacePreloader";
 import {
   deriveVaultKey,
   encryptVaultData,
@@ -218,17 +219,30 @@ export function formatLogTimestamp(isoStr?: string): { dateStr: string; timeStr:
 
 export function LoginsView() {
   const { user } = useAuth();
-  const isChief = user?.username?.toLowerCase() === "chief";
+  const isChief =
+    user?.username?.toLowerCase() === "chief" ||
+    user?.role === "Chief Administrator";
 
-  // Vault Lock State
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null);
+  const initialCache = getWorkspaceCache();
+  const wasExplicitlyLocked =
+    typeof window !== "undefined" &&
+    sessionStorage.getItem("ziptabs_vault_locked") === "true";
+
+  // Vault Lock State (Instantaneous unlock if preloaded during WorkspaceLoadingScreen)
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(
+    () => !wasExplicitlyLocked && !!initialCache.vaultKey && Array.isArray(initialCache.vaultLogins)
+  );
+  const [vaultKey, setVaultKey] = useState<CryptoKey | null>(
+    () => (!wasExplicitlyLocked ? initialCache.vaultKey : null)
+  );
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
   const [isUnlocking, setIsUnlocking] = useState(false);
 
-  // Data State
-  const [logins, setLogins] = useState<DecryptedLoginCredential[]>([]);
+  // Data State (Hydrated from preloader cache for 0ms tab switching)
+  const [logins, setLogins] = useState<DecryptedLoginCredential[]>(
+    () => (!wasExplicitlyLocked && initialCache.vaultLogins ? initialCache.vaultLogins : [])
+  );
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -421,6 +435,13 @@ export function LoginsView() {
     }
   }, [isUnlocked]);
 
+  // Keep in-memory workspace cache synchronized with live edits when unlocked
+  useEffect(() => {
+    if (isUnlocked && vaultKey) {
+      setCachedVaultState(logins, vaultKey);
+    }
+  }, [isUnlocked, vaultKey, logins]);
+
   // Auto-authenticate & unlock on initial mount if user is Chief AND vault was not explicitly locked
   useEffect(() => {
     let wasLocked = false;
@@ -439,6 +460,7 @@ export function LoginsView() {
         sessionStorage.setItem("ziptabs_vault_locked", "true");
       }
     } catch {}
+    setCachedVaultState(null, null);
 
     if (clipboardWipeTimerRef.current) {
       clearTimeout(clipboardWipeTimerRef.current);
@@ -583,7 +605,9 @@ export function LoginsView() {
 
   // Fetch from Supabase and Decrypt
   const fetchAndDecryptLogins = async (primaryKey: CryptoKey, pin?: string) => {
-    setIsLoadingData(true);
+    if (logins.length === 0) {
+      setIsLoadingData(true);
+    }
 
     try {
       let data: any[] | null = null;

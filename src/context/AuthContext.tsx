@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { preloadAllWorkspaceData, clearWorkspaceCache } from "@/lib/workspacePreloader";
 
 export interface AppUser {
   id: string;
@@ -25,6 +26,8 @@ interface AuthContextType {
   user: AppUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  loadingProgress?: number;
+  loadingStatus?: string;
   lockoutInfo: LockoutInfo | null;
   refreshLockoutStatus: () => Promise<LockoutInfo | null>;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string; locked?: boolean; attempts?: number }>;
@@ -72,6 +75,8 @@ export function generateNewSessionId(): { sessionId: string; sessionCreated: num
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadingProgress, setLoadingProgress] = useState<number | undefined>(undefined);
+  const [loadingStatus, setLoadingStatus] = useState<string | undefined>(undefined);
   const [lockoutInfo, setLockoutInfo] = useState<LockoutInfo | null>(null);
 
   const refreshLockoutStatus = async (overrideUser?: string): Promise<LockoutInfo | null> => {
@@ -119,35 +124,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
-  // Validate session strictly against server HttpOnly session cookie
+  // Validate session strictly against server HttpOnly session cookie & preload workspace data
   useEffect(() => {
     let isMounted = true;
     const initializeAuth = async () => {
-      // 1. Initial security verification (lockout status & vanish mode)
-      const info = await refreshLockoutStatus();
-      if (info?.isVanishMode && typeof window !== "undefined") {
-        if (isMounted) {
-          setUser(null);
-          setIsLoading(false);
-        }
-        try {
-          localStorage.removeItem(STORAGE_KEY);
-          localStorage.removeItem(LAST_ACTIVITY_KEY);
-        } catch {}
-        window.location.replace(info.vanishRedirectUrl || "https://www.wikipedia.org");
-        return; // Never reveal UI, keep loading state while navigating away
-      }
-
-      // 2. Check client inactivity timeout before verifying session
+      // 1. Check client inactivity timeout first
       if (typeof window !== "undefined") {
         try {
           const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
           if (lastActivityStr) {
             const lastActivity = parseInt(lastActivityStr, 10);
             if (!isNaN(lastActivity) && Date.now() - lastActivity >= INACTIVITY_TIMEOUT_MS) {
-              // Expired during inactivity while tab was closed
               localStorage.removeItem(STORAGE_KEY);
               localStorage.removeItem(LAST_ACTIVITY_KEY);
+              clearWorkspaceCache();
               try {
                 sessionStorage.setItem(INACTIVITY_LOGOUT_FLAG, "true");
               } catch {}
@@ -155,7 +145,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(null);
                 setIsLoading(false);
               }
-              // Clear server session cookie
               fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
               return;
             }
@@ -163,10 +152,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch {}
       }
 
-      // 3. Cryptographically verify server HttpOnly signed session cookie
+      if (isMounted) {
+        setLoadingProgress(15);
+        setLoadingStatus("Securing perimeter connection...");
+      }
+
+      // 2. Run lockout status check & cryptographic HttpOnly session verification concurrently
       try {
-        const meRes = await fetch("/api/auth/me", { cache: "no-store" });
-        if (meRes.ok) {
+        const [info, meRes] = await Promise.all([
+          refreshLockoutStatus(),
+          fetch("/api/auth/me", { cache: "no-store" }).catch(() => null),
+        ]);
+
+        if (info?.isVanishMode && typeof window !== "undefined") {
+          if (isMounted) {
+            setUser(null);
+            setIsLoading(false);
+          }
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(LAST_ACTIVITY_KEY);
+          } catch {}
+          clearWorkspaceCache();
+          window.location.replace(info.vanishRedirectUrl || "https://www.wikipedia.org");
+          return;
+        }
+
+        if (meRes && meRes.ok) {
           const meData = await meRes.json();
           if (meData.authenticated && meData.user) {
             if (isMounted) {
@@ -176,11 +188,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               localStorage.setItem(STORAGE_KEY, JSON.stringify(meData.user));
               localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
             } catch {}
+
+            // 3. Preload and decrypt all workspace data during the loading screen
+            if (!info?.locked) {
+              await preloadAllWorkspaceData(meData.user, (pct, status) => {
+                if (isMounted) {
+                  setLoadingProgress(pct);
+                  setLoadingStatus(status);
+                }
+              });
+            }
           } else {
-            // Server cookie missing or invalid - revoke local session
             if (isMounted) {
               setUser(null);
             }
+            clearWorkspaceCache();
             try {
               localStorage.removeItem(STORAGE_KEY);
               localStorage.removeItem(LAST_ACTIVITY_KEY);
@@ -434,6 +456,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Login Successful!
       generateNewSessionId();
       const loggedUser: AppUser = data.user;
+      setIsLoading(true);
+      setLoadingProgress(20);
+      setLoadingStatus("Querying Supabase Cloud Vault...");
       setUser(loggedUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
       localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
@@ -449,6 +474,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           bc.postMessage({ type: "LOGIN", user: loggedUser });
           bc.close();
         } catch {}
+      }
+
+      // Preload and decrypt workspace data while showing loading screen
+      try {
+        await preloadAllWorkspaceData(loggedUser, (pct, status) => {
+          setLoadingProgress(pct);
+          setLoadingStatus(status);
+        });
+      } finally {
+        setIsLoading(false);
       }
 
       return { success: true };
@@ -528,6 +563,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = (isInactivityTimeout: boolean | unknown = false) => {
     const isTimeout = isInactivityTimeout === true;
+    clearWorkspaceCache();
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(LAST_ACTIVITY_KEY);
@@ -562,6 +598,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isAuthenticated: !!user,
         isLoading,
+        loadingProgress,
+        loadingStatus,
         lockoutInfo,
         refreshLockoutStatus,
         login,

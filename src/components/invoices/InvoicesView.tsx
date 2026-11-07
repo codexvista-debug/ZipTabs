@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { getWorkspaceCache, setCachedInvoices } from "@/lib/workspacePreloader";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import {
@@ -191,6 +192,8 @@ export function InvoicesView() {
   const INVOICE_CACHE_KEY = "ziptabs_cached_invoices_v1";
 
   const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
+    const pre = getWorkspaceCache().invoices;
+    if (Array.isArray(pre) && pre.length > 0) return pre;
     if (typeof window !== "undefined") {
       try {
         const cached = sessionStorage.getItem(INVOICE_CACHE_KEY);
@@ -203,6 +206,8 @@ export function InvoicesView() {
     return [];
   });
   const [isLoading, setIsLoading] = useState<boolean>(() => {
+    const pre = getWorkspaceCache().invoices;
+    if (Array.isArray(pre)) return false;
     if (typeof window !== "undefined") {
       try {
         const cached = sessionStorage.getItem(INVOICE_CACHE_KEY);
@@ -214,6 +219,12 @@ export function InvoicesView() {
     }
     return true;
   });
+
+  useEffect(() => {
+    if (!isLoading) {
+      setCachedInvoices(invoices);
+    }
+  }, [invoices, isLoading]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragHover, setIsDragHover] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -277,7 +288,12 @@ export function InvoicesView() {
 
   // Fetch invoices from Supabase on mount
   const loadInvoices = async () => {
-    setIsLoading(true);
+    const hasPreloaded =
+      Array.isArray(getWorkspaceCache().invoices) ||
+      (typeof window !== "undefined" && !!sessionStorage.getItem(INVOICE_CACHE_KEY));
+    if (!hasPreloaded) {
+      setIsLoading(true);
+    }
     if (!supabase) {
       setIsLoading(false);
       return;
@@ -334,7 +350,10 @@ export function InvoicesView() {
   };
 
   useEffect(() => {
-    loadInvoices();
+    const cache = getWorkspaceCache();
+    if (!Array.isArray(cache.invoices) || Date.now() - cache.hydratedAt > 60_000) {
+      loadInvoices();
+    }
   }, []);
 
   // Reset to first page when search, filter, or sorting changes

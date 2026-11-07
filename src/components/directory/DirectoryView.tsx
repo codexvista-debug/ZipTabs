@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { getWorkspaceCache, setCachedDirectoryRecords } from "@/lib/workspacePreloader";
 import {
   DirectoryRecord,
   getDirectoryKey,
@@ -63,12 +64,20 @@ import {
 } from "lucide-react";
 
 export function DirectoryView() {
-  const [records, setRecords] = useState<DirectoryRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const initialCachedDir = getWorkspaceCache().directoryRecords;
+  const [records, setRecords] = useState<DirectoryRecord[]>(() => initialCachedDir || []);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !initialCachedDir);
   const [activeDivision, setActiveDivision] = useState<"employee" | "vendor" | "all">("vendor");
   const [activeSearchFilter, setActiveSearchFilter] = useState<string>("");
   const [desktopViewMode, setDesktopViewMode] = useState<"table" | "grid">("table");
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Keep in-memory workspace cache synced with any directory edits
+  useEffect(() => {
+    if (!isLoading) {
+      setCachedDirectoryRecords(records);
+    }
+  }, [records, isLoading]);
 
   // Selection & quick actions
   const [copiedField, setCopiedField] = useState<{ id: string; type: "phone" | "email" } | null>(null);
@@ -105,40 +114,43 @@ export function DirectoryView() {
   }, []);
 
   // Fetch and decrypt all directory records from authenticated /api/directory gateway
-  const fetchDirectory = useCallback(async () => {
-    setIsLoading(true);
+  const fetchDirectory = useCallback(async (silent = false) => {
+    const hasPreloaded = Array.isArray(getWorkspaceCache().directoryRecords);
+    if (!silent && !hasPreloaded) {
+      setIsLoading(true);
+    }
     try {
-      const key = await getDirectoryKey();
+      const [key, dirRes] = await Promise.all([
+        getDirectoryKey(),
+        fetch("/api/directory", { cache: "no-store" }).catch(() => null),
+      ]);
 
       let data: any[] | null = null;
-      try {
-        const dirRes = await fetch("/api/directory", { cache: "no-store" });
-        if (dirRes.ok) {
-          const dirJson = await dirRes.json();
-          if (dirJson.success && Array.isArray(dirJson.data)) {
-            data = dirJson.data;
-          }
+      if (dirRes && dirRes.ok) {
+        const dirJson = await dirRes.json();
+        if (dirJson.success && Array.isArray(dirJson.data)) {
+          data = dirJson.data;
         }
-      } catch (apiErr) {
-        console.warn("API directory call failed:", apiErr);
       }
 
       if (data && data.length > 0) {
-        // Adopt server-decrypted rows directly or fall back to local decryption
-        const decryptedList: DirectoryRecord[] = [];
-        for (const rawRow of data as any[]) {
-          if (rawRow.name && !rawRow.encrypted_name) {
-            decryptedList.push(rawRow as DirectoryRecord);
-          } else {
+        // Adopt server-decrypted rows directly or fall back to parallel local decryption
+        const decryptedResults = await Promise.all(
+          (data as any[]).map(async (rawRow) => {
+            if (rawRow.name && !rawRow.encrypted_name) {
+              return rawRow as DirectoryRecord;
+            }
             try {
-              const dec = await decryptSupabaseDirectoryRow(rawRow, key);
-              decryptedList.push(dec);
+              return await decryptSupabaseDirectoryRow(rawRow, key);
             } catch (decErr) {
               console.warn("Could not decrypt directory row:", rawRow.id, decErr);
+              return null;
             }
-          }
-        }
+          })
+        );
+        const decryptedList = decryptedResults.filter(Boolean) as DirectoryRecord[];
         setRecords(decryptedList);
+        setCachedDirectoryRecords(decryptedList);
 
         // Quietly upgrade any unformatted legacy phone records in Supabase in the background
         const recordsToUpgrade = decryptedList.filter((r) => r._phoneNeedsUpgrade);
@@ -158,23 +170,30 @@ export function DirectoryView() {
             }
           })();
         }
-      } else {
+      } else if (!hasPreloaded) {
         setRecords([]);
       }
     } catch (err: any) {
       console.error("Failed to load directory:", err);
-      setToast({
-        type: "error",
-        title: "Decryption Failed",
-        description: err?.message || "Could not derive cryptographic key.",
-      });
+      if (!hasPreloaded) {
+        setToast({
+          type: "error",
+          title: "Decryption Failed",
+          description: err?.message || "Could not derive cryptographic key.",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchDirectory();
+    const cache = getWorkspaceCache();
+    // If already hydrated within the last 60 seconds, skip redundant network call on tab switch
+    if (Array.isArray(cache.directoryRecords) && Date.now() - cache.hydratedAt < 60_000) {
+      return;
+    }
+    fetchDirectory(true);
   }, [fetchDirectory]);
 
   // Copy to clipboard helper with checkmark animation
