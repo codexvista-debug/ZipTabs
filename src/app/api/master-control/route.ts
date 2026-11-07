@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { verifyPassword } from "@/lib/crypto";
-import { getSessionUser } from "@/lib/session";
+import {
+  createSessionToken,
+  getSessionUser,
+  invalidateSessionSecurityCache,
+  setSessionCookie,
+} from "@/lib/session";
 import { getClientIp } from "@/lib/serverIp";
 import { getAiApiKey } from "@/lib/aiVault";
 
@@ -335,12 +340,14 @@ export async function POST(req: NextRequest) {
       }
 
       await db.from("app_users").delete().eq("id", userId);
+      invalidateSessionSecurityCache();
       return NextResponse.json({ success: true });
     }
 
     if (action === "kick_other_sessions") {
       const keepSessionId = (body.keepSessionId || "").trim();
-      const now = new Date().toISOString();
+      const nowMs = Date.now();
+      const now = new Date(nowMs).toISOString();
 
       await db
         .from("system_security_settings")
@@ -352,12 +359,27 @@ export async function POST(req: NextRequest) {
           updated_by: "chief",
         });
 
-      return NextResponse.json({
+      invalidateSessionSecurityCache();
+
+      // Issue a freshly timestamped HttpOnly cookie for Chief so the current device
+      // remains seamlessly authenticated across all APIs while all older tokens are revoked.
+      const freshToken = await createSessionToken(
+        {
+          id: session.id,
+          username: session.username,
+          role: session.role,
+        },
+        nowMs + 100
+      );
+
+      const res = NextResponse.json({
         success: true,
         message: "All other active sessions have been evicted and logged out.",
         activeSessionId: keepSessionId,
         kickedAt: now,
       });
+      setSessionCookie(res, freshToken);
+      return res;
     }
 
     if (action === "clear_logs") {

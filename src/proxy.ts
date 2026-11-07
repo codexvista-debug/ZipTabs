@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
+import { getSessionUser } from "@/lib/session";
 import { extractClientIp } from "@/lib/serverIp";
 
 // In-memory security cache to avoid hammering Supabase while keeping <2s real-time responsiveness
 let cachedSettings: {
   isVanishMode: boolean;
   allowedIps: string[];
+  blacklistedIps: string[];
+  lockedIps: Set<string>;
   fetchedAt: number;
 } | null = null;
 
 const CACHE_TTL_MS = 2000; // 2 seconds TTL
 
-
-
-async function getSecuritySettings(): Promise<{ isVanishMode: boolean; allowedIps: string[] }> {
+async function getSecuritySettings(): Promise<{
+  isVanishMode: boolean;
+  allowedIps: string[];
+  blacklistedIps: string[];
+  lockedIps: Set<string>;
+}> {
   const now = Date.now();
   if (cachedSettings && now - cachedSettings.fetchedAt < CACHE_TTL_MS) {
     return cachedSettings;
@@ -23,33 +28,65 @@ async function getSecuritySettings(): Promise<{ isVanishMode: boolean; allowedIp
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    return { isVanishMode: false, allowedIps: [] };
+    return {
+      isVanishMode: false,
+      allowedIps: [],
+      blacklistedIps: [],
+      lockedIps: new Set(),
+    };
   }
 
   try {
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/system_security_settings?id=in.(global,vanish_mode)&select=*`,
-      {
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-        },
-        cache: "no-store",
-      }
-    );
+    const headers = {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+    };
+    const nowIso = new Date(now).toISOString();
 
-    if (res.ok) {
-      const data: any[] = await res.json();
+    const [settingsRes, locksRes] = await Promise.all([
+      fetch(
+        `${supabaseUrl}/rest/v1/system_security_settings?id=in.(global,vanish_mode)&select=*`,
+        {
+          headers,
+          cache: "no-store",
+        }
+      ),
+      fetch(
+        `${supabaseUrl}/rest/v1/auth_ip_locks?locked_until=gt.${encodeURIComponent(nowIso)}&select=ip,locked_until`,
+        {
+          headers,
+          cache: "no-store",
+        }
+      ),
+    ]);
+
+    if (settingsRes.ok) {
+      const data: any[] = await settingsRes.json();
       const global = data.find((s) => s.id === "global");
       const vanish = data.find((s) => s.id === "vanish_mode");
 
       // Unified Lockdown: if either global or vanish_mode indicates lockdown, lock & cloak site
       const isLockdown = Boolean(global?.ip_lockdown_enabled || vanish?.ip_lockdown_enabled);
       const allowedIps: string[] = Array.isArray(global?.allowed_ips) ? global.allowed_ips : [];
+      const blacklistedIps: string[] = Array.isArray(global?.blacklisted_ips)
+        ? global.blacklisted_ips
+        : [];
+
+      const lockedIps = new Set<string>();
+      if (locksRes.ok) {
+        const locksData: any[] = await locksRes.json();
+        if (Array.isArray(locksData)) {
+          for (const l of locksData) {
+            if (l?.ip) lockedIps.add(String(l.ip));
+          }
+        }
+      }
 
       cachedSettings = {
         isVanishMode: isLockdown,
         allowedIps,
+        blacklistedIps,
+        lockedIps,
         fetchedAt: now,
       };
       return cachedSettings;
@@ -58,7 +95,14 @@ async function getSecuritySettings(): Promise<{ isVanishMode: boolean; allowedIp
     console.error("[Proxy] Failed to fetch security settings:", err);
   }
 
-  return cachedSettings || { isVanishMode: false, allowedIps: [] };
+  return (
+    cachedSettings || {
+      isVanishMode: false,
+      allowedIps: [],
+      blacklistedIps: [],
+      lockedIps: new Set(),
+    }
+  );
 }
 
 export async function proxy(request: NextRequest) {
@@ -75,7 +119,8 @@ export async function proxy(request: NextRequest) {
   }
 
   const clientIp = extractClientIp(request);
-  const { isVanishMode, allowedIps } = await getSecuritySettings();
+  const { isVanishMode, allowedIps, blacklistedIps, lockedIps } =
+    await getSecuritySettings();
 
   if (isVanishMode) {
     const isWhitelisted = allowedIps.includes(clientIp);
@@ -86,19 +131,34 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Session gate for internal API routes
+  // Session & IP gate for internal API routes
   if (pathname.startsWith("/api/")) {
-    const isPublicApi =
-      pathname.startsWith("/api/auth/login") ||
-      pathname.startsWith("/api/auth/register") ||
+    const isStatusOrLogoutApi =
       pathname.startsWith("/api/auth/lockout-status") ||
       pathname.startsWith("/api/auth/me") ||
       pathname.startsWith("/api/auth/logout") ||
       pathname.startsWith("/api/discord");
 
+    // Block blacklisted or locked-out IPs from hitting any action/data API (including login/register/vault)
+    if (!isStatusOrLogoutApi) {
+      if (blacklistedIps.includes(clientIp) || lockedIps.has(clientIp)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Forbidden: Your IP address is currently locked or blacklisted.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    const isPublicApi =
+      isStatusOrLogoutApi ||
+      pathname.startsWith("/api/auth/login") ||
+      pathname.startsWith("/api/auth/register");
+
     if (!isPublicApi) {
-      const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-      const session = await verifySessionToken(token);
+      const session = await getSessionUser(request);
       if (!session) {
         return NextResponse.json(
           { success: false, error: "Unauthorized: Active session required." },
@@ -106,12 +166,16 @@ export async function proxy(request: NextRequest) {
         );
       }
       if (
-        pathname.startsWith("/api/master-control") &&
+        (pathname.startsWith("/api/master-control") ||
+          pathname.startsWith("/api/vault")) &&
         session.username?.toLowerCase() !== "chief" &&
         session.role !== "Chief Administrator"
       ) {
         return NextResponse.json(
-          { success: false, error: "Forbidden: Master Control requires @chief authorization." },
+          {
+            success: false,
+            error: "Forbidden: This endpoint strictly requires @chief authorization.",
+          },
           { status: 403 }
         );
       }

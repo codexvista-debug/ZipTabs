@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractClientIp } from "@/lib/serverIp";
 
 export const SESSION_COOKIE_NAME = "ziptabs_session";
 export const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -6,8 +7,7 @@ export const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 function getSessionSecret(): string {
   const secret =
     process.env.SESSION_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_ACCESS_TOKEN;
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!secret || !secret.trim()) {
     throw new Error(
@@ -21,7 +21,6 @@ function getCandidateSecrets(): string[] {
   const list = [
     process.env.SESSION_SECRET,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
-    process.env.SUPABASE_ACCESS_TOKEN,
   ];
   return Array.from(
     new Set(list.filter((s): s is string => typeof s === "string" && s.trim().length > 0))
@@ -34,6 +33,109 @@ export interface SessionUser {
   role: string;
   createdAt: number;
   expiresAt: number;
+}
+
+interface SecurityStateSnapshot {
+  kickSessionsBeforeMs: number;
+  activeSessionId: string | null;
+  blacklistedIps: string[];
+  lockedIps: Set<string>;
+  validUserIds: Set<string>;
+  fetchedAt: number;
+}
+
+let cachedSecurityState: SecurityStateSnapshot | null = null;
+const SECURITY_STATE_TTL_MS = 2000; // 2-second TTL for near-instant revocation
+
+export function invalidateSessionSecurityCache(): void {
+  cachedSecurityState = null;
+}
+
+async function getServerSecurityState(): Promise<SecurityStateSnapshot | null> {
+  const now = Date.now();
+  if (cachedSecurityState && now - cachedSecurityState.fetchedAt < SECURITY_STATE_TTL_MS) {
+    return cachedSecurityState;
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return cachedSecurityState;
+  }
+
+  try {
+    const headers = {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+    };
+    const nowIso = new Date(now).toISOString();
+
+    const [settingsRes, locksRes, usersRes] = await Promise.all([
+      fetch(`${supabaseUrl}/rest/v1/system_security_settings?id=eq.global&select=kick_sessions_before,active_session_id,blacklisted_ips`, {
+        headers,
+        cache: "no-store",
+      }),
+      fetch(`${supabaseUrl}/rest/v1/auth_ip_locks?locked_until=gt.${encodeURIComponent(nowIso)}&select=ip,locked_until`, {
+        headers,
+        cache: "no-store",
+      }),
+      fetch(`${supabaseUrl}/rest/v1/app_users?select=id`, {
+        headers,
+        cache: "no-store",
+      }),
+    ]);
+
+    let kickSessionsBeforeMs = 0;
+    let activeSessionId: string | null = null;
+    let blacklistedIps: string[] = [];
+
+    if (settingsRes.ok) {
+      const settingsData: any[] = await settingsRes.json();
+      const globalRow = settingsData?.[0];
+      if (globalRow) {
+        if (globalRow.kick_sessions_before) {
+          const parsed = new Date(globalRow.kick_sessions_before).getTime();
+          if (!Number.isNaN(parsed)) kickSessionsBeforeMs = parsed;
+        }
+        activeSessionId = globalRow.active_session_id || null;
+        if (Array.isArray(globalRow.blacklisted_ips)) {
+          blacklistedIps = globalRow.blacklisted_ips;
+        }
+      }
+    }
+
+    const lockedIps = new Set<string>();
+    if (locksRes.ok) {
+      const locksData: any[] = await locksRes.json();
+      if (Array.isArray(locksData)) {
+        for (const l of locksData) {
+          if (l?.ip) lockedIps.add(String(l.ip));
+        }
+      }
+    }
+
+    const validUserIds = new Set<string>();
+    if (usersRes.ok) {
+      const usersData: any[] = await usersRes.json();
+      if (Array.isArray(usersData)) {
+        for (const u of usersData) {
+          if (u?.id) validUserIds.add(String(u.id));
+        }
+      }
+    }
+
+    cachedSecurityState = {
+      kickSessionsBeforeMs,
+      activeSessionId,
+      blacklistedIps,
+      lockedIps,
+      validUserIds,
+      fetchedAt: now,
+    };
+    return cachedSecurityState;
+  } catch {
+    return cachedSecurityState;
+  }
 }
 
 function base64UrlEncode(buffer: Uint8Array): string {
@@ -74,8 +176,11 @@ async function getHmacKey(): Promise<CryptoKey> {
 /**
  * Creates an HMAC-SHA256 signed session token
  */
-export async function createSessionToken(user: { id: string; username: string; role?: string }): Promise<string> {
-  const now = Date.now();
+export async function createSessionToken(
+  user: { id: string; username: string; role?: string },
+  customCreatedAtMs?: number
+): Promise<string> {
+  const now = customCreatedAtMs ?? Date.now();
   const payload: SessionUser = {
     id: user.id,
     username: user.username.toLowerCase(),
@@ -154,11 +259,46 @@ export async function verifySessionToken(token?: string | null): Promise<Session
 }
 
 /**
- * Extracts and verifies session from an incoming NextRequest
+ * Extracts and verifies session from an incoming NextRequest,
+ * enforcing server-side session revocation (kick_sessions_before),
+ * deleted user rejection (app_users), and IP blacklists/lockouts.
  */
 export async function getSessionUser(req: NextRequest): Promise<SessionUser | null> {
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  return await verifySessionToken(token);
+  const session = await verifySessionToken(token);
+  if (!session) return null;
+
+  const secState = await getServerSecurityState();
+  if (secState) {
+    const clientIp = extractClientIp(req);
+
+    // 1. Reject blacklisted or locked-out IPs immediately
+    if (secState.blacklistedIps.includes(clientIp) || secState.lockedIps.has(clientIp)) {
+      return null;
+    }
+
+    // 2. Reject deleted users
+    if (
+      secState.validUserIds.size > 0 &&
+      session.id !== "chief-default" &&
+      !secState.validUserIds.has(session.id)
+    ) {
+      return null;
+    }
+
+    // 3. Reject sessions issued prior to kick_sessions_before (unless preserved activeSessionId)
+    if (secState.kickSessionsBeforeMs > 0 && session.createdAt < secState.kickSessionsBeforeMs) {
+      const reqSessionId = req.headers.get("x-session-id")?.trim() || "";
+      const isPreserved = Boolean(
+        secState.activeSessionId && reqSessionId && secState.activeSessionId === reqSessionId
+      );
+      if (!isPreserved) {
+        return null;
+      }
+    }
+  }
+
+  return session;
 }
 
 /**
