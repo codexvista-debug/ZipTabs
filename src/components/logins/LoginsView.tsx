@@ -260,6 +260,16 @@ export function LoginsView() {
   const clipboardWipeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastCopiedSecretRef = useRef<string | null>(null);
 
+  // Active peek timeouts and countdown triggers for password reveal
+  const peekTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const [peekTimestamps, setPeekTimestamps] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(peekTimeoutsRef.current).forEach(clearTimeout);
+    };
+  }, []);
+
   // Dynamic Categories State (Defaults: Leopard, Quickbooks, Paychex, General)
   const [customCategories, setCustomCategories] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
@@ -445,6 +455,9 @@ export function LoginsView() {
     setVaultKey(null);
     setLogins([]);
     setVisiblePasswords({});
+    Object.values(peekTimeoutsRef.current).forEach(clearTimeout);
+    peekTimeoutsRef.current = {};
+    setPeekTimestamps({});
     setPinInput("");
     setPinError("");
   };
@@ -834,8 +847,13 @@ export function LoginsView() {
     }
   };
 
-  // Toggle password visibility with 10s auto-hide
+  // Toggle password visibility with 10s auto-hide and countdown drain tracking
   const togglePasswordVisibility = (id: string) => {
+    if (peekTimeoutsRef.current[id]) {
+      clearTimeout(peekTimeoutsRef.current[id]);
+      delete peekTimeoutsRef.current[id];
+    }
+
     const nextState = !visiblePasswords[id];
     setVisiblePasswords((prev) => ({
       ...prev,
@@ -843,12 +861,25 @@ export function LoginsView() {
     }));
 
     if (nextState) {
-      setTimeout(() => {
+      setPeekTimestamps((prev) => ({ ...prev, [id]: Date.now() }));
+      peekTimeoutsRef.current[id] = setTimeout(() => {
         setVisiblePasswords((prev) => ({
           ...prev,
           [id]: false,
         }));
+        setPeekTimestamps((prev) => {
+          const updated = { ...prev };
+          delete updated[id];
+          return updated;
+        });
+        delete peekTimeoutsRef.current[id];
       }, PEEK_AUTO_HIDE_MS);
+    } else {
+      setPeekTimestamps((prev) => {
+        const updated = { ...prev };
+        delete updated[id];
+        return updated;
+      });
     }
   };
 
@@ -1532,26 +1563,39 @@ export function LoginsView() {
                         </div>
                       </td>
                       <td className="py-3.5 px-3 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 font-mono font-bold">
-                          <span className={isVisible ? "text-slate-900 select-all" : "text-slate-400 tracking-widest select-none"}>
-                            {isVisible ? item.password : "••••••••"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => togglePasswordVisibility(item.id)}
-                            className="p-1 text-slate-400 hover:text-slate-700 rounded transition-colors cursor-pointer"
-                            title={isVisible ? "Hide" : "Peek (10s)"}
-                          >
-                            {isVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(item.password, `tbl-p-${item.id}`, true)}
-                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
-                            title="Copy password"
-                          >
-                            {copiedKey === `tbl-p-${item.id}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                          </button>
+                        <div className="flex flex-col">
+                          <div className="inline-flex items-center gap-1.5 font-mono font-bold">
+                            <span className={isVisible ? "text-slate-900 select-all" : "text-slate-400 tracking-widest select-none"}>
+                              {isVisible ? item.password : "••••••••"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => togglePasswordVisibility(item.id)}
+                              className="p-1 text-slate-400 hover:text-slate-700 rounded transition-colors cursor-pointer"
+                              title={isVisible ? "Hide" : "Peek (10s)"}
+                            >
+                              {isVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(item.password, `tbl-p-${item.id}`, true)}
+                              className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                              title="Copy password"
+                            >
+                              {copiedKey === `tbl-p-${item.id}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                          </div>
+                          {isVisible && (
+                            <div className="w-full bg-amber-100 rounded-full h-0.5 mt-1 overflow-hidden">
+                              <div
+                                key={`tbl-peek-${item.id}-${peekTimestamps[item.id] || 0}`}
+                                className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full animate-peek-drain"
+                                style={{
+                                  animation: "peekDrain 10s linear forwards",
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="py-3.5 px-3 whitespace-nowrap">
@@ -1810,9 +1854,9 @@ export function LoginsView() {
                       {/* Username Box */}
                       <div className="p-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 hover:bg-white hover:border-slate-300 transition-all flex flex-col justify-between shadow-2xs">
                         <div className="flex items-center justify-between gap-1 mb-1.5">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                            <User className="w-3 h-3 text-blue-500" />
-                            <span>Username</span>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 truncate">
+                            <User className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span className="truncate">Username</span>
                           </span>
                           <button
                             type="button"
@@ -1835,24 +1879,22 @@ export function LoginsView() {
                             )}
                           </button>
                         </div>
-                        <div className="text-xs sm:text-[13px] font-mono font-bold text-slate-800 select-all truncate pl-0.5">
-                          {item.username}
+                        <div>
+                          <div className="text-xs sm:text-[13px] font-mono font-bold text-slate-800 select-all truncate pl-0.5">
+                            {item.username}
+                          </div>
+                          <div className="h-1 w-full mt-2" />
                         </div>
                       </div>
 
                       {/* Password Box */}
                       <div className="p-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 hover:bg-white hover:border-slate-300 transition-all flex flex-col justify-between shadow-2xs">
                         <div className="flex items-center justify-between gap-1 mb-1.5">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                              <KeyRound className="w-3 h-3 text-indigo-500" />
-                              <span>Password</span>
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 truncate">
+                              <KeyRound className="w-3 h-3 text-indigo-500 shrink-0" />
+                              <span className="truncate">Password</span>
                             </span>
-                            {isVisible && (
-                              <span className="text-[9px] text-amber-700 font-bold bg-amber-50 px-1 py-0.1 rounded-full border border-amber-200">
-                                10s
-                              </span>
-                            )}
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0">
@@ -1900,12 +1942,31 @@ export function LoginsView() {
                           </div>
                         </div>
 
-                        <div
-                          className={`text-xs sm:text-[13px] font-mono font-bold select-all truncate pl-0.5 ${
-                            isVisible ? "text-indigo-950 tracking-normal" : "text-slate-400 tracking-[0.22em]"
-                          }`}
-                        >
-                          {isVisible ? item.password : "••••••••••••"}
+                        <div>
+                          <div
+                            className={`text-xs sm:text-[13px] font-mono font-bold select-all truncate pl-0.5 ${
+                              isVisible ? "text-indigo-950 tracking-normal" : "text-slate-400 tracking-[0.22em]"
+                            }`}
+                          >
+                            {isVisible ? item.password : "••••••••••••"}
+                          </div>
+
+                          {/* 10s Countdown Progress Bar */}
+                          <div className="h-1 w-full mt-2 rounded-full overflow-hidden">
+                            {isVisible ? (
+                              <div className="w-full bg-amber-100/90 rounded-full h-full overflow-hidden">
+                                <div
+                                  key={`peek-${item.id}-${peekTimestamps[item.id] || 0}`}
+                                  className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300 rounded-full animate-peek-drain"
+                                  style={{
+                                    animation: "peekDrain 10s linear forwards",
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="h-full w-0" />
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2596,7 +2657,7 @@ export function LoginsView() {
                             <div className="space-y-2 pt-1">
                               {log.changes.map((ch, cIdx) => {
                                 const isSecret = ch.field === "password";
-                                const isSensitive = ch.field === "password" || ch.field === "username";
+                                const isSensitive = ch.field === "password";
                                 const label =
                                   ch.label ||
                                   (isSecret

@@ -161,6 +161,27 @@ body {
   animation: shimmerLaser 1.8s ease-in-out infinite;
 }
 
+/* 10s Vault Password Peek Countdown Drain Animation */
+@keyframes peekDrain {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+.animate-peek-drain {
+  animation: peekDrain 10s linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-peek-drain {
+    animation: none !important;
+    width: 100% !important;
+  }
+}
+
 /* ==========================================================================
    Visual Feast Animations (Page Load, Cards, Modals, Mark-as-Done, Interactive)
    ========================================================================== */
