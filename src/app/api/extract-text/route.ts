@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
+import { getAiApiKey } from "@/lib/aiVault";
 
 function isPrivateOrLoopbackHost(hostname: string): boolean {
   const lower = hostname.toLowerCase().trim();
@@ -136,37 +137,87 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Call high-accuracy cloud OCR engine
-    const ocrFormData = new FormData();
-    ocrFormData.append("base64Image", base64Image);
-    ocrFormData.append("apikey", "helloworld");
-    ocrFormData.append("language", "eng");
-    ocrFormData.append("isOverlayRequired", "false");
-    ocrFormData.append("scale", "true");
-    ocrFormData.append("detectOrientation", "true");
+    let rawText = "";
 
-    const ocrResponse = await fetch("https://api.ocr.space/parse/image", {
-      method: "POST",
-      body: ocrFormData,
-    });
+    // 1. Primary: Google Gemini 2.5 Multimodal Vision (Private & End-to-End Encrypted via Server Vault)
+    const geminiKey = await getAiApiKey("gemini");
+    if (geminiKey) {
+      try {
+        const mime = base64Image.match(/^data:([a-zA-Z0-9/+-]+);base64,/)?.[1] || "image/png";
+        const cleanBase64 = base64Image.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, "");
 
-    if (!ocrResponse.ok) {
+        const prompt =
+          "Extract all text, numbers, receipts, table columns, notes, and handwriting visible in this image verbatim. Preserve line breaks and alignment. Return ONLY the raw extracted text without any preamble, conversational commentary, or markdown formatting.";
+
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { inlineData: { data: cleanBase64, mimeType: mime } },
+                    { text: prompt },
+                  ],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 4096,
+              },
+            }),
+          }
+        );
+
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json();
+          rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        } else {
+          console.warn(`[OCR] Gemini Vision responded with HTTP ${geminiRes.status}`);
+        }
+      } catch (geminiErr) {
+        console.warn("[OCR] Gemini Vision exception:", geminiErr);
+      }
+    }
+
+    // 2. Optional Authenticated Fallback: Only if private OCR_SPACE_API_KEY is explicitly configured
+    if (!rawText && process.env.OCR_SPACE_API_KEY) {
+      try {
+        const ocrFormData = new FormData();
+        ocrFormData.append("base64Image", base64Image);
+        ocrFormData.append("apikey", process.env.OCR_SPACE_API_KEY);
+        ocrFormData.append("language", "eng");
+        ocrFormData.append("isOverlayRequired", "false");
+        ocrFormData.append("scale", "true");
+        ocrFormData.append("detectOrientation", "true");
+
+        const ocrResponse = await fetch("https://api.ocr.space/parse/image", {
+          method: "POST",
+          body: ocrFormData,
+        });
+
+        if (ocrResponse.ok) {
+          const ocrData = await ocrResponse.json();
+          if (!ocrData.IsErroredOnProcessing) {
+            rawText = ocrData.ParsedResults?.[0]?.ParsedText || "";
+          }
+        }
+      } catch (ocrErr) {
+        console.warn("[OCR] OCR.space fallback error:", ocrErr);
+      }
+    }
+
+    if (!rawText || rawText.trim().length === 0) {
       return NextResponse.json(
-        { success: false, error: `OCR service responded with status ${ocrResponse.status}` },
-        { status: 502 }
+        {
+          success: false,
+          error: "Cloud vision extraction unavailable. In-browser client OCR will take over.",
+        },
+        { status: 422 }
       );
     }
-
-    const ocrData = await ocrResponse.json();
-
-    if (ocrData.IsErroredOnProcessing) {
-      const errDetail = Array.isArray(ocrData.ErrorMessage)
-        ? ocrData.ErrorMessage.join(", ")
-        : ocrData.ErrorMessage || "OCR processing failed.";
-      return NextResponse.json({ success: false, error: errDetail }, { status: 422 });
-    }
-
-    const rawText = ocrData.ParsedResults?.[0]?.ParsedText || "";
 
     // Clean up excessive whitespace while preserving paragraphs
     const cleanedText = rawText

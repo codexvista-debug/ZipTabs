@@ -343,21 +343,54 @@ export async function POST(req: NextRequest) {
     // Step 3: If still empty (e.g. scanned image-only PDF), use OCR Space fallback
     if (!rawText || rawText.trim().length === 0) {
       try {
-        const base64Data = Buffer.from(arrayBuffer).toString("base64");
-        const ocrFormData = new FormData();
-        ocrFormData.append("base64Image", `data:application/pdf;base64,${base64Data}`);
-        ocrFormData.append("apikey", "helloworld");
-        ocrFormData.append("language", "eng");
-        ocrFormData.append("scale", "true");
+        const { getAiApiKey } = await import("@/lib/aiVault");
+        const geminiKey = await getAiApiKey("gemini");
+        if (geminiKey) {
+          const base64Data = Buffer.from(arrayBuffer).toString("base64");
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      { inlineData: { data: base64Data, mimeType: "application/pdf" } },
+                      {
+                        text: "Extract all text, numbers, invoice tables, vouchers, and settlement lines from this remittance document. Return only the extracted text preserving tabular spacing.",
+                      },
+                    ],
+                  },
+                ],
+                generationConfig: {
+                  temperature: 0.1,
+                  maxOutputTokens: 8192,
+                },
+              }),
+            }
+          );
+          if (geminiRes.ok) {
+            const gData = await geminiRes.json();
+            rawText = gData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          }
+        } else if (process.env.OCR_SPACE_API_KEY) {
+          const base64Data = Buffer.from(arrayBuffer).toString("base64");
+          const ocrFormData = new FormData();
+          ocrFormData.append("base64Image", `data:application/pdf;base64,${base64Data}`);
+          ocrFormData.append("apikey", process.env.OCR_SPACE_API_KEY);
+          ocrFormData.append("language", "eng");
+          ocrFormData.append("scale", "true");
 
-        const ocrRes = await fetch("https://api.ocr.space/parse/image", {
-          method: "POST",
-          body: ocrFormData,
-        });
+          const ocrRes = await fetch("https://api.ocr.space/parse/image", {
+            method: "POST",
+            body: ocrFormData,
+          });
 
-        if (ocrRes.ok) {
-          const ocrData = await ocrRes.json();
-          rawText = ocrData?.ParsedResults?.[0]?.ParsedText || "";
+          if (ocrRes.ok) {
+            const ocrData = await ocrRes.json();
+            rawText = ocrData?.ParsedResults?.[0]?.ParsedText || "";
+          }
         }
       } catch (ocrErr) {
         console.warn("OCR Space fallback error:", ocrErr);
