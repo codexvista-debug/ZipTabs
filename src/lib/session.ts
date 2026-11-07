@@ -7,9 +7,14 @@ function getSessionSecret(): string {
   const secret =
     process.env.SESSION_SECRET ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_ACCESS_TOKEN ||
-    "ziptabs_prod_session_secret_fallback_c8192a4";
-  return secret;
+    process.env.SUPABASE_ACCESS_TOKEN;
+
+  if (!secret || !secret.trim()) {
+    throw new Error(
+      "FATAL SECURITY CONFIGURATION: Server session secret is missing. Configure SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY."
+    );
+  }
+  return secret.trim();
 }
 
 function getCandidateSecrets(): string[] {
@@ -17,10 +22,10 @@ function getCandidateSecrets(): string[] {
     process.env.SESSION_SECRET,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     process.env.SUPABASE_ACCESS_TOKEN,
-    "ziptabs_prod_session_secret_fallback_c8192a4",
-    "ziptabs_master_session_hmac_secret_2026",
   ];
-  return Array.from(new Set(list.filter((s): s is string => typeof s === "string" && s.trim().length > 0)));
+  return Array.from(
+    new Set(list.filter((s): s is string => typeof s === "string" && s.trim().length > 0))
+  );
 }
 
 export interface SessionUser {
@@ -103,8 +108,14 @@ export async function verifySessionToken(token?: string | null): Promise<Session
     const signatureBytes = base64UrlDecode(sigB64);
     const dataBytes = encoder.encode(dataB64);
 
+    const candidates = getCandidateSecrets();
+    if (candidates.length === 0) {
+      console.error("[AUTH SECURITY] No server session secrets configured; rejecting all session tokens.");
+      return null;
+    }
+
     let isValid = false;
-    for (const candidate of getCandidateSecrets()) {
+    for (const candidate of candidates) {
       try {
         const key = await crypto.subtle.importKey(
           "raw",
