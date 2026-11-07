@@ -638,43 +638,63 @@ export function InvoicesView() {
         const timeA = parseDueDateToTimestamp(a.due_date);
         const timeB = parseDueDateToTimestamp(b.due_date);
 
+        // Secondary tie-breaker: sort by invoice number ascending (e.g. 34295 comes on top of 34296)
+        const compareInvoiceNumAsc = () => {
+          const numA = (a.invoice_number || "").trim();
+          const numB = (b.invoice_number || "").trim();
+          if (numA && numB) {
+            const cmp = numA.localeCompare(numB, undefined, { numeric: true, sensitivity: "base" });
+            if (cmp !== 0) return cmp;
+          } else if (numA) {
+            return -1;
+          } else if (numB) {
+            return 1;
+          }
+          return 0;
+        };
+
         // Sort by Due Date: Earliest First (Oldest Overdue -> Today -> Upcoming/Future)
         if (sortBy === "days_desc") {
           if (timeA && timeB) {
             if (timeA !== timeB) return timeA - timeB;
-          } else if (timeA) {
-            return -1;
-          } else if (timeB) {
-            return 1;
+            return compareInvoiceNumAsc();
           }
-          return (b.days_overdue ?? 0) - (a.days_overdue ?? 0);
+          if (timeA) return -1;
+          if (timeB) return 1;
+          const daysDiff = (b.days_overdue ?? 0) - (a.days_overdue ?? 0);
+          if (daysDiff !== 0) return daysDiff;
+          return compareInvoiceNumAsc();
         }
 
         // Sort by Due Date: Latest First (Farthest Future -> Today -> Oldest)
         if (sortBy === "due_date_desc") {
           if (timeA && timeB) {
             if (timeA !== timeB) return timeB - timeA;
-          } else if (timeA) {
-            return 1;
-          } else if (timeB) {
-            return -1;
+            return compareInvoiceNumAsc();
           }
-          return (a.days_overdue ?? 0) - (b.days_overdue ?? 0);
+          if (timeA) return 1;
+          if (timeB) return -1;
+          const daysDiff = (a.days_overdue ?? 0) - (b.days_overdue ?? 0);
+          if (daysDiff !== 0) return daysDiff;
+          return compareInvoiceNumAsc();
         }
 
         if (sortBy === "amount_desc") {
           if (b.amount !== a.amount) return b.amount - a.amount;
-          return (timeA || 0) - (timeB || 0);
+          if (timeA !== timeB) return (timeA || 0) - (timeB || 0);
+          return compareInvoiceNumAsc();
         }
 
         if (sortBy === "vendor_asc") {
           const cmp = a.vendor_name.localeCompare(b.vendor_name);
           if (cmp !== 0) return cmp;
-          return (timeA || 0) - (timeB || 0);
+          if (timeA !== timeB) return (timeA || 0) - (timeB || 0);
+          return compareInvoiceNumAsc();
         }
 
-        // Default fallback: Always sort by Due Date chronologically (earliest first)
-        return (timeA || 0) - (timeB || 0);
+        // Default fallback: Always sort by Due Date chronologically (earliest first), then invoice number
+        if (timeA !== timeB) return (timeA || 0) - (timeB || 0);
+        return compareInvoiceNumAsc();
       });
   }, [invoicesMatchingSearch, activeVendorFilter, sortBy]);
 
