@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabase";
 import {
   deriveVaultKey,
   encryptVaultData,
@@ -257,6 +256,10 @@ export function LoginsView() {
   // Auto-lock timer ref
   const autoLockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Clipboard self-destruct wipe refs
+  const clipboardWipeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastCopiedSecretRef = useRef<string | null>(null);
+
   // Dynamic Categories State (Defaults: Leopard, Quickbooks, Paychex, General)
   const [customCategories, setCustomCategories] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
@@ -426,6 +429,18 @@ export function LoginsView() {
         sessionStorage.setItem("ziptabs_vault_locked", "true");
       }
     } catch {}
+
+    if (clipboardWipeTimerRef.current) {
+      clearTimeout(clipboardWipeTimerRef.current);
+      clipboardWipeTimerRef.current = null;
+    }
+
+    // Immediately clear clipboard if a secret was copied from this vault session
+    if (lastCopiedSecretRef.current && typeof window !== "undefined" && navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText("").catch(() => {});
+      lastCopiedSecretRef.current = null;
+    }
+
     setIsUnlocked(false);
     setVaultKey(null);
     setLogins([]);
@@ -479,7 +494,6 @@ export function LoginsView() {
     },
     key: CryptoKey
   ) => {
-    if (!supabase) return;
     const nowIso = new Date().toISOString();
 
     // 1. Compute salted SHA-256 hashes for each field (including logs)
@@ -556,7 +570,6 @@ export function LoginsView() {
 
   // Fetch from Supabase and Decrypt
   const fetchAndDecryptLogins = async (key: CryptoKey) => {
-    if (!supabase) return;
     setIsLoadingData(true);
 
     try {
@@ -570,16 +583,7 @@ export function LoginsView() {
           }
         }
       } catch (apiErr) {
-        console.warn("Vault API call failed, falling back to direct connection:", apiErr);
-      }
-
-      if (!data && supabase) {
-        const { data: directData } = await supabase
-          .from("vault_credentials")
-          .select("*")
-          .eq("owner_username", "chief")
-          .order("created_at", { ascending: false });
-        if (directData) data = directData;
+        console.warn("Vault API call failed:", apiErr);
       }
 
       if (!data || data.length === 0) {
@@ -693,7 +697,7 @@ export function LoginsView() {
       setLogins(decryptedList);
 
       // Background migration: Upgrade any legacy plaintext database rows to salted hashes & AES-256
-      if (legacyRowsToUpgrade.length > 0 && supabase) {
+      if (legacyRowsToUpgrade.length > 0) {
         (async () => {
           for (const item of legacyRowsToUpgrade) {
             try {
@@ -713,7 +717,6 @@ export function LoginsView() {
 
   // Seed starter vault entries on first launch
   const seedInitialVault = async (key: CryptoKey) => {
-    if (!supabase) return;
     const starters = [
       {
         id: `cred-${Date.now()}-1`,
@@ -788,24 +791,45 @@ export function LoginsView() {
     setLogins(decryptedStarters);
   };
 
-  // Clipboard copy with self-destruct after 30s
+  // Clipboard copy with reliable auto-wipe self-destruct after 30s
   const copyToClipboard = (text: string, key: string, isPassword = false) => {
+    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) return;
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => {
       setCopiedKey((prev) => (prev === key ? null : prev));
     }, 2500);
 
-    // Auto-wipe clipboard after 30 seconds for passwords
+    // Auto-wipe clipboard after 30 seconds for passwords without requiring invasive read permissions
     if (isPassword) {
-      setTimeout(() => {
+      lastCopiedSecretRef.current = text;
+      if (clipboardWipeTimerRef.current) {
+        clearTimeout(clipboardWipeTimerRef.current);
+      }
+      clipboardWipeTimerRef.current = setTimeout(async () => {
         try {
-          navigator.clipboard.readText().then((currentClip) => {
-            if (currentClip === text) {
-              navigator.clipboard.writeText("");
+          if (navigator.clipboard.readText) {
+            try {
+              const currentClip = await navigator.clipboard.readText();
+              if (currentClip === lastCopiedSecretRef.current) {
+                await navigator.clipboard.writeText("");
+              }
+              return;
+            } catch {
+              // Permission prompt denied or window unfocused - proceed to deterministic fallback
             }
-          });
-        } catch {}
+          }
+          // Deterministic fallback: purge clipboard if our secret was the last copied item
+          if (lastCopiedSecretRef.current === text) {
+            await navigator.clipboard.writeText("");
+          }
+        } catch (wipeErr) {
+          console.warn("[Vault Clipboard] Auto-wipe non-critical notice:", wipeErr);
+        } finally {
+          if (lastCopiedSecretRef.current === text) {
+            lastCopiedSecretRef.current = null;
+          }
+        }
       }, CLIPBOARD_WIPE_TIMEOUT_MS);
     }
   };
@@ -869,15 +893,15 @@ export function LoginsView() {
   const handleDelete = async (id: string) => {
     const target = logins.find((item) => item.id === id);
     try {
-      await fetch(`/api/vault?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    } catch {
-      if (supabase) {
-        await supabase
-          .from("vault_credentials")
-          .delete()
-          .eq("id", id)
-          .eq("owner_username", "chief");
+      const res = await fetch(`/api/vault?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Failed to delete credential via API");
       }
+    } catch (err: any) {
+      console.error("Vault delete error:", err);
+      showToast("Delete Failed", err.message || "Failed to remove credential.", "error");
+      return;
     }
 
     setLogins((prev) => prev.filter((item) => item.id !== id));
@@ -886,7 +910,7 @@ export function LoginsView() {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.username.trim() || !vaultKey || !supabase) return;
+    if (!formData.title.trim() || !formData.username.trim() || !vaultKey) return;
 
     setIsSaving(true);
     setModalError(null);
