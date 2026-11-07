@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const reqSessionCreated = verifiedSession?.createdAt || parseInt(req.headers.get("x-session-created") || "0", 10) || 0;
 
     // 0. Authenticated Visitor Telemetry (Validates session before attributing username)
-    (async () => {
+    const telemetryPromise = (async () => {
       try {
         await db.rpc("record_site_visitor", {
           p_ip: clientIp,
@@ -43,10 +43,11 @@ export async function GET(req: NextRequest) {
       }
     })();
 
-    // 1. Parallel High-Speed Security Verification: Run settings and IP lock queries concurrently
+    // 1. Parallel High-Speed Security Verification: Run settings, IP lock queries, and telemetry concurrently
     const [allSettingsRes, lockRecordRes] = await Promise.all([
       db.from("system_security_settings").select("*").in("id", ["global", "vanish_mode"]),
       db.from("auth_ip_locks").select("*").eq("ip", clientIp).maybeSingle(),
+      telemetryPromise,
     ]);
 
     const allSettings = allSettingsRes.data;

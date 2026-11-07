@@ -165,3 +165,31 @@ export async function deleteFilesFromStorage(
     return { success: false, error: err.message || "Network delete error." };
   }
 }
+
+/**
+ * Strict validator and sanitizer for storage file paths.
+ * Defends against path traversal, null bytes, backslash conversion tricks, and absolute path injection.
+ */
+export function sanitizeStoragePath(rawPath?: string | null): string | null {
+  if (!rawPath || typeof rawPath !== "string") return null;
+  const decoded = decodeURIComponent(rawPath).trim().replace(/\\/g, "/");
+  if (!decoded || /[\0\r\n\t]/.test(decoded)) return null;
+
+  // Strip leading slash or dot-slash
+  const clean = decoded.replace(/^\.?\/+/, "");
+  if (!clean) return null;
+
+  // Split into segments and verify no traversal
+  const segments = clean.split("/");
+  for (const seg of segments) {
+    if (seg === ".." || seg === "." || !seg) {
+      if (seg === "..") return null;
+    }
+  }
+
+  // Ensure no relative traversal remains
+  const normalized = segments.filter((s) => s && s !== ".").join("/");
+  if (!normalized || normalized.includes("..")) return null;
+
+  return normalized;
+}

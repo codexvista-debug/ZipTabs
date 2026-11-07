@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { verifyPassword } from "@/lib/crypto";
 import { getSessionUser } from "@/lib/session";
@@ -87,7 +88,6 @@ export async function GET(req: NextRequest) {
     const getHash = (key: string) => {
       if (!key) return "None";
       try {
-        const crypto = require("crypto");
         return "sha256:" + crypto.createHash("sha256").update(key + ":ziptabs_vault_kdf_salt_9e31d8f_2026").digest("hex").substring(0, 16);
       } catch {
         return "sha256:active";

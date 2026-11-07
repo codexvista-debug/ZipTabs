@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, supabase } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/session";
+import { sanitizeStoragePath } from "@/lib/storage";
 
 /**
  * Authenticated File Upload Gateway
@@ -36,7 +37,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!path || path.includes("..")) {
+    const sanitizedPath = sanitizeStoragePath(path);
+    if (!sanitizedPath) {
       return NextResponse.json(
         { success: false, error: "Invalid storage path." },
         { status: 400 }
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     const { error: uploadError } = await db.storage
       .from("note-attachments")
-      .upload(path, buffer, {
+      .upload(sanitizedPath, buffer, {
         contentType,
         cacheControl: "3600",
         upsert: true,

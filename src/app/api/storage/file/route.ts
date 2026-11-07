@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, supabase } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/session";
+import { sanitizeStoragePath } from "@/lib/storage";
 
 // Server-side in-memory cache for generated signed URLs (prevents redundant Supabase roundtrips)
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
@@ -38,13 +39,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Prevent directory traversal or invalid paths
-  if (!filePath || filePath.includes("..")) {
+  const sanitizedPath = sanitizeStoragePath(filePath);
+  if (!sanitizedPath) {
     return NextResponse.json(
       { success: false, error: "Invalid or missing file path." },
       { status: 400 }
     );
   }
+  filePath = sanitizedPath;
 
   const cacheKey = `${filePath}:${isDownload}:${downloadFilename || ""}`;
   const now = Date.now();

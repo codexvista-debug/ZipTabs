@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, supabase } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/session";
+import { sanitizeStoragePath } from "@/lib/storage";
 
 /**
  * Authenticated File Deletion Gateway
@@ -33,8 +34,8 @@ export async function POST(req: NextRequest) {
     }
 
     const validPaths = rawPaths
-      .filter((p): p is string => typeof p === "string" && !!p.trim() && !p.includes(".."))
-      .map((p) => p.trim())
+      .map((p) => (typeof p === "string" ? sanitizeStoragePath(p) : null))
+      .filter((p): p is string => Boolean(p))
       .slice(0, 100);
 
     if (validPaths.length === 0) {
