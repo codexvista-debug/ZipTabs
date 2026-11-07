@@ -170,55 +170,73 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       console.warn("Auto-purge RPC notice:", err);
     }
 
-    // 2. Client-side purge safeguard for any temporary files past their expires_at
+    // 2. Authenticated API purge safeguard for any temporary files past their expires_at
     try {
-      const nowIso = new Date().toISOString();
-      const { data: expired } = await supabase
-        .from("drive_files")
-        .select("id, storage_path")
-        .eq("retention_type", "temporary")
-        .lt("expires_at", nowIso);
-
-      if (expired && expired.length > 0) {
-        const paths = expired.map((e) => e.storage_path).filter(Boolean);
-        const ids = expired.map((e) => e.id);
-        if (paths.length > 0) {
-          await deleteFilesFromStorage(paths);
+      const purgeRes = await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "purge_expired" }),
+      });
+      if (purgeRes.ok) {
+        const purgeJson = await purgeRes.json();
+        if (purgeJson.success && Array.isArray(purgeJson.purged) && purgeJson.purged.length > 0) {
+          const paths = purgeJson.purged.map((e: any) => e.storage_path).filter(Boolean);
+          const ids = purgeJson.purged.map((e: any) => e.id);
+          if (paths.length > 0) {
+            await deleteFilesFromStorage(paths);
+          }
+          setFiles((prev) => prev.filter((f) => !ids.includes(f.id)));
         }
-        await supabase.from("drive_files").delete().in("id", ids);
-        setFiles((prev) => prev.filter((f) => !ids.includes(f.id)));
       }
     } catch (err) {
       console.warn("Client safeguard purge notice:", err);
     }
   };
 
-  // Fetch folders and files from Supabase
+  // Fetch folders and files from authenticated API
   const loadDriveData = async () => {
     setIsLoading(true);
     try {
       await purgeExpiredFiles();
 
-      if (supabase) {
+      let foldersData: DriveFolder[] | null = null;
+      let filesData: DriveFile[] | null = null;
+
+      try {
+        const driveRes = await fetch("/api/drive");
+        if (driveRes.ok) {
+          const driveJson = await driveRes.json();
+          if (driveJson.success) {
+            if (Array.isArray(driveJson.folders)) foldersData = driveJson.folders;
+            if (Array.isArray(driveJson.files)) filesData = driveJson.files;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("API drive load failed, trying direct connection:", apiErr);
+      }
+
+      if ((!foldersData || !filesData) && supabase) {
         const [foldersRes, filesRes] = await Promise.all([
           supabase.from("drive_folders").select("*").order("name", { ascending: true }),
           supabase.from("drive_files").select("*").order("created_at", { ascending: false }),
         ]);
+        if (!foldersData && foldersRes.data) foldersData = foldersRes.data;
+        if (!filesData && filesRes.data) filesData = filesRes.data;
+      }
 
-        if (foldersRes.data) {
-          setFolders(foldersRes.data);
-          try {
-            localStorage.setItem("ziptabs_drive_folders", JSON.stringify(foldersRes.data));
-          } catch {}
-        }
-        if (filesRes.data) {
-          setFiles(filesRes.data);
-          const drivePaths = filesRes.data.map((f: any) => f.storage_path).filter(Boolean);
-          if (drivePaths.length > 0) preloadSignedUrls(drivePaths);
-          try {
-            localStorage.setItem("ziptabs_drive_files", JSON.stringify(filesRes.data));
-          } catch {}
-        }
+      if (foldersData) {
+        setFolders(foldersData);
+        try {
+          localStorage.setItem("ziptabs_drive_folders", JSON.stringify(foldersData));
+        } catch {}
+      }
+      if (filesData) {
+        setFiles(filesData);
+        const drivePaths = filesData.map((f: any) => f.storage_path).filter(Boolean);
+        if (drivePaths.length > 0) preloadSignedUrls(drivePaths);
+        try {
+          localStorage.setItem("ziptabs_drive_files", JSON.stringify(filesData));
+        } catch {}
       }
     } catch (err) {
       console.warn("Error loading drive data, falling back to cache:", err);
@@ -337,11 +355,20 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     setNewFolderName("");
     showToast("Folder Created", `"${cleanName}" added.`, "success");
 
-    if (supabase) {
-      try {
-        await supabase.from("drive_folders").insert([newFolder]);
-      } catch (err) {
-        console.error("Failed to insert drive folder:", err);
+    try {
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create_folder", folder: newFolder }),
+      });
+    } catch (err) {
+      console.error("Failed to insert drive folder via API:", err);
+      if (supabase) {
+        try {
+          await supabase.from("drive_folders").insert([newFolder]);
+        } catch (dbErr) {
+          console.error("Fallback insert drive folder error:", dbErr);
+        }
       }
     }
   };
@@ -383,8 +410,20 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
         setFiles((prev) => [newFileItem, ...prev]);
 
-        // Save metadata to database
-        await supabase.from("drive_files").insert([newFileItem]);
+        // Save metadata to database via authenticated gateway
+        let savedViaApi = false;
+        try {
+          const saveRes = await fetch("/api/drive", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "create_file", file: newFileItem }),
+          });
+          if (saveRes.ok) savedViaApi = true;
+        } catch {}
+
+        if (!savedViaApi && supabase) {
+          await supabase.from("drive_files").insert([newFileItem]);
+        }
       } catch (err: any) {
         console.error("Failed to upload file:", file.name, err);
         showToast("Upload Failed", `Could not upload "${file.name}".`, "error");
@@ -411,17 +450,33 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       prev.map((f) => (f.id === file.id ? { ...f, folder_id: targetId } : f))
     );
 
-    if (supabase) {
-      try {
-        await supabase
-          .from("drive_files")
-          .update({
+    try {
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_file",
+          id: file.id,
+          updates: {
             folder_id: targetId,
             updated_at: new Date().toISOString(),
-          })
-          .eq("id", file.id);
-      } catch (err) {
-        console.error("Failed to move file:", err);
+          },
+        }),
+      });
+    } catch (err) {
+      console.error("Move file API error:", err);
+      if (supabase) {
+        try {
+          await supabase
+            .from("drive_files")
+            .update({
+              folder_id: targetId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", file.id);
+        } catch (dbErr) {
+          console.error("Failed to move file:", dbErr);
+        }
       }
     }
 
@@ -442,18 +497,35 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       setPreviewFile(null);
     }
 
-    if (supabase) {
-      try {
-        await supabase
-          .from("drive_files")
-          .update({
+    try {
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_file",
+          id: file.id,
+          updates: {
             retention_type: "temporary",
             expires_at: expiresAt,
             updated_at: new Date().toISOString(),
-          })
-          .eq("id", file.id);
-      } catch (err) {
-        console.error("Move to trash error:", err);
+          },
+        }),
+      });
+    } catch (err) {
+      console.error("Move to trash API error:", err);
+      if (supabase) {
+        try {
+          await supabase
+            .from("drive_files")
+            .update({
+              retention_type: "temporary",
+              expires_at: expiresAt,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", file.id);
+        } catch (dbErr) {
+          console.error("Fallback move to trash error:", dbErr);
+        }
       }
     }
 
@@ -468,18 +540,35 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       )
     );
 
-    if (supabase) {
-      try {
-        await supabase
-          .from("drive_files")
-          .update({
+    try {
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_file",
+          id: file.id,
+          updates: {
             retention_type: "permanent",
             expires_at: null,
             updated_at: new Date().toISOString(),
-          })
-          .eq("id", file.id);
-      } catch (err) {
-        console.error("Restore file error:", err);
+          },
+        }),
+      });
+    } catch (err) {
+      console.error("Restore file API error:", err);
+      if (supabase) {
+        try {
+          await supabase
+            .from("drive_files")
+            .update({
+              retention_type: "permanent",
+              expires_at: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", file.id);
+        } catch (dbErr) {
+          console.error("Fallback restore file error:", dbErr);
+        }
       }
     }
 
@@ -491,15 +580,17 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     setConfirmPermanentDeleteFile(null);
     setFiles((prev) => prev.filter((f) => f.id !== file.id));
 
-    if (supabase) {
-      try {
-        if (file.storage_path) {
-          await deleteFilesFromStorage([file.storage_path]);
-        }
-        await supabase.from("drive_files").delete().eq("id", file.id);
-      } catch (err) {
-        console.error("Permanent delete file error:", err);
+    try {
+      if (file.storage_path) {
+        await deleteFilesFromStorage([file.storage_path]);
       }
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_files", id: file.id }),
+      });
+    } catch (err) {
+      console.error("Permanent delete file error:", err);
     }
     showToast("Permanently Deleted", `"${file.name}" purged. Storage reclaimed.`, "info");
   };
@@ -515,15 +606,17 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
 
     setFiles((prev) => prev.filter((f) => f.retention_type !== "temporary"));
 
-    if (supabase) {
-      try {
-        if (storagePaths.length > 0) {
-          await deleteFilesFromStorage(storagePaths);
-        }
-        await supabase.from("drive_files").delete().in("id", ids);
-      } catch (err) {
-        console.error("Empty trash error:", err);
+    try {
+      if (storagePaths.length > 0) {
+        await deleteFilesFromStorage(storagePaths);
       }
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_files", ids }),
+      });
+    } catch (err) {
+      console.error("Empty trash error:", err);
     }
 
     showToast("Recycle Bin Emptied", `${trashed.length} file(s) permanently purged.`, "info");
@@ -543,15 +636,17 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       setCurrentFolderId(folder.parent_id || null);
     }
 
-    if (supabase) {
-      try {
-        if (storagePaths.length > 0) {
-          await deleteFilesFromStorage(storagePaths);
-        }
-        await supabase.from("drive_folders").delete().eq("id", folder.id);
-      } catch (err) {
-        console.error("Delete folder error:", err);
+    try {
+      if (storagePaths.length > 0) {
+        await deleteFilesFromStorage(storagePaths);
       }
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_folder", id: folder.id }),
+      });
+    } catch (err) {
+      console.error("Delete folder error:", err);
     }
 
     showToast("Folder Deleted", `"${folder.name}" and contents deleted.`, "info");

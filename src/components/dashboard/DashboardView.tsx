@@ -257,13 +257,16 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       let invoicesData: any[] = [];
       let notesData: any[] = [];
 
+      let driveExpiringData: any[] = [];
       try {
-        const [invApi, notesApi] = await Promise.all([
+        const [invApi, notesApi, driveApi] = await Promise.all([
           fetch("/api/invoices").then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch("/api/notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch("/api/drive?mode=expiring").then((r) => (r.ok ? r.json() : null)).catch(() => null),
         ]);
         if (invApi?.success && Array.isArray(invApi.data)) invoicesData = invApi.data;
         if (notesApi?.success && Array.isArray(notesApi.notes)) notesData = notesApi.notes;
+        if (driveApi?.success && Array.isArray(driveApi.expiringFiles)) driveExpiringData = driveApi.expiringFiles;
       } catch {}
 
       const [usageRes, driveRes] = await Promise.all([
@@ -350,9 +353,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
       // 4. Process Expiring Temp Stash Drive Files (Starting 3 days before auto-purge)
       const expiring: ExpiringDriveFile[] = [];
-      if (driveRes.data) {
+      const driveList = driveExpiringData.length > 0 ? driveExpiringData : (driveRes?.data || []);
+      if (driveList.length > 0) {
         const nowMs = Date.now();
-        driveRes.data.forEach((f: any) => {
+        driveList.forEach((f: any) => {
           if (!f.expires_at) return;
           const expMs = new Date(f.expires_at).getTime();
           const diffMs = expMs - nowMs;

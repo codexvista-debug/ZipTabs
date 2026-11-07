@@ -163,7 +163,11 @@ export function UsageView() {
           showToast(`Error deleting file: ${res.error}`);
         } else {
           // If this file was uploaded from Drive, also clean up the database record
-          await supabase.from("drive_files").delete().eq("storage_path", file.name);
+          fetch("/api/drive", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "delete_files", storage_path: file.name }),
+          }).catch(() => {});
           showToast(`✓ Removed file and reclaimed ${formatBytes(file.size)}`);
           fetchUsage(false);
         }
