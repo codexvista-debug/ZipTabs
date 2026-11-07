@@ -1821,7 +1821,11 @@ export function LoginsView() {
 
                             {cleanDomain ? (
                               <a
-                                href={item.url!.startsWith("http") ? item.url : `https://${item.url}`}
+                                href={
+                                  /^https?:\/\//i.test(item.url!.trim())
+                                    ? item.url!.trim()
+                                    : `https://${item.url!.trim().replace(/^\/+/, "")}`
+                                }
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
@@ -2046,8 +2050,11 @@ export function LoginsView() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
-                              window.open(fullUrl, "_blank");
+                              const trimmed = item.url!.trim();
+                              const fullUrl = /^https?:\/\//i.test(trimmed)
+                                ? trimmed
+                                : `https://${trimmed.replace(/^\/+/, "")}`;
+                              window.open(fullUrl, "_blank", "noopener,noreferrer");
                             }}
                             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer"
                             title={`Launch ${item.url}`}
@@ -2093,8 +2100,15 @@ export function LoginsView() {
                                   type="button"
                                   onClick={() => {
                                     setActiveLaunchMenuId(null);
-                                    const fullUrl = item.url!.startsWith("http") ? item.url! : `https://${item.url!}`;
-                                    window.open(fullUrl, `portal_${item.id}`, "width=1280,height=850,menubar=no,toolbar=no,location=yes,status=no,resizable=yes");
+                                    const trimmed = item.url!.trim();
+                                    const fullUrl = /^https?:\/\//i.test(trimmed)
+                                      ? trimmed
+                                      : `https://${trimmed.replace(/^\/+/, "")}`;
+                                    window.open(
+                                      fullUrl,
+                                      `portal_${item.id}`,
+                                      "noopener,noreferrer,width=1280,height=850,menubar=no,toolbar=no,location=yes,status=no,resizable=yes"
+                                    );
                                   }}
                                   className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer group/opt"
                                 >

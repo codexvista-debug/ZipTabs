@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { supabase, supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { extractClientIp } from "@/lib/serverIp";
+import { invalidateSessionSecurityCache } from "@/lib/session";
 
 const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN?.trim() || "";
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
 const DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY || "";
+const MAX_SIGNATURE_AGE_SECONDS = 300; // 5-minute replay window
+const MAX_DISCORD_PIN_ATTEMPTS = 5;
+const DISCORD_LOCKOUT_MS = 15 * 60 * 1000; // 15-minute lockout on brute-force
+
+// In-memory rate-limit tracker (backed by Supabase auth_ip_locks for persistence across serverless instances)
+const discordPinMemoryLocks = new Map<
+  string,
+  { attempts: number; lockedUntilMs: number }
+>();
 
 // Discord Interaction Types
 const InteractionType = {
@@ -27,7 +37,8 @@ const InteractionResponseType = {
 };
 
 /**
- * Validates Ed25519 signature sent by Discord for slash command security.
+ * Validates Ed25519 signature and 5-minute timestamp freshness window
+ * sent by Discord for slash command security.
  */
 function verifyDiscordSignature(
   rawBody: string,
@@ -36,6 +47,15 @@ function verifyDiscordSignature(
   publicKey: string
 ): boolean {
   if (!signature || !timestamp || !publicKey) return false;
+  if (!/^\d+$/.test(timestamp)) return false;
+
+  const tsSeconds = parseInt(timestamp, 10);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSeconds - tsSeconds) > MAX_SIGNATURE_AGE_SECONDS) {
+    console.warn("[Discord Auth] Rejected stale interaction timestamp:", timestamp);
+    return false;
+  }
+
   try {
     const key = crypto.createPublicKey({
       key: Buffer.concat([
@@ -59,6 +79,132 @@ function verifyDiscordSignature(
 }
 
 /**
+ * Checks if a Discord user is allowed and not currently locked out from PIN brute-forcing.
+ */
+async function checkDiscordCallerLockout(
+  callerId: string,
+  callerUser: string
+): Promise<{ locked: boolean; remainingMinutes?: number; reason?: string }> {
+  const allowedIdsEnv = (process.env.DISCORD_ALLOWED_USER_IDS || "").trim();
+  if (allowedIdsEnv) {
+    const allowedIds = allowedIdsEnv
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (allowedIds.length > 0 && !allowedIds.includes(callerId)) {
+      return {
+        locked: true,
+        reason: `Discord account @${callerUser} is not in the authorized Chief controller allowlist.`,
+      };
+    }
+  }
+
+  const lockKey = `discord:${callerId || callerUser.toLowerCase()}`;
+  const nowMs = Date.now();
+  const mem = discordPinMemoryLocks.get(lockKey);
+  if (mem && mem.lockedUntilMs > nowMs) {
+    return {
+      locked: true,
+      remainingMinutes: Math.max(1, Math.ceil((mem.lockedUntilMs - nowMs) / 60000)),
+    };
+  }
+
+  if (supabaseAdmin) {
+    try {
+      const { data: record } = await supabaseAdmin
+        .from("auth_ip_locks")
+        .select("failed_attempts, locked_until")
+        .eq("ip", lockKey)
+        .maybeSingle();
+
+      if (record?.locked_until) {
+        const untilMs = new Date(record.locked_until).getTime();
+        if (untilMs > nowMs) {
+          discordPinMemoryLocks.set(lockKey, {
+            attempts: record.failed_attempts || MAX_DISCORD_PIN_ATTEMPTS,
+            lockedUntilMs: untilMs,
+          });
+          return {
+            locked: true,
+            remainingMinutes: Math.max(1, Math.ceil((untilMs - nowMs) / 60000)),
+          };
+        }
+      }
+    } catch {}
+  }
+
+  return { locked: false };
+}
+
+/**
+ * Records a failed or successful Discord PIN verification attempt.
+ */
+async function recordDiscordPinAttempt(
+  callerId: string,
+  callerUser: string,
+  success: boolean
+): Promise<{ remainingAttempts: number; locked: boolean }> {
+  const lockKey = `discord:${callerId || callerUser.toLowerCase()}`;
+  const nowMs = Date.now();
+
+  if (success) {
+    discordPinMemoryLocks.delete(lockKey);
+    if (supabaseAdmin) {
+      try {
+        await supabaseAdmin
+          .from("auth_ip_locks")
+          .update({ failed_attempts: 0, locked_until: null })
+          .eq("ip", lockKey);
+      } catch {}
+    }
+    return { remainingAttempts: MAX_DISCORD_PIN_ATTEMPTS, locked: false };
+  }
+
+  const current = discordPinMemoryLocks.get(lockKey);
+  let nextAttempts = (current && current.lockedUntilMs <= nowMs ? current.attempts : 0) + 1;
+
+  if (supabaseAdmin) {
+    try {
+      const { data: existing } = await supabaseAdmin
+        .from("auth_ip_locks")
+        .select("failed_attempts, locked_until")
+        .eq("ip", lockKey)
+        .maybeSingle();
+
+      if (existing) {
+        const wasExpired =
+          existing.locked_until && new Date(existing.locked_until).getTime() <= nowMs;
+        nextAttempts = (wasExpired ? 0 : existing.failed_attempts || 0) + 1;
+      }
+
+      const isNowLocked = nextAttempts >= MAX_DISCORD_PIN_ATTEMPTS;
+      const lockedUntilIso = isNowLocked
+        ? new Date(nowMs + DISCORD_LOCKOUT_MS).toISOString()
+        : null;
+
+      await supabaseAdmin.from("auth_ip_locks").upsert({
+        ip: lockKey,
+        failed_attempts: nextAttempts,
+        locked_until: lockedUntilIso,
+        last_attempt_at: new Date(nowMs).toISOString(),
+        last_username_attempted: `discord:@${callerUser}`,
+      });
+    } catch {}
+  }
+
+  const isLocked = nextAttempts >= MAX_DISCORD_PIN_ATTEMPTS;
+  discordPinMemoryLocks.set(lockKey, {
+    attempts: nextAttempts,
+    lockedUntilMs: isLocked ? nowMs + DISCORD_LOCKOUT_MS : 0,
+  });
+
+  return {
+    remainingAttempts: Math.max(0, MAX_DISCORD_PIN_ATTEMPTS - nextAttempts),
+    locked: isLocked,
+  };
+}
+
+/**
  * Constant-time comparison to prevent timing-attack side channels when verifying security PIN.
  */
 function isConstantTimePinValid(providedPin: string, expectedPin: string): boolean {
@@ -68,7 +214,11 @@ function isConstantTimePinValid(providedPin: string, expectedPin: string): boole
   return crypto.timingSafeEqual(provHash, expHash);
 }
 
-function sendPinDeniedResponse(commandName: string, callerUser: string) {
+function sendPinDeniedResponse(
+  commandName: string,
+  callerUser: string,
+  extraDescription?: string
+) {
   return NextResponse.json({
     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
     data: {
@@ -76,7 +226,9 @@ function sendPinDeniedResponse(commandName: string, callerUser: string) {
       embeds: [
         {
           title: "🚫 Access Denied: Invalid Security PIN",
-          description: `The command \`/${commandName}\` was rejected because the security PIN is incorrect.`,
+          description:
+            extraDescription ||
+            `The command \`/${commandName}\` was rejected because the security PIN is incorrect.`,
           color: 0xe11d48, // Rose red
           fields: [
             { name: "Caller", value: `@${callerUser}`, inline: true },
@@ -91,7 +243,7 @@ function sendPinDeniedResponse(commandName: string, callerUser: string) {
 }
 
 async function handleLockdownAction(state: string, callerUser: string, clientIp?: string) {
-  const db = supabaseAdmin || supabase;
+  const db = supabaseAdmin;
   if (!db) {
     return NextResponse.json({
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -118,6 +270,7 @@ async function handleLockdownAction(state: string, callerUser: string, clientIp?
           updated_by: actorTag,
         }),
       ]);
+      invalidateSessionSecurityCache();
 
       return NextResponse.json({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -155,6 +308,7 @@ async function handleLockdownAction(state: string, callerUser: string, clientIp?
           updated_by: actorTag,
         }),
       ]);
+      invalidateSessionSecurityCache();
 
       return NextResponse.json({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -243,7 +397,7 @@ async function handleLockdownAction(state: string, callerUser: string, clientIp?
 }
 
 async function handleStatusQuery() {
-  const db = supabaseAdmin || supabase;
+  const db = supabaseAdmin;
   if (!db) {
     return NextResponse.json({
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -501,6 +655,17 @@ export async function POST(req: NextRequest) {
 
     const providedPin = String(options.pin || "").trim();
     const callerUser = body.member?.user?.username || body.user?.username || "Discord User";
+    const callerId = String(body.member?.user?.id || body.user?.id || "");
+
+    const lockoutStatus = await checkDiscordCallerLockout(callerId, callerUser);
+    if (lockoutStatus.locked) {
+      return sendPinDeniedResponse(
+        commandName,
+        callerUser,
+        lockoutStatus.reason ||
+          `🚫 Too many failed PIN attempts. Remote controller is locked for ${lockoutStatus.remainingMinutes || 15} minute(s).`
+      );
+    }
 
     // --- COMMAND: /lockdown (unified with legacy /vanish) ---
     if (commandName === "lockdown" || commandName === "vanish") {
@@ -509,8 +674,16 @@ export async function POST(req: NextRequest) {
       // If user typed PIN as an argument, verify it directly
       if (providedPin) {
         if (!isConstantTimePinValid(providedPin, REQUIRED_PIN)) {
-          return sendPinDeniedResponse(commandName, callerUser);
+          const attempt = await recordDiscordPinAttempt(callerId, callerUser, false);
+          return sendPinDeniedResponse(
+            commandName,
+            callerUser,
+            attempt.locked
+              ? "🚫 Maximum PIN attempts exceeded. Remote controller locked for 15 minutes."
+              : `Invalid Security PIN (${attempt.remainingAttempts} attempt(s) remaining).`
+          );
         }
+        await recordDiscordPinAttempt(callerId, callerUser, true);
         return handleLockdownAction(state, callerUser, clientIp);
       }
 
@@ -546,8 +719,16 @@ export async function POST(req: NextRequest) {
     if (commandName === "status") {
       if (providedPin) {
         if (!isConstantTimePinValid(providedPin, REQUIRED_PIN)) {
-          return sendPinDeniedResponse(commandName, callerUser);
+          const attempt = await recordDiscordPinAttempt(callerId, callerUser, false);
+          return sendPinDeniedResponse(
+            commandName,
+            callerUser,
+            attempt.locked
+              ? "🚫 Maximum PIN attempts exceeded. Remote controller locked for 15 minutes."
+              : `Invalid Security PIN (${attempt.remainingAttempts} attempt(s) remaining).`
+          );
         }
+        await recordDiscordPinAttempt(callerId, callerUser, true);
         return handleStatusQuery();
       }
 
@@ -585,8 +766,16 @@ export async function POST(req: NextRequest) {
 
       if (providedPin) {
         if (!isConstantTimePinValid(providedPin, REQUIRED_PIN)) {
-          return sendPinDeniedResponse(commandName, callerUser);
+          const attempt = await recordDiscordPinAttempt(callerId, callerUser, false);
+          return sendPinDeniedResponse(
+            commandName,
+            callerUser,
+            attempt.locked
+              ? "🚫 Maximum PIN attempts exceeded. Remote controller locked for 15 minutes."
+              : `Invalid Security PIN (${attempt.remainingAttempts} attempt(s) remaining).`
+          );
         }
+        await recordDiscordPinAttempt(callerId, callerUser, true);
         return handleClearChannel(channelId, target, callerUser);
       }
 
@@ -630,6 +819,17 @@ export async function POST(req: NextRequest) {
   if (body.type === InteractionType.MODAL_SUBMIT) {
     const customId = String(body.data?.custom_id || "");
     const callerUser = body.member?.user?.username || body.user?.username || "Discord User";
+    const callerId = String(body.member?.user?.id || body.user?.id || "");
+
+    const lockoutStatus = await checkDiscordCallerLockout(callerId, callerUser);
+    if (lockoutStatus.locked) {
+      return sendPinDeniedResponse(
+        customId.split("_")[0] || "command",
+        callerUser,
+        lockoutStatus.reason ||
+          `🚫 Too many failed PIN attempts. Remote controller is locked for ${lockoutStatus.remainingMinutes || 15} minute(s).`
+      );
+    }
 
     let submittedPin = "";
     for (const actionRow of body.data?.components || []) {
@@ -641,26 +841,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isConstantTimePinValid(submittedPin, REQUIRED_PIN)) {
-      return NextResponse.json({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          flags: 64, // Ephemeral: strictly visible to caller only
-          embeds: [
-            {
-              title: "🚫 Access Denied: Invalid Security PIN",
-              description: "The security PIN entered in the popup was incorrect. Action blocked.",
-              color: 0xe11d48,
-              fields: [
-                { name: "Caller", value: `@${callerUser}`, inline: true },
-                { name: "Status", value: "Action Blocked", inline: true },
-              ],
-              footer: { text: "ZipTabs Defense Grid • Verification Failed" },
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        },
-      });
+      const attempt = await recordDiscordPinAttempt(callerId, callerUser, false);
+      return sendPinDeniedResponse(
+        customId.split("_")[0] || "command",
+        callerUser,
+        attempt.locked
+          ? "🚫 Maximum PIN attempts exceeded. Remote controller locked for 15 minutes."
+          : `The security PIN entered in the popup was incorrect (${attempt.remainingAttempts} attempt(s) remaining).`
+      );
     }
+
+    await recordDiscordPinAttempt(callerId, callerUser, true);
 
     if (customId.startsWith("lockdown_modal:")) {
       const state = customId.split(":")[1] || "status";

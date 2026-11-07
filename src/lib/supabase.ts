@@ -6,14 +6,15 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 export const supabase =
   supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
-
-// Server-only administrative client (Bypasses RLS for secure server endpoints like /api/auth and /api/master-control)
-export const supabaseAdmin =
-  supabaseUrl && (supabaseServiceRoleKey || supabaseAnonKey)
-    ? createClient(supabaseUrl, supabaseServiceRoleKey || supabaseAnonKey, {
+    ? createClient(supabaseUrl, supabaseAnonKey, {
         auth: { persistSession: false },
       })
-    : supabase;
+    : null;
 
+// Server-only administrative client (Strictly requires SUPABASE_SERVICE_ROLE_KEY; never falls back to anon key)
+export const supabaseAdmin =
+  supabaseUrl && supabaseServiceRoleKey
+    ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+        auth: { persistSession: false },
+      })
+    : null;
