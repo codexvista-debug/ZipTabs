@@ -56,21 +56,24 @@ export default function Home() {
 
     scanNotes();
 
-    // Fallback: If no notes in localStorage, query Supabase for urgent unresolved notes
-    if (typeof window !== "undefined" && !localStorage.getItem(STORAGE_KEY_NOTES) && supabase) {
-      supabase
-        .from("app_notes")
-        .select("id, title, priority, is_completed, created_at, updated_at, last_opened_at")
-        .in("priority", ["urgent", "high"])
-        .eq("is_completed", false)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            const overdue = data.filter((n: any) => isNoteOverdueUnresolved(n));
+    // Fallback: If no notes in localStorage, query authenticated API for urgent unresolved notes
+    if (typeof window !== "undefined" && !localStorage.getItem(STORAGE_KEY_NOTES)) {
+      fetch("/api/notes")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json?.success && Array.isArray(json.notes)) {
+            const overdue = json.notes.filter(
+              (n: any) =>
+                !n.is_completed &&
+                (n.priority === "urgent" || n.priority === "high") &&
+                isNoteOverdueUnresolved(n)
+            );
             if (overdue.length > 0) {
               setOverdueUrgentNotes(overdue);
             }
           }
-        });
+        })
+        .catch(() => {});
     }
 
     const interval = setInterval(scanNotes, 15000);

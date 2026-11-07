@@ -284,14 +284,30 @@ export function InvoicesView() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*")
-        .order("due_date", { ascending: true });
+      let data: any[] | null = null;
+      try {
+        const res = await fetch("/api/invoices");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            data = json.data;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("API invoices gateway failed, trying direct connection:", apiErr);
+      }
 
-      if (error) {
-        console.error("Error loading invoices from Supabase:", error);
-      } else if (data) {
+      if (!data && supabase) {
+        const { data: directData, error: directErr } = await supabase
+          .from("invoices")
+          .select("*")
+          .order("due_date", { ascending: true });
+        if (!directErr && directData) {
+          data = directData;
+        }
+      }
+
+      if (data) {
         // Recalculate real-time aging as of today for all invoices
         const updated = data.map((inv) => {
           if (inv.due_date && inv.due_date !== "—") {
@@ -517,34 +533,53 @@ export function InvoicesView() {
         throw new Error("Could not parse invoice records. Please check the file columns.");
       }
 
-      if (!supabase) {
-        throw new Error("Supabase is not initialized.");
+      const batchPayload = recordsToInsert.map((r) => ({
+        user_id: "chief",
+        vendor_name: r.vendor_name,
+        invoice_number: r.invoice_number || null,
+        amount: r.amount,
+        due_date: r.due_date || null,
+        days_overdue: r.days_overdue,
+        status: r.status || "Overdue",
+        notes: r.notes || null,
+        raw_data: r.raw_data || null,
+      }));
+
+      // Import via server gateway
+      let importedViaApi = false;
+      try {
+        const importRes = await fetch("/api/invoices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "import", records: batchPayload }),
+        });
+        const importJson = await importRes.json();
+        if (importRes.ok && importJson.success) {
+          importedViaApi = true;
+        }
+      } catch (apiErr) {
+        console.warn("API import failed, falling back to direct connection:", apiErr);
       }
 
-      // 1. PURGE ALL OLD INVOICE DATA from Supabase
-      await supabase
-        .from("invoices")
-        .delete()
-        .neq("id", "00000000-0000-0000-0000-000000000000");
+      if (!importedViaApi) {
+        if (!supabase) {
+          throw new Error("Supabase is not initialized.");
+        }
 
-      // 2. INSERT NEW FRESH INVOICES in batches of 100
-      const batchSize = 100;
-      for (let i = 0; i < recordsToInsert.length; i += batchSize) {
-        const batch = recordsToInsert.slice(i, i + batchSize).map((r) => ({
-          user_id: "chief",
-          vendor_name: r.vendor_name,
-          invoice_number: r.invoice_number || null,
-          amount: r.amount,
-          due_date: r.due_date || null,
-          days_overdue: r.days_overdue,
-          status: r.status || "Overdue",
-          notes: r.notes || null,
-          raw_data: r.raw_data || null,
-        }));
+        // 1. PURGE ALL OLD INVOICE DATA from Supabase
+        await supabase
+          .from("invoices")
+          .delete()
+          .neq("id", "00000000-0000-0000-0000-000000000000");
 
-        const { error: insertError } = await supabase.from("invoices").insert(batch);
-        if (insertError) {
-          throw new Error(`Insert failed: ${insertError.message}`);
+        // 2. INSERT NEW FRESH INVOICES in batches of 100
+        const batchSize = 100;
+        for (let i = 0; i < batchPayload.length; i += batchSize) {
+          const batch = batchPayload.slice(i, i + batchSize);
+          const { error: insertError } = await supabase.from("invoices").insert(batch);
+          if (insertError) {
+            throw new Error(`Insert failed: ${insertError.message}`);
+          }
         }
       }
 

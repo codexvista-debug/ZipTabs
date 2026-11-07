@@ -254,15 +254,19 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     try {
       if (!supabase) return;
 
-      const [invRes, notesRes, usageRes, driveRes] = await Promise.all([
-        supabase
-          .from("invoices")
-          .select("id, vendor_name, invoice_number, amount, days_overdue, status, due_date")
-          .order("days_overdue", { ascending: false }),
-        supabase
-          .from("app_notes")
-          .select("id, title, category, target_date, priority, is_completed, content, attachments")
-          .order("created_at", { ascending: false }),
+      let invoicesData: any[] = [];
+      let notesData: any[] = [];
+
+      try {
+        const [invApi, notesApi] = await Promise.all([
+          fetch("/api/invoices").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch("/api/notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
+        if (invApi?.success && Array.isArray(invApi.data)) invoicesData = invApi.data;
+        if (notesApi?.success && Array.isArray(notesApi.notes)) notesData = notesApi.notes;
+      } catch {}
+
+      const [usageRes, driveRes] = await Promise.all([
         supabase.rpc("get_workspace_usage"),
         supabase
           .from("drive_files")
@@ -278,8 +282,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       let vendorsCount = 0;
       let topOvd: InvoiceSummaryItem[] = [];
 
-      if (invRes.data) {
-        const rows = invRes.data as InvoiceSummaryItem[];
+      if (invoicesData.length > 0) {
+        const rows = invoicesData as InvoiceSummaryItem[];
         setInvoicesCount(rows.length);
 
         const vendors = new Set<string>();
@@ -309,8 +313,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       let urgentNotes = 0;
       let recentNotesList: NoteSummaryItem[] = [];
 
-      if (notesRes.data) {
-        const notes = notesRes.data as NoteSummaryItem[];
+      if (notesData.length > 0) {
+        const notes = notesData as NoteSummaryItem[];
         totalNotes = notes.length;
         setNotesCount(totalNotes);
 
@@ -377,7 +381,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         sessionStorage.setItem(
           DASHBOARD_CACHE_KEY,
           JSON.stringify({
-            invoicesCount: invRes.data ? invRes.data.length : 0,
+            invoicesCount: invoicesData ? invoicesData.length : 0,
             totalInvoiceAmount: totalAmt,
             overdueCount: ovdCount,
             overdueAmount: ovdAmt,

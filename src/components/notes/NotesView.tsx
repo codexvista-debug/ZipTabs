@@ -665,43 +665,59 @@ export function NotesView() {
     } catch {}
 
     try {
-      if (supabase) {
-        const { data, error } = await supabase
+      let data: any[] | null = null;
+      try {
+        const catRes = await fetch("/api/notes");
+        if (catRes.ok) {
+          const catJson = await catRes.json();
+          if (catJson.success && Array.isArray(catJson.categories)) {
+            data = catJson.categories;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("API categories call failed, trying direct connection:", apiErr);
+      }
+
+      if (!data && supabase) {
+        const { data: dbData, error } = await supabase
           .from("app_categories")
           .select("*")
           .order("created_at", { ascending: true });
+        if (!error && dbData) data = dbData;
+      }
 
-        if (!error && data) {
-          const loaded: CategoryConfig[] = data.map((d: any) => ({
-            id: d.id,
-            label: d.label,
-            color: d.color || "text-slate-700 bg-slate-100 border-slate-200",
-            icon: Tag,
-          }));
+      if (data) {
+        const loaded: CategoryConfig[] = data.map((d: any) => ({
+          id: d.id,
+          label: d.label,
+          color: d.color || "text-slate-700 bg-slate-100 border-slate-200",
+          icon: Tag,
+        }));
 
-          let mergedCategories = [...loaded];
-          if (storedCategories.length > 0) {
-            const remoteCatIds = new Set(loaded.map((c) => c.id));
-            const unsyncedCategories = storedCategories.filter((c) => !remoteCatIds.has(c.id));
-            if (unsyncedCategories.length > 0) {
-              await supabase.from("app_categories").upsert(
-                unsyncedCategories.map((c) => ({
-                  id: c.id,
-                  label: c.label,
-                  color: c.color,
-                  icon: "Tag",
-                }))
-              );
-              mergedCategories = [...unsyncedCategories, ...loaded];
+        let mergedCategories = [...loaded];
+        if (storedCategories.length > 0) {
+          const remoteCatIds = new Set(loaded.map((c) => c.id));
+          const unsyncedCategories = storedCategories.filter((c) => !remoteCatIds.has(c.id));
+          if (unsyncedCategories.length > 0) {
+            for (const c of unsyncedCategories) {
+              fetch("/api/notes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "upsert_category",
+                  category: { id: c.id, label: c.label, color: c.color, icon: "Tag" },
+                }),
+              }).catch(() => {});
             }
+            mergedCategories = [...unsyncedCategories, ...loaded];
           }
-
-          setCustomCategories(mergedCategories);
-          try {
-            localStorage.setItem("ziptabs_custom_categories", JSON.stringify(mergedCategories));
-          } catch {}
-          return;
         }
+
+        setCustomCategories(mergedCategories);
+        try {
+          localStorage.setItem("ziptabs_custom_categories", JSON.stringify(mergedCategories));
+        } catch {}
+        return;
       }
     } catch {}
 
@@ -725,23 +741,42 @@ export function NotesView() {
     } catch {}
 
     try {
-      if (supabase) {
-        const { data, error } = await supabase
+      let data: any[] | null = null;
+      try {
+        const notesRes = await fetch("/api/notes");
+        if (notesRes.ok) {
+          const notesJson = await notesRes.json();
+          if (notesJson.success && Array.isArray(notesJson.notes)) {
+            data = notesJson.notes;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("API notes call failed, trying direct connection:", apiErr);
+      }
+
+      if (!data && supabase) {
+        const { data: dbData, error: dbErr } = await supabase
           .from("app_notes")
           .select("*")
           .order("created_at", { ascending: false });
+        if (!dbErr && dbData) data = dbData;
+      }
 
-        if (!error && data) {
-          // Filter out any tombstoned / deleted notes from remote data
-          const validData: NoteItem[] = data.filter((n: any) => !deletedIds.has(n.id));
+      if (data) {
+        // Filter out any tombstoned / deleted notes from remote data
+        const validData: NoteItem[] = data.filter((n: any) => !deletedIds.has(n.id));
 
-          // If Supabase returned any zombie notes that were deleted previously, delete them immediately from remote
-          const zombieNotes = data.filter((n: any) => deletedIds.has(n.id));
-          if (zombieNotes.length > 0) {
-            zombieNotes.forEach((zn: any) => {
-              supabase?.from("app_notes").delete().eq("id", zn.id).then(() => {});
-            });
-          }
+        // If returned any zombie notes that were deleted previously, delete them immediately
+        const zombieNotes = data.filter((n: any) => deletedIds.has(n.id));
+        if (zombieNotes.length > 0) {
+          zombieNotes.forEach((zn: any) => {
+            fetch("/api/notes", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "delete_note", id: zn.id }),
+            }).catch(() => {});
+          });
+        }
 
           // Auto-migrate all current/existing notes to concise 3-keyword subjects if they have old auto-generated sentences
           let hasUpdates = false;
@@ -792,29 +827,34 @@ export function NotesView() {
             }
           } catch {}
 
-          if (hasUpdates && supabase) {
+          if (hasUpdates) {
             const notesToUpdate = cleanedNotes.filter((n, idx) => n.title !== validData[idx]?.title);
             if (notesToUpdate.length > 0) {
               (async () => {
                 try {
-                  await supabase.from("app_notes").upsert(
-                    notesToUpdate.map((n) => ({
-                      id: n.id,
-                      user_id: n.user_id || "chief",
-                      title: n.title,
-                      content: n.content || "",
-                      category: n.category || "Quick Notes",
-                      target_date: n.target_date || null,
-                      priority: n.priority || "normal",
-                      is_completed: n.is_completed || false,
-                      completed_at: n.completed_at || null,
-                      attachments: n.attachments || [],
-                      created_at: n.created_at || new Date().toISOString(),
-                      updated_at: n.updated_at || new Date().toISOString(),
-                    }))
-                  );
+                  await fetch("/api/notes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      action: "batch_upsert_notes",
+                      notes: notesToUpdate.map((n) => ({
+                        id: n.id,
+                        user_id: n.user_id || "chief",
+                        title: n.title,
+                        content: n.content || "",
+                        category: n.category || "Quick Notes",
+                        target_date: n.target_date || null,
+                        priority: n.priority || "normal",
+                        is_completed: n.is_completed || false,
+                        completed_at: n.completed_at || null,
+                        attachments: n.attachments || [],
+                        created_at: n.created_at || new Date().toISOString(),
+                        updated_at: n.updated_at || new Date().toISOString(),
+                      })),
+                    }),
+                  });
                 } catch (e) {
-                  console.warn("Supabase auto-update notes error:", e);
+                  console.warn("API auto-update notes error:", e);
                 }
               })();
             }
@@ -822,10 +862,7 @@ export function NotesView() {
 
           setIsLoading(false);
           return;
-        } else if (error) {
-          console.error("Supabase loadNotes error:", error);
         }
-      }
     } catch (e) {
       console.warn("Supabase fetch error, fallback to localStorage:", e);
     }
@@ -883,7 +920,11 @@ export function NotesView() {
             const newNote = payload.new as NoteItem;
             // Block deleted/tombstoned notes from re-inserting
             if (deletedIds.has(newNote.id)) {
-              supabase?.from("app_notes").delete().eq("id", newNote.id);
+              fetch("/api/notes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "delete_note", id: newNote.id }),
+              }).catch(() => {});
               return;
             }
             setNotes((prev) => {
@@ -966,16 +1007,21 @@ export function NotesView() {
 
     try {
       localStorage.setItem("ziptabs_custom_categories", JSON.stringify(updated));
-      if (supabase) {
-        await supabase.from("app_categories").insert([
-          {
+      fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsert_category",
+          category: {
             id: newCat.id,
             label: newCat.label,
             color: newCat.color,
             icon: "Tag",
           },
-        ]);
-      }
+        }),
+      }).catch((e) => {
+        console.error("Save category API error:", e);
+      });
     } catch (e) {
       console.error("Save category error:", e);
     }
@@ -1116,26 +1162,31 @@ export function NotesView() {
     const updatedList = [newItem, ...notes];
     saveNotesList(updatedList);
 
-    if (supabase) {
-      supabase
-        .from("app_notes")
-        .insert([
-          {
-            id: newItem.id,
-            user_id: "chief",
-            title: newItem.title,
-            content: newItem.content,
-            category: "Quick Notes",
-            target_date: null,
-            priority: "normal",
-            is_completed: false,
-            attachments: [],
-          },
-        ])
-        .then(({ error }) => {
+    const notePayload = {
+      id: newItem.id,
+      user_id: "chief",
+      title: newItem.title,
+      content: newItem.content,
+      category: canonicalCategory || "Quick Notes",
+      target_date: null,
+      priority: quickPriority || "normal",
+      is_completed: false,
+      attachments: [],
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+
+    fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "upsert_note", note: notePayload }),
+    }).catch(() => {
+      if (supabase) {
+        supabase.from("app_notes").insert([notePayload]).then(({ error }) => {
           if (error) console.error("Supabase quick note insert error:", error);
         });
-    }
+      }
+    });
 
     // If there are attachments, the background upload notification handles the entire lifecycle (prevents double toasts)
     if (pendingUploadFiles.length > 0) {
@@ -1279,29 +1330,38 @@ export function NotesView() {
       }
     }
 
-    // Persist ALL uploaded attachments to Supabase in a single authoritative update to prevent race conditions
-    if (uploadedAttachments.length > 0 && supabase) {
+    // Persist ALL uploaded attachments to backend in a single authoritative update to prevent race conditions
+    if (uploadedAttachments.length > 0) {
       try {
-        const { data: dbNote } = await supabase
-          .from("app_notes")
-          .select("attachments")
-          .eq("id", noteId)
-          .single();
-
-        const currentAtts: NoteAttachment[] = dbNote?.attachments || [];
+        const curNote = notes.find((n) => n.id === noteId);
+        const currentAtts: NoteAttachment[] = curNote?.attachments || [];
         const existingPaths = new Set(currentAtts.map((a) => a.path));
         const combined = [
           ...currentAtts,
           ...uploadedAttachments.filter((a) => !existingPaths.has(a.path)),
         ];
 
-        await supabase
-          .from("app_notes")
-          .update({
-            attachments: combined,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", noteId);
+        await fetch("/api/notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "upsert_note",
+            note: {
+              id: noteId,
+              user_id: curNote?.user_id || "chief",
+              title: curNote?.title || noteTitle,
+              content: curNote?.content || "",
+              category: curNote?.category || "Quick Notes",
+              target_date: curNote?.target_date || null,
+              priority: curNote?.priority || "normal",
+              is_completed: curNote?.is_completed || false,
+              completed_at: curNote?.completed_at || null,
+              attachments: combined,
+              created_at: curNote?.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          }),
+        });
       } catch (dbErr) {
         console.error("Failed to update note attachments in db:", dbErr);
       }
@@ -1369,24 +1429,33 @@ export function NotesView() {
       saveNotesList(updatedList);
       setViewingNote((prev) => (prev && prev.id === editingNote.id ? updatedItem : prev));
 
-      if (supabase) {
-        supabase
-          .from("app_notes")
-          .update({
-            title: updatedItem.title,
-            content: updatedItem.content,
-            category: updatedItem.category,
-            target_date: null,
-            priority: updatedItem.priority,
-            attachments: finalAttachments,
-            updated_at: nowIso,
-            last_opened_at: nowIso,
-          })
-          .eq("id", editingNote.id)
-          .then(({ error }) => {
-            if (error) console.error("Supabase update error:", error);
-          });
-      }
+      const updatePayload = {
+        id: editingNote.id,
+        title: updatedItem.title,
+        content: updatedItem.content,
+        category: updatedItem.category,
+        target_date: null,
+        priority: updatedItem.priority,
+        attachments: finalAttachments,
+        updated_at: nowIso,
+        last_opened_at: nowIso,
+      };
+
+      fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "upsert_note", note: updatePayload }),
+      }).catch(() => {
+        if (supabase) {
+          supabase
+            .from("app_notes")
+            .update(updatePayload)
+            .eq("id", editingNote.id)
+            .then(({ error }) => {
+              if (error) console.error("Supabase update error:", error);
+            });
+        }
+      });
 
       if (pendingUploadFiles.length === 0) {
         showToast(
@@ -1415,27 +1484,35 @@ export function NotesView() {
       const updatedList = [newItem, ...notes];
       saveNotesList(updatedList);
 
-      if (supabase) {
-        supabase
-          .from("app_notes")
-          .insert([
-            {
-              id: newItem.id,
-              user_id: "chief",
-              title: newItem.title,
-              content: newItem.content,
-              category: newItem.category,
-              target_date: null,
-              priority: newItem.priority,
-              is_completed: false,
-              attachments: finalAttachments,
-              last_opened_at: nowIso,
-            },
-          ])
-          .then(({ error }) => {
-            if (error) console.error("Supabase insert error:", error);
-          });
-      }
+      const createPayload = {
+        id: newItem.id,
+        user_id: "chief",
+        title: newItem.title,
+        content: newItem.content,
+        category: newItem.category,
+        target_date: null,
+        priority: newItem.priority,
+        is_completed: false,
+        attachments: finalAttachments,
+        created_at: nowIso,
+        updated_at: nowIso,
+        last_opened_at: nowIso,
+      };
+
+      fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "upsert_note", note: createPayload }),
+      }).catch(() => {
+        if (supabase) {
+          supabase
+            .from("app_notes")
+            .insert([createPayload])
+            .then(({ error }) => {
+              if (error) console.error("Supabase insert error:", error);
+            });
+        }
+      });
 
       if (pendingUploadFiles.length === 0) {
         showToast(
@@ -1479,19 +1556,30 @@ export function NotesView() {
         : prev
     );
 
-    if (supabase) {
-      try {
-        await supabase
-          .from("app_notes")
-          .update({
+    try {
+      await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsert_note",
+          note: {
+            id: note.id,
+            user_id: note.user_id || "chief",
+            title: note.title,
+            content: note.content || "",
+            category: note.category || "Quick Notes",
+            target_date: note.target_date || null,
+            priority: note.priority || "normal",
             is_completed: nextStatus,
             completed_at: nextCompletedAt,
+            attachments: note.attachments || [],
+            created_at: note.created_at || nowIso,
             updated_at: nowIso,
-          })
-          .eq("id", note.id);
-      } catch (err) {
-        console.error("Supabase error:", err);
-      }
+          },
+        }),
+      });
+    } catch (err) {
+      console.error("API update error:", err);
     }
 
     showToast(nextStatus ? "Marked as Completed" : "Note Reopened", note.title, "info");
@@ -1523,7 +1611,19 @@ export function NotesView() {
             await deleteFilesFromStorage(filePaths);
           }
         }
-        await supabase.from("app_notes").delete().eq("id", note.id);
+        let deletedViaApi = false;
+        try {
+          const delRes = await fetch("/api/notes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "delete_note", id: note.id }),
+          });
+          if (delRes.ok) deletedViaApi = true;
+        } catch {}
+
+        if (!deletedViaApi && supabase) {
+          await supabase.from("app_notes").delete().eq("id", note.id);
+        }
       } catch (err) {
         console.error("Supabase delete error:", err);
       }

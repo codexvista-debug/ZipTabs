@@ -160,7 +160,11 @@ export function DirectoryView() {
             for (const r of recordsToUpgrade) {
               try {
                 const payload = await encryptDirectoryRecordForDb(r, key);
-                await supabase.from("phone_directory").update(payload).eq("id", r.id);
+                await fetch("/api/directory", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "upsert", record: { ...payload, id: r.id } }),
+                });
               } catch (upgradeErr) {
                 console.debug("Silent phone upgrade skipped for", r.id, upgradeErr);
               }
