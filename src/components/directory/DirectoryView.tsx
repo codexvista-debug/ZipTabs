@@ -28,6 +28,7 @@ import {
 import {
   Phone,
   PhoneCall,
+  PhoneForwarded,
   Mail,
   Building2,
   User,
@@ -1150,28 +1151,20 @@ export function DirectoryView() {
                     <div className="space-y-1.5 pt-0.5 text-xs">
                       {contact.phone && (
                         <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/70 gap-2">
-                          <div className="flex flex-col min-w-0 flex-1 font-mono font-semibold text-slate-800 text-[11px] sm:text-xs">
-                            {/* Phone icon and number strictly on the same line */}
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span className="truncate select-all">{contact.phone}</span>
-                            </div>
-
-                            {/* Extension goes to a new line aligned under the number */}
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1 font-mono font-semibold text-slate-800 text-[11px] sm:text-xs">
+                            <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span className="truncate select-all">{contact.phone}</span>
                             {contact.extension && (
-                              <div className="pl-5 pt-1 flex items-center">
+                              <>
+                                <span className="text-slate-300 font-light select-none shrink-0">|</span>
                                 <span
                                   title={`Extension: ${contact.extension}`}
-                                  className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/90 text-indigo-700 text-[10px] font-mono font-bold shrink-0 shadow-2xs select-all"
                                 >
-                                  <span className="bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 tracking-wider text-[8px] leading-none">
-                                    EXT
-                                  </span>
-                                  <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
-                                    {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
-                                  </span>
+                                  <PhoneForwarded className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                                  <span>{contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
                                 </span>
-                              </div>
+                              </>
                             )}
                           </div>
                           <div className="flex items-center gap-1 shrink-0 ml-1">
@@ -1331,17 +1324,16 @@ export function DirectoryView() {
                                 <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                 <span className="font-bold select-all whitespace-nowrap">{contact.phone}</span>
                                 {contact.extension && (
-                                  <span
-                                    title={`Extension: ${contact.extension}`}
-                                    className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle"
-                                  >
-                                    <span className="bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 tracking-wider text-[8px] leading-none">
-                                      EXT
+                                  <>
+                                    <span className="text-slate-300 font-light select-none">|</span>
+                                    <span
+                                      title={`Extension: ${contact.extension}`}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/90 text-indigo-700 text-[10px] font-mono font-bold shrink-0 shadow-2xs select-all"
+                                    >
+                                      <PhoneForwarded className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                                      <span>{contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
                                     </span>
-                                    <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
-                                      {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
-                                    </span>
-                                  </span>
+                                  </>
                                 )}
                                 <button
                                   type="button"
@@ -1515,17 +1507,16 @@ export function DirectoryView() {
                               <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               <span className="select-all whitespace-nowrap">{contact.phone}</span>
                               {contact.extension && (
-                                <span
-                                  title={`Extension: ${contact.extension}`}
-                                  className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9.5px] font-mono shrink-0 shadow-2xs select-all align-middle"
-                                >
-                                  <span className="bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 tracking-wider text-[8px] leading-none">
-                                    EXT
+                                <>
+                                  <span className="text-slate-300 font-light select-none">|</span>
+                                  <span
+                                    title={`Extension: ${contact.extension}`}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/90 text-indigo-700 text-[10px] font-mono font-bold shrink-0 shadow-2xs select-all"
+                                  >
+                                    <PhoneForwarded className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                                    <span>{contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
                                   </span>
-                                  <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
-                                    {contact.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
-                                  </span>
-                                </span>
+                                </>
                               )}
                             </div>
                             <button

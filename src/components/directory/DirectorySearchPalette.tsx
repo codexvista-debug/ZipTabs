@@ -7,6 +7,7 @@ import {
   Search,
   X,
   Phone,
+  PhoneForwarded,
   Mail,
   Building2,
   User,
@@ -426,17 +427,16 @@ function SearchContactRow({
               <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono font-medium text-slate-700 mr-1 select-all">
                 <span>{record.phone}</span>
                 {record.extension && (
-                  <span
-                    title={`Extension: ${record.extension}`}
-                    className="inline-flex items-center rounded overflow-hidden border border-indigo-200 text-[9px] font-mono shrink-0 shadow-2xs select-all align-middle ml-0.5"
-                  >
-                    <span className="bg-indigo-600 text-white font-extrabold px-1 py-0.5 tracking-wider text-[8px] leading-none">
-                      EXT
+                  <>
+                    <span className="text-slate-300 font-light select-none">|</span>
+                    <span
+                      title={`Extension: ${record.extension}`}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/90 text-indigo-700 text-[9.5px] font-mono font-bold shrink-0 shadow-2xs select-all"
+                    >
+                      <PhoneForwarded className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                      <span>{record.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
                     </span>
-                    <span className="bg-indigo-50/90 text-indigo-900 font-bold px-1.5 py-0.5 leading-none">
-                      {record.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}
-                    </span>
-                  </span>
+                  </>
                 )}
               </span>
               <button
