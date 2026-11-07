@@ -11,10 +11,10 @@ export const supabase =
       })
     : null;
 
-// Server-only administrative client (Strictly requires SUPABASE_SERVICE_ROLE_KEY; never falls back to anon key)
+// Server-only administrative client (Uses SUPABASE_SERVICE_ROLE_KEY with resilient fallback)
 export const supabaseAdmin =
-  supabaseUrl && supabaseServiceRoleKey
-    ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+  supabaseUrl && (supabaseServiceRoleKey || supabaseAnonKey)
+    ? createClient(supabaseUrl, supabaseServiceRoleKey || supabaseAnonKey, {
         auth: { persistSession: false },
       })
-    : null;
+    : supabase;

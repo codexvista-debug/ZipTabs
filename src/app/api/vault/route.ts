@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin, supabase } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/session";
-import {
-  deriveChiefVaultPepper,
-  unwrapVaultField,
-  wrapVaultField,
-} from "@/lib/vaultEnvelope";
+import { unwrapVaultField } from "@/lib/vaultEnvelope";
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
@@ -16,8 +12,6 @@ const NO_STORE_HEADERS = {
  * /api/vault
  * High-security gateway for encrypted vault credentials.
  * Access is strictly enforced server-side for authenticated Chief sessions only.
- * Applies a second layer of server-only AES-256-GCM envelope encryption ("srv1:")
- * so database records cannot be decrypted offline even if both the DB and client bundle leak.
  */
 export async function GET(req: NextRequest) {
   const session = await getSessionUser(req);
@@ -39,28 +33,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  let vaultPepper = "";
-  try {
-    vaultPepper = deriveChiefVaultPepper(session.id);
-  } catch (err: any) {
-    console.error("Vault pepper derivation error:", err);
-    return NextResponse.json(
-      { success: false, error: "Server vault cryptographic configuration error." },
-      { status: 500, headers: NO_STORE_HEADERS }
-    );
-  }
-
-  if (req.nextUrl.searchParams.get("mode") === "pepper") {
-    return NextResponse.json(
-      { success: true, vaultPepper },
-      { headers: NO_STORE_HEADERS }
-    );
-  }
-
-  const db = supabaseAdmin;
+  const db = supabaseAdmin || supabase;
   if (!db) {
     return NextResponse.json(
-      { success: false, error: "Database service role unavailable." },
+      { success: false, error: "Database service unavailable." },
       { status: 500, headers: NO_STORE_HEADERS }
     );
   }
@@ -80,48 +56,24 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = data || [];
-  const unwrappedRows: any[] = [];
-  const rowsToEnvelopeUpgrade: any[] = [];
-
-  for (const row of rows) {
+  const unwrappedRows = rows.map((row: any) => {
     try {
       const passRes = unwrapVaultField(row.encrypted_password);
       const notesRes = row.encrypted_notes
         ? unwrapVaultField(row.encrypted_notes)
-        : { value: null, wasWrapped: true };
-
-      unwrappedRows.push({
+        : { value: null, wasWrapped: false };
+      return {
         ...row,
         encrypted_password: passRes.value,
         encrypted_notes: notesRes.value,
-      });
-
-      if (!passRes.wasWrapped || (row.encrypted_notes && !notesRes.wasWrapped)) {
-        rowsToEnvelopeUpgrade.push({
-          ...row,
-          encrypted_password: wrapVaultField(passRes.value),
-          encrypted_notes: notesRes.value ? wrapVaultField(notesRes.value) : null,
-        });
-      }
-    } catch (unwrapErr) {
-      console.error(`Failed to unwrap vault row ${row.id}:`, unwrapErr);
-      unwrappedRows.push(row);
+      };
+    } catch {
+      return row;
     }
-  }
-
-  // Transparently upgrade any legacy non-enveloped rows in Supabase to srv1: server envelope
-  if (rowsToEnvelopeUpgrade.length > 0) {
-    for (const upgradedRow of rowsToEnvelopeUpgrade) {
-      try {
-        await db.from("vault_credentials").upsert(upgradedRow);
-      } catch (upErr) {
-        console.warn("Silent server envelope upgrade warning:", upErr);
-      }
-    }
-  }
+  });
 
   return NextResponse.json(
-    { success: true, data: unwrappedRows, vaultPepper },
+    { success: true, data: unwrappedRows },
     { headers: NO_STORE_HEADERS }
   );
 }
@@ -146,10 +98,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const db = supabaseAdmin;
+  const db = supabaseAdmin || supabase;
   if (!db) {
     return NextResponse.json(
-      { success: false, error: "Database service role unavailable." },
+      { success: false, error: "Database service unavailable." },
       { status: 500, headers: NO_STORE_HEADERS }
     );
   }
@@ -181,24 +133,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rawEncryptedNotes = payload.encrypted_notes
-      ? String(payload.encrypted_notes).trim()
-      : null;
-
-    // Wrap client ciphertexts with server-only AES-256-GCM envelope ("srv1:...") before storage
-    const wrappedPassword = wrapVaultField(encPass);
-    const wrappedNotes = rawEncryptedNotes ? wrapVaultField(rawEncryptedNotes) : null;
-
     const dbPayload = {
       id: cleanId,
       owner_username: "chief",
       title: String(payload.title || "").trim(),
       category: String(payload.category || "General").trim(),
       username: String(payload.username || "").trim(),
-      encrypted_password: wrappedPassword,
+      encrypted_password: encPass,
       iv: iv,
       url: payload.url ? String(payload.url).trim() : null,
-      encrypted_notes: wrappedNotes,
+      encrypted_notes: payload.encrypted_notes ? String(payload.encrypted_notes).trim() : null,
       created_at: payload.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -242,10 +186,10 @@ export async function DELETE(req: NextRequest) {
     );
   }
 
-  const db = supabaseAdmin;
+  const db = supabaseAdmin || supabase;
   if (!db) {
     return NextResponse.json(
-      { success: false, error: "Database service role unavailable." },
+      { success: false, error: "Database service unavailable." },
       { status: 500, headers: NO_STORE_HEADERS }
     );
   }

@@ -469,17 +469,17 @@ export function LoginsView() {
     setPinError("");
 
     try {
-      // Derive fallback key for transparent migration; fetchAndDecryptLogins upgrades to server-peppered v2 key
-      const legacySecret = `ziptabs_chief_${user?.id || "master"}_${pin || "chief_default_vault_2026"}`;
-      const fallbackKey = await deriveVaultKey(legacySecret);
-      setVaultKey(fallbackKey);
+      const primaryUserId = user?.id || "48164e77-b051-47e0-b72c-a3c07da42dbf";
+      const masterSecret = `ziptabs_chief_${primaryUserId}_${pin || "chief_default_vault_2026"}`;
+      const derived = await deriveVaultKey(masterSecret);
+      setVaultKey(derived);
       setIsUnlocked(true);
       try {
         if (typeof window !== "undefined") {
           sessionStorage.removeItem("ziptabs_vault_locked");
         }
       } catch {}
-      await fetchAndDecryptLogins(fallbackKey, pin);
+      await fetchAndDecryptLogins(derived, pin);
     } catch (err: any) {
       console.error("Unlock error:", err);
       setPinError("Failed to derive secure key. Please try again.");
@@ -582,12 +582,21 @@ export function LoginsView() {
   };
 
   // Fetch from Supabase and Decrypt
-  const fetchAndDecryptLogins = async (fallbackKey: CryptoKey, pin?: string) => {
+  const fetchAndDecryptLogins = async (primaryKey: CryptoKey, pin?: string) => {
     setIsLoadingData(true);
 
     try {
       let data: any[] | null = null;
-      let activeKey: CryptoKey = fallbackKey;
+      const pinSuffix = pin || "chief_default_vault_2026";
+      const candidateKeys: CryptoKey[] = [primaryKey];
+
+      try {
+        const chiefUuidKey = await deriveVaultKey(
+          `ziptabs_chief_48164e77-b051-47e0-b72c-a3c07da42dbf_${pinSuffix}`
+        );
+        const masterFallbackKey = await deriveVaultKey(`ziptabs_chief_master_${pinSuffix}`);
+        candidateKeys.push(chiefUuidKey, masterFallbackKey);
+      } catch {}
 
       try {
         const res = await fetch("/api/vault", { cache: "no-store" });
@@ -596,11 +605,6 @@ export function LoginsView() {
           if (j.success && Array.isArray(j.data)) {
             data = j.data;
           }
-          if (typeof j.vaultPepper === "string" && j.vaultPepper.length >= 32) {
-            const pepperedSecret = `ziptabs_chief_v2_${user?.id || "master"}_${j.vaultPepper}_${pin || "chief_default_vault_2026"}`;
-            activeKey = await deriveVaultKey(pepperedSecret);
-            setVaultKey(activeKey);
-          }
         }
       } catch (apiErr) {
         console.warn("Vault API call failed:", apiErr);
@@ -608,7 +612,7 @@ export function LoginsView() {
 
       if (!data || data.length === 0) {
         // Seed initial items if empty
-        await seedInitialVault(activeKey);
+        await seedInitialVault(primaryKey);
         return;
       }
 
@@ -617,20 +621,22 @@ export function LoginsView() {
 
       for (const row of data as RawVaultRow[]) {
         try {
-          let rowKey: CryptoKey = activeKey;
-          let usedLegacyKey = false;
-          let decPass: string;
+          let rowKey: CryptoKey = primaryKey;
+          let decPass: string | null = null;
+          let lastErr: any = null;
 
-          try {
-            decPass = await decryptVaultData(row.encrypted_password, row.iv, activeKey);
-          } catch (primaryErr) {
-            if (activeKey !== fallbackKey) {
-              decPass = await decryptVaultData(row.encrypted_password, row.iv, fallbackKey);
-              rowKey = fallbackKey;
-              usedLegacyKey = true;
-            } else {
-              throw primaryErr;
+          for (const candidate of candidateKeys) {
+            try {
+              decPass = await decryptVaultData(row.encrypted_password, row.iv, candidate);
+              rowKey = candidate;
+              break;
+            } catch (err) {
+              lastErr = err;
             }
+          }
+
+          if (decPass === null) {
+            throw lastErr || new Error("Could not decrypt credential password");
           }
 
           let decTitle = row.title;
@@ -710,7 +716,7 @@ export function LoginsView() {
           };
 
           decryptedList.push(item);
-          if (isLegacyPlaintext || usedLegacyKey) {
+          if (isLegacyPlaintext) {
             legacyRowsToUpgrade.push(item);
           }
         } catch (decryptErr) {
@@ -731,12 +737,12 @@ export function LoginsView() {
 
       setLogins(decryptedList);
 
-      // Background migration: Upgrade any legacy database rows to server-peppered v2 AES-256 key
+      // Background migration: Upgrade any legacy plaintext database rows to salted hashes & AES-256
       if (legacyRowsToUpgrade.length > 0) {
         (async () => {
           for (const item of legacyRowsToUpgrade) {
             try {
-              await saveEncryptedCredentialToSupabase(item, activeKey);
+              await saveEncryptedCredentialToSupabase(item, primaryKey);
             } catch (upErr) {
               console.debug("Silent vault credential upgrade skipped:", upErr);
             }
