@@ -6,20 +6,32 @@ const countryCache = new Map<string, string>();
 
 export function isLocalOrPrivateIp(ip: string): boolean {
   if (!ip) return true;
-  return (
-    ip === "127.0.0.1" ||
-    ip === "::1" ||
-    ip === "localhost" ||
-    ip.startsWith("192.168.") ||
-    ip.startsWith("10.") ||
-    ip.startsWith("172.16.") ||
-    ip.startsWith("172.17.") ||
-    ip.startsWith("172.18.") ||
-    ip.startsWith("172.19.") ||
-    ip.startsWith("172.2") ||
-    ip.startsWith("172.30.") ||
-    ip.startsWith("172.31.")
-  );
+  const clean = ip.trim().toLowerCase();
+  if (
+    clean === "127.0.0.1" ||
+    clean === "::1" ||
+    clean === "localhost" ||
+    clean.startsWith("127.") ||
+    clean.startsWith("192.168.") ||
+    clean.startsWith("10.") ||
+    clean.startsWith("169.254.") ||
+    clean.startsWith("fe80:") ||
+    clean.startsWith("fc00:") ||
+    clean.startsWith("fd")
+  ) {
+    return true;
+  }
+
+  // RFC 1918 Private range: 172.16.0.0 - 172.31.255.255
+  const match172 = clean.match(/^172\.(\d+)\./);
+  if (match172) {
+    const octet = parseInt(match172[1], 10);
+    if (octet >= 16 && octet <= 31) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

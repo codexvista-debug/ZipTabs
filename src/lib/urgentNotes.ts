@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase";
-
 /**
  * Urgent & High Priority Note Tracking Utility
  * Detects notes with priority === 'urgent' | 'high' that remain unresolved (!is_completed)
@@ -67,18 +65,18 @@ export function recordNoteOpened(noteId: string) {
       })
     );
 
-    // 4. Persist to Supabase cloud database so mobile device immediately receives it
-    if (supabase) {
-      supabase
-        .from("app_notes")
-        .update({ last_opened_at: nowIso })
-        .eq("id", noteId)
-        .then(({ error }) => {
-          if (error) {
-            console.warn("[urgentNotes] Note last_opened_at cloud sync error:", error.message);
-          }
-        });
-    }
+    // 4. Persist to cloud database via authenticated API gateway so mobile device immediately receives it
+    fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "update_timestamps",
+        id: noteId,
+        timestamp: nowIso,
+      }),
+    }).catch((err) => {
+      console.warn("[urgentNotes] Note last_opened_at cloud sync error:", err);
+    });
   } catch (err) {
     console.warn("Failed to record note opened timestamp:", err);
   }
@@ -139,16 +137,18 @@ export function recordAllNotesReviewed(notesToReview?: MinimalNote[]) {
       })
     );
 
-    if (supabase && targetIds.length > 0) {
-      supabase
-        .from("app_notes")
-        .update({ last_opened_at: nowIso })
-        .in("id", targetIds)
-        .then(({ error }) => {
-          if (error) {
-            console.warn("[urgentNotes] Bulk cloud sync error:", error.message);
-          }
-        });
+    if (targetIds.length > 0) {
+      fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_timestamps",
+          ids: targetIds,
+          timestamp: nowIso,
+        }),
+      }).catch((err) => {
+        console.warn("[urgentNotes] Bulk cloud sync error:", err);
+      });
     }
   } catch (err) {
     console.warn("Failed to record all notes reviewed:", err);

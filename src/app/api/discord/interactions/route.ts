@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
+import { extractClientIp } from "@/lib/serverIp";
 
 const REQUIRED_PIN = process.env.DISCORD_CONTROL_PIN?.trim() || "";
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
@@ -57,17 +58,14 @@ function verifyDiscordSignature(
   }
 }
 
-function extractClientIp(req: NextRequest): string {
-  const forwardedFor = req.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    const ips = forwardedFor.split(",").map((s) => s.trim());
-    if (ips[0]) return ips[0];
-  }
-  const realIp = req.headers.get("x-real-ip");
-  if (realIp) return realIp.trim();
-  const cfIp = req.headers.get("cf-connecting-ip");
-  if (cfIp) return cfIp.trim();
-  return "127.0.0.1";
+/**
+ * Constant-time comparison to prevent timing-attack side channels when verifying security PIN.
+ */
+function isConstantTimePinValid(providedPin: string, expectedPin: string): boolean {
+  if (!expectedPin || !providedPin) return false;
+  const provHash = crypto.createHash("sha256").update(providedPin).digest();
+  const expHash = crypto.createHash("sha256").update(expectedPin).digest();
+  return crypto.timingSafeEqual(provHash, expHash);
 }
 
 function sendPinDeniedResponse(commandName: string, callerUser: string) {
@@ -92,7 +90,7 @@ function sendPinDeniedResponse(commandName: string, callerUser: string) {
   });
 }
 
-async function handleLockdownAction(state: string, callerUser: string) {
+async function handleLockdownAction(state: string, callerUser: string, clientIp?: string) {
   const db = supabaseAdmin || supabase;
   if (!db) {
     return NextResponse.json({
@@ -100,6 +98,8 @@ async function handleLockdownAction(state: string, callerUser: string) {
       data: { flags: 64, content: "⚠️ Database service offline. Could not contact Supabase." },
     });
   }
+
+  const actorTag = clientIp ? `discord:@${callerUser} [${clientIp}]` : `discord:@${callerUser}`;
 
   try {
     if (state === "on" || state === "enable" || state === "activate") {
@@ -109,13 +109,13 @@ async function handleLockdownAction(state: string, callerUser: string) {
           id: "global",
           ip_lockdown_enabled: true,
           updated_at: new Date().toISOString(),
-          updated_by: `discord:@${callerUser}`,
+          updated_by: actorTag,
         }),
         db.from("system_security_settings").upsert({
           id: "vanish_mode",
           ip_lockdown_enabled: true,
           updated_at: new Date().toISOString(),
-          updated_by: `discord:@${callerUser}`,
+          updated_by: actorTag,
         }),
       ]);
 
@@ -146,13 +146,13 @@ async function handleLockdownAction(state: string, callerUser: string) {
           id: "global",
           ip_lockdown_enabled: false,
           updated_at: new Date().toISOString(),
-          updated_by: `discord:@${callerUser}`,
+          updated_by: actorTag,
         }),
         db.from("system_security_settings").upsert({
           id: "vanish_mode",
           ip_lockdown_enabled: false,
           updated_at: new Date().toISOString(),
-          updated_by: `discord:@${callerUser}`,
+          updated_by: actorTag,
         }),
       ]);
 
@@ -243,7 +243,8 @@ async function handleLockdownAction(state: string, callerUser: string) {
 }
 
 async function handleStatusQuery() {
-  if (!supabase) {
+  const db = supabaseAdmin || supabase;
+  if (!db) {
     return NextResponse.json({
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: { flags: 64, content: "⚠️ Database service offline. Could not contact Supabase." },
@@ -252,10 +253,10 @@ async function handleStatusQuery() {
 
   try {
     const [vanishRes, globalRes, invRes, notesRes] = await Promise.all([
-      supabase.from("system_security_settings").select("*").eq("id", "vanish_mode").maybeSingle(),
-      supabase.from("system_security_settings").select("*").eq("id", "global").maybeSingle(),
-      supabase.from("invoices").select("amount, days_overdue"),
-      supabase.from("app_notes").select("id, priority, is_completed"),
+      db.from("system_security_settings").select("*").eq("id", "vanish_mode").maybeSingle(),
+      db.from("system_security_settings").select("*").eq("id", "global").maybeSingle(),
+      db.from("invoices").select("amount, days_overdue"),
+      db.from("app_notes").select("id, priority, is_completed"),
     ]);
 
     const isLockdown = Boolean(globalRes.data?.ip_lockdown_enabled || vanishRes.data?.ip_lockdown_enabled);
@@ -466,6 +467,7 @@ async function handleClearChannel(channelId: string, target: string, callerUser:
 }
 
 export async function POST(req: NextRequest) {
+  const clientIp = extractClientIp(req);
   const rawBody = await req.text();
   const signature = req.headers.get("x-signature-ed25519");
   const timestamp = req.headers.get("x-signature-timestamp");
@@ -506,10 +508,10 @@ export async function POST(req: NextRequest) {
 
       // If user typed PIN as an argument, verify it directly
       if (providedPin) {
-        if (!REQUIRED_PIN || providedPin !== REQUIRED_PIN) {
+        if (!isConstantTimePinValid(providedPin, REQUIRED_PIN)) {
           return sendPinDeniedResponse(commandName, callerUser);
         }
-        return handleLockdownAction(state, callerUser);
+        return handleLockdownAction(state, callerUser, clientIp);
       }
 
       // If PIN was NOT typed (Recommended: hides PIN completely from chat typing):
@@ -543,7 +545,7 @@ export async function POST(req: NextRequest) {
     // --- COMMAND: /status ---
     if (commandName === "status") {
       if (providedPin) {
-        if (!REQUIRED_PIN || providedPin !== REQUIRED_PIN) {
+        if (!isConstantTimePinValid(providedPin, REQUIRED_PIN)) {
           return sendPinDeniedResponse(commandName, callerUser);
         }
         return handleStatusQuery();
@@ -582,7 +584,7 @@ export async function POST(req: NextRequest) {
       const channelId = body.channel_id || body.channel?.id;
 
       if (providedPin) {
-        if (!REQUIRED_PIN || providedPin !== REQUIRED_PIN) {
+        if (!isConstantTimePinValid(providedPin, REQUIRED_PIN)) {
           return sendPinDeniedResponse(commandName, callerUser);
         }
         return handleClearChannel(channelId, target, callerUser);
@@ -638,7 +640,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!REQUIRED_PIN || submittedPin !== REQUIRED_PIN) {
+    if (!isConstantTimePinValid(submittedPin, REQUIRED_PIN)) {
       return NextResponse.json({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
@@ -662,7 +664,7 @@ export async function POST(req: NextRequest) {
 
     if (customId.startsWith("lockdown_modal:")) {
       const state = customId.split(":")[1] || "status";
-      return handleLockdownAction(state, callerUser);
+      return handleLockdownAction(state, callerUser, clientIp);
     }
 
     if (customId.startsWith("clear_modal:")) {

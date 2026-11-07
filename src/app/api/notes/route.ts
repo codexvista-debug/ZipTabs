@@ -135,6 +135,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, count: notes.length });
     }
 
+    // 6. Update Last Opened Timestamps (Cross-device sync for urgent notes)
+    if (action === "update_timestamps") {
+      const ids: string[] = body.ids || (body.id ? [body.id] : []);
+      const timestamp = body.timestamp || new Date().toISOString();
+      if (ids.length > 0) {
+        const { error } = await db
+          .from("app_notes")
+          .update({ last_opened_at: timestamp })
+          .in("id", ids);
+        if (error) {
+          return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        }
+        return NextResponse.json({ success: true, count: ids.length });
+      }
+      return NextResponse.json({ success: true, count: 0 });
+    }
+
     return NextResponse.json({ success: false, error: "Unknown action" }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

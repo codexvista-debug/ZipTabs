@@ -54,9 +54,9 @@ export function Sidebar({
       ? [
           { id: "logins", label: "Logins", icon: KeyRound },
           { id: "master-control", label: "Master Control", icon: Radio },
+          { id: "lab", label: "Design Lab", icon: FlaskConical },
         ]
       : []),
-    { id: "lab", label: "Design Lab", icon: FlaskConical },
     { id: "usage", label: "Usage", icon: HardDrive },
   ];
 

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
 import { deleteFilesFromStorage } from "@/lib/storage";
 import { getUSFederalHolidaysForYear } from "@/components/calendar/USCalendarView";
 import {
@@ -252,31 +251,23 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   // Fetch all live data concurrently
   const loadDashboardData = async () => {
     try {
-      if (!supabase) return;
-
       let invoicesData: any[] = [];
       let notesData: any[] = [];
-
       let driveExpiringData: any[] = [];
+      let usageData: any = null;
+
       try {
-        const [invApi, notesApi, driveApi] = await Promise.all([
+        const [invApi, notesApi, driveApi, usageApi] = await Promise.all([
           fetch("/api/invoices").then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch("/api/notes").then((r) => (r.ok ? r.json() : null)).catch(() => null),
           fetch("/api/drive?mode=expiring").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch("/api/usage").then((r) => (r.ok ? r.json() : null)).catch(() => null),
         ]);
         if (invApi?.success && Array.isArray(invApi.data)) invoicesData = invApi.data;
         if (notesApi?.success && Array.isArray(notesApi.notes)) notesData = notesApi.notes;
         if (driveApi?.success && Array.isArray(driveApi.expiringFiles)) driveExpiringData = driveApi.expiringFiles;
+        if (usageApi?.success && usageApi.data) usageData = usageApi.data;
       } catch {}
-
-      const [usageRes, driveRes] = await Promise.all([
-        supabase.rpc("get_workspace_usage"),
-        supabase
-          .from("drive_files")
-          .select("id, name, size, type, storage_path, expires_at")
-          .eq("retention_type", "temporary")
-          .order("expires_at", { ascending: true }),
-      ]);
 
       // 1. Process Invoices
       let totalAmt = 0;
@@ -344,16 +335,16 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       }
 
       // 3. Process Usage
-      if (usageRes.data) {
-        setStorageBytes(usageRes.data.storage_bytes || 0);
-        setStorageFilesCount(usageRes.data.storage_files || 0);
-        setDatabaseSizeBytes(usageRes.data.database_size_bytes || 0);
-        setDriveFilesCount(usageRes.data.drive_files_count || 0);
+      if (usageData) {
+        setStorageBytes(usageData.storage_bytes || 0);
+        setStorageFilesCount(usageData.storage_files || 0);
+        setDatabaseSizeBytes(usageData.database_size_bytes || 0);
+        setDriveFilesCount(usageData.drive_files_count || 0);
       }
 
       // 4. Process Expiring Temp Stash Drive Files (Starting 3 days before auto-purge)
       const expiring: ExpiringDriveFile[] = [];
-      const driveList = driveExpiringData.length > 0 ? driveExpiringData : (driveRes?.data || []);
+      const driveList = driveExpiringData;
       if (driveList.length > 0) {
         const nowMs = Date.now();
         driveList.forEach((f: any) => {
@@ -394,10 +385,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             notesCount: totalNotes,
             urgentNotesCount: urgentNotes,
             recentNotes: recentNotesList,
-            storageBytes: usageRes.data?.storage_bytes || 0,
-            storageFilesCount: usageRes.data?.storage_files || 0,
-            databaseSizeBytes: usageRes.data?.database_size_bytes || 0,
-            driveFilesCount: usageRes.data?.drive_files_count || 0,
+            storageBytes: usageData?.storage_bytes || 0,
+            storageFilesCount: usageData?.storage_files || 0,
+            databaseSizeBytes: usageData?.database_size_bytes || 0,
+            driveFilesCount: usageData?.drive_files_count || 0,
             expiringDriveFiles: expiring,
           })
         );
@@ -412,34 +403,39 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   // Keep expiring file in Vault (Permanent)
   const handleKeepInVault = async (fileId: string) => {
     setExpiringDriveFiles((prev) => prev.filter((f) => f.id !== fileId));
-    if (supabase) {
-      try {
-        await supabase
-          .from("drive_files")
-          .update({
+    try {
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_file",
+          id: fileId,
+          updates: {
             retention_type: "permanent",
             expires_at: null,
             updated_at: new Date().toISOString(),
-          })
-          .eq("id", fileId);
-      } catch (err) {
-        console.error("Keep in vault error:", err);
-      }
+          },
+        }),
+      });
+    } catch (err) {
+      console.error("Keep in vault error:", err);
     }
   };
 
   // Delete expiring file immediately
   const handleDeleteExpiringNow = async (file: ExpiringDriveFile) => {
     setExpiringDriveFiles((prev) => prev.filter((f) => f.id !== file.id));
-    if (supabase) {
-      try {
-        if (file.storage_path) {
-          await deleteFilesFromStorage([file.storage_path]);
-        }
-        await supabase.from("drive_files").delete().eq("id", file.id);
-      } catch (err) {
-        console.error("Delete expiring file error:", err);
+    try {
+      if (file.storage_path) {
+        await deleteFilesFromStorage([file.storage_path]);
       }
+      await fetch("/api/drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_files", id: file.id }),
+      });
+    } catch (err) {
+      console.error("Delete expiring file error:", err);
     }
   };
 

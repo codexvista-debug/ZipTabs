@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/session";
 
 // POST: Explicit save endpoint for validated remittance data (Stores data, not the PDF file)
@@ -8,7 +8,8 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!supabase) {
+  const db = supabaseAdmin || supabase;
+  if (!db) {
     return NextResponse.json({ success: false, error: "Database offline" }, { status: 503 });
   }
 
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
       expires_at: expiresAt,
     };
 
-    const { data: inserted, error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await db
       .from("vendor_remittances")
       .insert(recordToInsert)
       .select()

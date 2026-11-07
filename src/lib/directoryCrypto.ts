@@ -18,9 +18,16 @@ export const DIRECTORY_SALT = "ziptabs_dir_kdf_salt_c814b7e_2026";
 
 let cachedDirectoryKey: CryptoKey | null = null;
 
+export function getDirectorySecret(): string {
+  if (typeof process !== "undefined" && process?.env) {
+    return process.env.DIRECTORY_SECRET || process.env.SESSION_SECRET || DIRECTORY_MASTER_SECRET;
+  }
+  return DIRECTORY_MASTER_SECRET;
+}
+
 export async function getDirectoryKey(): Promise<CryptoKey> {
   if (cachedDirectoryKey) return cachedDirectoryKey;
-  cachedDirectoryKey = await deriveVaultKey(DIRECTORY_MASTER_SECRET, DIRECTORY_SALT);
+  cachedDirectoryKey = await deriveVaultKey(getDirectorySecret(), DIRECTORY_SALT);
   return cachedDirectoryKey;
 }
 

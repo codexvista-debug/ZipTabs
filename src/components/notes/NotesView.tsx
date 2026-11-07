@@ -1180,12 +1180,8 @@ export function NotesView() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "upsert_note", note: notePayload }),
-    }).catch(() => {
-      if (supabase) {
-        supabase.from("app_notes").insert([notePayload]).then(({ error }) => {
-          if (error) console.error("Supabase quick note insert error:", error);
-        });
-      }
+    }).catch((err) => {
+      console.error("Failed to insert quick note:", err);
     });
 
     // If there are attachments, the background upload notification handles the entire lifecycle (prevents double toasts)
@@ -1611,21 +1607,17 @@ export function NotesView() {
             await deleteFilesFromStorage(filePaths);
           }
         }
-        let deletedViaApi = false;
         try {
-          const delRes = await fetch("/api/notes", {
+          await fetch("/api/notes", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "delete_note", id: note.id }),
           });
-          if (delRes.ok) deletedViaApi = true;
-        } catch {}
-
-        if (!deletedViaApi && supabase) {
-          await supabase.from("app_notes").delete().eq("id", note.id);
+        } catch (apiErr) {
+          console.error("Failed to delete note via API:", apiErr);
         }
       } catch (err) {
-        console.error("Supabase delete error:", err);
+        console.error("Note deletion error:", err);
       }
     }
 

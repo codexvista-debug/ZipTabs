@@ -1,8 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import { hashPassword, verifyPassword } from "@/lib/crypto";
 
 export interface AppUser {
   id: string;
@@ -72,47 +70,8 @@ export function generateNewSessionId(): { sessionId: string; sessionCreated: num
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
-          if (lastActivityStr) {
-            const lastActivity = parseInt(lastActivityStr, 10);
-            if (!isNaN(lastActivity) && Date.now() - lastActivity < INACTIVITY_TIMEOUT_MS) {
-              return parsed;
-            }
-          } else {
-            return parsed;
-          }
-        }
-      } catch {}
-    }
-    return null;
-  });
-
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
-          if (lastActivityStr) {
-            const lastActivity = parseInt(lastActivityStr, 10);
-            if (!isNaN(lastActivity) && Date.now() - lastActivity < INACTIVITY_TIMEOUT_MS) {
-              return false; // Fast-path: unlock in 0ms!
-            }
-          } else {
-            return false;
-          }
-        }
-      } catch {}
-    }
-    return true;
-  });
-
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lockoutInfo, setLockoutInfo] = useState<LockoutInfo | null>(null);
 
   const refreshLockoutStatus = async (overrideUser?: string): Promise<LockoutInfo | null> => {
@@ -160,46 +119,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   };
 
-  // Restore session from localStorage and perform security check before unlocking UI
+  // Validate session strictly against server HttpOnly session cookie
   useEffect(() => {
     let isMounted = true;
     const initializeAuth = async () => {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          // Check if session has expired due to 3+ hours of inactivity
-          const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
-          if (lastActivityStr) {
-            const lastActivity = parseInt(lastActivityStr, 10);
-            if (!isNaN(lastActivity) && Date.now() - lastActivity >= INACTIVITY_TIMEOUT_MS) {
-              // Expired during inactivity while tab/device was closed
-              localStorage.removeItem(STORAGE_KEY);
-              localStorage.removeItem(LAST_ACTIVITY_KEY);
-              if (typeof window !== "undefined") {
-                try {
-                  sessionStorage.setItem(INACTIVITY_LOGOUT_FLAG, "true");
-                } catch {}
-              }
-              setUser(null);
-              setIsLoading(false);
-              return;
-            }
-          }
-
-          setUser(JSON.parse(stored));
-          // Fast-path unlock: if we already have a validated active session, unlock UI immediately
-          setIsLoading(false);
-          // Refresh activity timestamp on confirmed active restore
-          try {
-            localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
-          } catch {}
-        }
-      } catch {}
-
-      // Initial security verification before revealing ANY UI
+      // 1. Initial security verification (lockout status & vanish mode)
       const info = await refreshLockoutStatus();
       if (info?.isVanishMode && typeof window !== "undefined") {
-        setUser(null);
+        if (isMounted) {
+          setUser(null);
+          setIsLoading(false);
+        }
         try {
           localStorage.removeItem(STORAGE_KEY);
           localStorage.removeItem(LAST_ACTIVITY_KEY);
@@ -208,32 +138,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return; // Never reveal UI, keep loading state while navigating away
       }
 
-      // Verify server HttpOnly session cookie
+      // 2. Check client inactivity timeout before verifying session
+      if (typeof window !== "undefined") {
+        try {
+          const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
+          if (lastActivityStr) {
+            const lastActivity = parseInt(lastActivityStr, 10);
+            if (!isNaN(lastActivity) && Date.now() - lastActivity >= INACTIVITY_TIMEOUT_MS) {
+              // Expired during inactivity while tab was closed
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem(LAST_ACTIVITY_KEY);
+              try {
+                sessionStorage.setItem(INACTIVITY_LOGOUT_FLAG, "true");
+              } catch {}
+              if (isMounted) {
+                setUser(null);
+                setIsLoading(false);
+              }
+              // Clear server session cookie
+              fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+              return;
+            }
+          }
+        } catch {}
+      }
+
+      // 3. Cryptographically verify server HttpOnly signed session cookie
       try {
-        const meRes = await fetch("/api/auth/me");
+        const meRes = await fetch("/api/auth/me", { cache: "no-store" });
         if (meRes.ok) {
           const meData = await meRes.json();
           if (meData.authenticated && meData.user) {
-            setUser(meData.user);
+            if (isMounted) {
+              setUser(meData.user);
+            }
             try {
               localStorage.setItem(STORAGE_KEY, JSON.stringify(meData.user));
               localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
             } catch {}
           } else {
             // Server cookie missing or invalid - revoke local session
-            setUser(null);
+            if (isMounted) {
+              setUser(null);
+            }
             try {
               localStorage.removeItem(STORAGE_KEY);
               localStorage.removeItem(LAST_ACTIVITY_KEY);
             } catch {}
           }
+        } else {
+          if (isMounted) {
+            setUser(null);
+          }
         }
       } catch (err) {
         console.error("Session verification error:", err);
-      }
-
-      if (isMounted) {
-        setIsLoading(false);
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 

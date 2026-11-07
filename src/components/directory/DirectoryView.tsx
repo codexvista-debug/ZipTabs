@@ -127,28 +127,22 @@ export function DirectoryView() {
           }
         }
       } catch (apiErr) {
-        console.warn("API directory call failed, falling back to direct connection:", apiErr);
-      }
-
-      if (!data && supabase) {
-        const { data: directData, error: directErr } = await supabase
-          .from("phone_directory")
-          .select("*")
-          .order("created_at", { ascending: false });
-        if (!directErr && directData) {
-          data = directData;
-        }
+        console.warn("API directory call failed:", apiErr);
       }
 
       if (data && data.length > 0) {
-        // Decrypt all rows in memory
+        // Adopt server-decrypted rows directly or fall back to local decryption
         const decryptedList: DirectoryRecord[] = [];
-        for (const rawRow of data as RawSupabaseDirectoryRow[]) {
-          try {
-            const dec = await decryptSupabaseDirectoryRow(rawRow, key);
-            decryptedList.push(dec);
-          } catch (decErr) {
-            console.warn("Could not decrypt directory row:", rawRow.id, decErr);
+        for (const rawRow of data as any[]) {
+          if (rawRow.name && !rawRow.encrypted_name) {
+            decryptedList.push(rawRow as DirectoryRecord);
+          } else {
+            try {
+              const dec = await decryptSupabaseDirectoryRow(rawRow, key);
+              decryptedList.push(dec);
+            } catch (decErr) {
+              console.warn("Could not decrypt directory row:", rawRow.id, decErr);
+            }
           }
         }
         setRecords(decryptedList);

@@ -57,6 +57,82 @@ export function formatBytes(bytes?: number, decimals = 1): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+/**
+ * Strict DOM-based HTML sanitizer for Word Document (.docx) rendering.
+ * Defends against Stored XSS by stripping executable tags, iframes, inline event handlers,
+ * and dangerous protocols (javascript:, vbscript:) while preserving authentic document layout.
+ */
+export function sanitizeDocxHtml(dirtyHtml: string): string {
+  if (typeof window === "undefined" || !dirtyHtml) return "";
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(dirtyHtml, "text/html");
+
+    // 1. Remove dangerous executable elements
+    const dangerousTags = [
+      "script",
+      "style",
+      "iframe",
+      "frame",
+      "frameset",
+      "object",
+      "embed",
+      "applet",
+      "link",
+      "meta",
+      "base",
+      "form",
+      "input",
+      "button",
+      "textarea",
+      "select",
+      "svg",
+      "math",
+    ];
+
+    dangerousTags.forEach((tag) => {
+      doc.querySelectorAll(tag).forEach((el) => el.remove());
+    });
+
+    // 2. Remove all inline event handlers and unsafe URL protocols
+    const allElements = doc.querySelectorAll("*");
+    allElements.forEach((el) => {
+      const attrNames = Array.from(el.attributes).map((attr) => attr.name);
+      for (const name of attrNames) {
+        const lowerName = name.toLowerCase();
+        // Remove inline event handlers (onclick, onerror, onload, etc.)
+        if (lowerName.startsWith("on")) {
+          el.removeAttribute(name);
+          continue;
+        }
+
+        // Validate URLs in href, src, action
+        if (["href", "src", "action", "formaction"].includes(lowerName)) {
+          const val = (el.getAttribute(name) || "").trim().toLowerCase();
+          if (
+            val.startsWith("javascript:") ||
+            val.startsWith("vbscript:") ||
+            val.startsWith("data:text/html")
+          ) {
+            el.removeAttribute(name);
+          }
+        }
+      }
+
+      // Enforce secure external links
+      if (el.tagName.toLowerCase() === "a") {
+        el.setAttribute("target", "_blank");
+        el.setAttribute("rel", "noopener noreferrer");
+      }
+    });
+
+    return doc.body.innerHTML || "<p>Document is empty.</p>";
+  } catch (err) {
+    console.warn("Document sanitization error:", err);
+    return "<p>Unable to sanitize document preview.</p>";
+  }
+}
+
 // Error Boundary to prevent any child render failure from crashing the entire app
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -230,7 +306,8 @@ export function FullAttachmentViewer({
                 buffer: arrayBuffer as any,
               });
               if (isCancelled) return;
-              setDocxHtml(result?.value || "<p>Document is empty.</p>");
+              const cleanHtml = sanitizeDocxHtml(result?.value || "");
+              setDocxHtml(cleanHtml || "<p>Document is empty.</p>");
             } catch (err: any) {
               console.error("Mammoth conversion error:", err);
               setLoadError("Unable to extract document layout. You can still download the original document.");

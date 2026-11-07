@@ -212,16 +212,7 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
           }
         }
       } catch (apiErr) {
-        console.warn("API drive load failed, trying direct connection:", apiErr);
-      }
-
-      if ((!foldersData || !filesData) && supabase) {
-        const [foldersRes, filesRes] = await Promise.all([
-          supabase.from("drive_folders").select("*").order("name", { ascending: true }),
-          supabase.from("drive_files").select("*").order("created_at", { ascending: false }),
-        ]);
-        if (!foldersData && foldersRes.data) foldersData = foldersRes.data;
-        if (!filesData && filesRes.data) filesData = filesRes.data;
+        console.warn("API drive load failed:", apiErr);
       }
 
       if (foldersData) {
@@ -363,13 +354,6 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
       });
     } catch (err) {
       console.error("Failed to insert drive folder via API:", err);
-      if (supabase) {
-        try {
-          await supabase.from("drive_folders").insert([newFolder]);
-        } catch (dbErr) {
-          console.error("Fallback insert drive folder error:", dbErr);
-        }
-      }
     }
   };
 
@@ -411,18 +395,14 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
         setFiles((prev) => [newFileItem, ...prev]);
 
         // Save metadata to database via authenticated gateway
-        let savedViaApi = false;
         try {
-          const saveRes = await fetch("/api/drive", {
+          await fetch("/api/drive", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "create_file", file: newFileItem }),
           });
-          if (saveRes.ok) savedViaApi = true;
-        } catch {}
-
-        if (!savedViaApi && supabase) {
-          await supabase.from("drive_files").insert([newFileItem]);
+        } catch (apiErr) {
+          console.error("Save file API error:", apiErr);
         }
       } catch (err: any) {
         console.error("Failed to upload file:", file.name, err);

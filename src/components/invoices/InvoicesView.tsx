@@ -557,30 +557,12 @@ export function InvoicesView() {
         if (importRes.ok && importJson.success) {
           importedViaApi = true;
         }
-      } catch (apiErr) {
-        console.warn("API import failed, falling back to direct connection:", apiErr);
+      } catch (apiErr: any) {
+        throw new Error(apiErr?.message || "Invoice import failed through authenticated gateway.");
       }
 
       if (!importedViaApi) {
-        if (!supabase) {
-          throw new Error("Supabase is not initialized.");
-        }
-
-        // 1. PURGE ALL OLD INVOICE DATA from Supabase
-        await supabase
-          .from("invoices")
-          .delete()
-          .neq("id", "00000000-0000-0000-0000-000000000000");
-
-        // 2. INSERT NEW FRESH INVOICES in batches of 100
-        const batchSize = 100;
-        for (let i = 0; i < batchPayload.length; i += batchSize) {
-          const batch = batchPayload.slice(i, i + batchSize);
-          const { error: insertError } = await supabase.from("invoices").insert(batch);
-          if (insertError) {
-            throw new Error(`Insert failed: ${insertError.message}`);
-          }
-        }
+        throw new Error("Invoice import failed through authenticated gateway.");
       }
 
       // 3. Reload from Supabase

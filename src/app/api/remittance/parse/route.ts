@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/session";
 import { extractText } from "unpdf";
 import * as XLSX from "xlsx";
@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const vendorId = searchParams.get("vendorId") || "pyramid";
 
-  if (!supabase) {
+  const db = supabaseAdmin || supabase;
+  if (!db) {
     return NextResponse.json({ success: false, error: "Database offline" }, { status: 503 });
   }
 
@@ -22,10 +23,10 @@ export async function GET(req: NextRequest) {
     const nowIso = new Date().toISOString();
 
     // Auto-purge records older than 30 days (expires_at < NOW)
-    await supabase.from("vendor_remittances").delete().lt("expires_at", nowIso);
+    await db.from("vendor_remittances").delete().lt("expires_at", nowIso);
 
     // Fetch active remittances for this vendor (ordered by newest first)
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("vendor_remittances")
       .select("*")
       .eq("vendor_id", vendorId)
@@ -59,12 +60,13 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
 
-  if (!id || !supabase) {
+  const db = supabaseAdmin || supabase;
+  if (!id || !db) {
     return NextResponse.json({ success: false, error: "Invalid ID or database offline" }, { status: 400 });
   }
 
   try {
-    const { error } = await supabase.from("vendor_remittances").delete().eq("id", id);
+    const { error } = await db.from("vendor_remittances").delete().eq("id", id);
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
@@ -121,7 +123,8 @@ export async function POST(req: NextRequest) {
 
   // CASE A: User validated the data and clicked "Confirm & Save to Supabase"
   if (contentType.includes("application/json")) {
-    if (!supabase) {
+    const db = supabaseAdmin || supabase;
+    if (!db) {
       return NextResponse.json({ success: false, error: "Database offline" }, { status: 503 });
     }
 
@@ -153,7 +156,7 @@ export async function POST(req: NextRequest) {
         expires_at: expiresAt,
       };
 
-      const { data: inserted, error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await db
         .from("vendor_remittances")
         .insert(recordToInsert)
         .select()

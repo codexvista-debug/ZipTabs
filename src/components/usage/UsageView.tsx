@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { supabase } from "@/lib/supabase";
 import { deleteFilesFromStorage } from "@/lib/storage";
 import {
   HardDrive,
@@ -52,6 +51,7 @@ export interface WorkspaceUsageData {
   storage_files: number;
   invoices_count: number;
   notes_count: number;
+  drive_files_count?: number;
   database_size_bytes: number;
   files: StoredFile[];
 }
@@ -102,32 +102,26 @@ export function UsageView() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Fetch real-time usage data from Supabase RPC
+  // Fetch real-time usage data from authenticated API gateway
   const fetchUsage = async (showLoadingSpinner = true) => {
     if (showLoadingSpinner) setIsRefreshing(true);
     try {
-      const client = supabase;
-      if (client) {
-        const { data, error } = await client.rpc("get_workspace_usage");
-        if (error) {
-          console.error("Error fetching workspace usage:", error);
-        } else if (data) {
-          // Augment files with public URLs
-          const augmentedFiles = (data.files || []).map((f: StoredFile) => {
-            const { data: urlData } = client.storage
-              .from("note-attachments")
-              .getPublicUrl(f.name);
-            return {
-              ...f,
-              url: getSecureFileUrl(f.name),
-            };
-          });
+      const res = await fetch("/api/usage");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const data = json.data;
+          const augmentedFiles = (data.files || []).map((f: StoredFile) => ({
+            ...f,
+            url: getSecureFileUrl(f.name),
+          }));
 
           setUsage({
             storage_bytes: data.storage_bytes || 0,
             storage_files: data.storage_files || 0,
             invoices_count: data.invoices_count || 0,
             notes_count: data.notes_count || 0,
+            drive_files_count: data.drive_files_count || 0,
             database_size_bytes: data.database_size_bytes || 0,
             files: augmentedFiles,
           });
@@ -156,21 +150,19 @@ export function UsageView() {
   const executeDeleteFile = async (file: StoredFile) => {
     setConfirmDeleteFile(null);
     try {
-      if (supabase) {
-        const res = await deleteFilesFromStorage([file.name]);
+      const res = await deleteFilesFromStorage([file.name]);
 
-        if (!res.success) {
-          showToast(`Error deleting file: ${res.error}`);
-        } else {
-          // If this file was uploaded from Drive, also clean up the database record
-          fetch("/api/drive", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "delete_files", storage_path: file.name }),
-          }).catch(() => {});
-          showToast(`✓ Removed file and reclaimed ${formatBytes(file.size)}`);
-          fetchUsage(false);
-        }
+      if (!res.success) {
+        showToast(`Error deleting file: ${res.error}`);
+      } else {
+        // If this file was uploaded from Drive, also clean up the database record
+        fetch("/api/drive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "delete_files", storage_path: file.name }),
+        }).catch(() => {});
+        showToast(`✓ Removed file and reclaimed ${formatBytes(file.size)}`);
+        fetchUsage(false);
       }
     } catch (err) {
       console.error("Delete file error:", err);

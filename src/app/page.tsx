@@ -35,6 +35,9 @@ const VALID_TABS: TabType[] = ["dashboard", "invoices", "notes", "calendar", "di
 
 export default function Home() {
   const { user, isAuthenticated, isLoading, lockoutInfo } = useAuth();
+  const isChief =
+    user?.username?.toLowerCase() === "chief" ||
+    user?.role === "Chief Administrator";
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -271,11 +274,11 @@ export default function Home() {
               ) : activeTab === "resources" ? (
                 <ResourcesView />
               ) : activeTab === "logins" ? (
-                <LoginsView />
+                isChief ? <LoginsView /> : <DashboardView onNavigate={(tab) => handleTabChange(tab)} />
               ) : activeTab === "master-control" ? (
-                <MasterControlView />
+                isChief ? <MasterControlView /> : <DashboardView onNavigate={(tab) => handleTabChange(tab)} />
               ) : activeTab === "lab" ? (
-                <DesignLabView />
+                isChief ? <DesignLabView /> : <DashboardView onNavigate={(tab) => handleTabChange(tab)} />
               ) : activeTab === "usage" ? (
                 <UsageView />
               ) : (
