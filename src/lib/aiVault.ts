@@ -6,7 +6,6 @@ const VAULT_SALT = "ziptabs_server_ai_vault_salt_2026";
 function getServerSecrets(): string[] {
   const list = [
     process.env.SUPABASE_SERVICE_ROLE_KEY,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     process.env.SESSION_SECRET,
   ];
   return list.filter((s): s is string => Boolean(s && s.trim().length > 0));
