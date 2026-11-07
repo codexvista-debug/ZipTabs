@@ -470,14 +470,15 @@ export function USCalendarView() {
       )}
 
       {/* 1. TOP HEADER & ACTION BAR */}
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 border-b border-slate-200/80 pb-3 sm:pb-4 mb-3 sm:mb-4">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
             <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">
-              US Calendar & Working Hours
+            <h1 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight">
+              <span className="sm:hidden">US Calendar</span>
+              <span className="hidden sm:inline">US Calendar & Working Hours</span>
             </h1>
             <p className="hidden sm:block text-xs sm:text-sm text-slate-500 mt-0.5">
               Standard payroll periods: P1 (Days 1–15) and P2 (Days 16–End) with official US Federal Holidays
@@ -485,8 +486,8 @@ export function USCalendarView() {
           </div>
         </div>
 
-        {/* Month Selector Controls (1 compact single line on mobile) */}
-        <div className="flex items-center justify-between gap-1.5 w-full sm:w-auto">
+        {/* Month Selector Controls */}
+        <div className="flex items-center justify-between gap-1.5 sm:gap-2 w-full sm:w-auto">
           {/* Month Stepper */}
           <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 sm:p-1 shadow-2xs shrink-0">
             <button
@@ -498,7 +499,7 @@ export function USCalendarView() {
               <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
 
-            <span className="px-1.5 sm:px-3 text-xs font-extrabold text-slate-900 min-w-[105px] sm:min-w-[140px] text-center select-none truncate">
+            <span className="px-1.5 sm:px-3 text-xs font-extrabold text-slate-900 min-w-[95px] sm:min-w-[140px] text-center select-none whitespace-nowrap">
               {MONTH_NAMES[selectedMonth]} {selectedYear}
             </span>
 
@@ -656,22 +657,22 @@ export function USCalendarView() {
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {/* Calendar Top Banner with View Switcher & Period Legend */}
         <div className="p-3 sm:p-4 border-b border-slate-200/70 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-          <div className="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="text-xs sm:text-sm font-black text-slate-900 tracking-tight">
+          <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 shrink-0">
+              <span className="text-xs sm:text-sm font-black text-slate-900 tracking-tight whitespace-nowrap">
                 {MONTH_NAMES[selectedMonth]} {selectedYear}
               </span>
-              <span className="text-[10px] sm:text-xs text-slate-400 font-medium">
+              <span className="text-[10px] sm:text-xs text-slate-400 font-medium whitespace-nowrap">
                 ({daysInCurrentMonth} days)
               </span>
             </div>
 
             {/* View Mode Toggle: Grid vs Schedule List */}
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-2xs">
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-2xs shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   viewMode === "grid"
                     ? "bg-blue-600 text-white shadow-2xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -684,7 +685,7 @@ export function USCalendarView() {
               <button
                 type="button"
                 onClick={() => setViewMode("agenda")}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   viewMode === "agenda"
                     ? "bg-blue-600 text-white shadow-2xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -698,18 +699,18 @@ export function USCalendarView() {
           </div>
 
           {/* Period Legend */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-xs font-semibold">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-              <span className="text-slate-700">P1 (1–15)</span>
+          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 text-[10px] sm:text-xs font-semibold pt-2 sm:pt-0 border-t border-slate-200/60 sm:border-t-0 w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"></span>
+              <span className="text-slate-700 whitespace-nowrap">P1 (1–15)</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
-              <span className="text-slate-700">P2 (16–{daysInCurrentMonth})</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0"></span>
+              <span className="text-slate-700 whitespace-nowrap">P2 (16–{daysInCurrentMonth})</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-              <span className="text-slate-700">US Holiday</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+              <span className="text-slate-700 whitespace-nowrap">US Holiday</span>
             </div>
           </div>
         </div>
