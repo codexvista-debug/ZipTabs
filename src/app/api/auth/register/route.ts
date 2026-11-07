@@ -17,18 +17,30 @@ export async function POST(req: NextRequest) {
     if (!cleanUsername) {
       return NextResponse.json({ success: false, error: "Username is required." }, { status: 400 });
     }
-    if (cleanPassword.length < 3) {
-      return NextResponse.json({ success: false, error: "Password must be at least 3 characters." }, { status: 400 });
+    if (cleanUsername.length < 3 || cleanUsername.length > 32 || !/^[a-z0-9_.-]+$/.test(cleanUsername)) {
+      return NextResponse.json(
+        { success: false, error: "Username must be 3-32 characters and contain only letters, numbers, hyphens, underscores, or periods." },
+        { status: 400 }
+      );
+    }
+    if (["chief", "admin", "administrator", "root", "system"].includes(cleanUsername)) {
+      return NextResponse.json({ success: false, error: "This username is reserved and cannot be registered." }, { status: 400 });
+    }
+    if (cleanPassword.length < 8) {
+      return NextResponse.json({ success: false, error: "Password must be at least 8 characters." }, { status: 400 });
+    }
+    if (cleanPassword.length > 128) {
+      return NextResponse.json({ success: false, error: "Password must not exceed 128 characters." }, { status: 400 });
     }
 
-    // Check if registrations are allowed
+    // Check if registrations are allowed (Strictly locked by default if settings missing)
     const { data: settings } = await db
       .from("system_security_settings")
       .select("registrations_allowed")
       .eq("id", "global")
       .maybeSingle();
 
-    if (settings && !settings.registrations_allowed) {
+    if (!settings || !settings.registrations_allowed) {
       return NextResponse.json(
         {
           success: false,
@@ -59,7 +71,7 @@ export async function POST(req: NextRequest) {
         {
           username: cleanUsername,
           password: secureHash,
-          role: "Administrator",
+          role: "Member",
         },
       ])
       .select("id, username, role")
@@ -72,7 +84,7 @@ export async function POST(req: NextRequest) {
     const sessionToken = await createSessionToken({
       id: newUser.id,
       username: newUser.username,
-      role: newUser.role || "Administrator",
+      role: newUser.role || "Member",
     });
 
     const response = NextResponse.json({
@@ -80,7 +92,7 @@ export async function POST(req: NextRequest) {
       user: {
         id: newUser.id,
         username: newUser.username,
-        role: newUser.role || "Administrator",
+        role: newUser.role || "Member",
       },
     });
 

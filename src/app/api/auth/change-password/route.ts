@@ -34,9 +34,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (newPassword.length < 3) {
+    if (newPassword.length < 8) {
       return NextResponse.json(
-        { success: false, error: "New password must be at least 3 characters." },
+        { success: false, error: "New password must be at least 8 characters." },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword.length > 128) {
+      return NextResponse.json(
+        { success: false, error: "New password must not exceed 128 characters." },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword === oldPassword) {
+      return NextResponse.json(
+        { success: false, error: "New password must be different from current password." },
         { status: 400 }
       );
     }

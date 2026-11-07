@@ -499,8 +499,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!cleanUsername) {
       return { success: false, error: "Username is required." };
     }
-    if (cleanPassword.length < 3) {
-      return { success: false, error: "Password must be at least 3 characters." };
+    if (cleanPassword.length < 8) {
+      return { success: false, error: "Password must be at least 8 characters." };
     }
 
     try {
@@ -533,8 +533,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const cleanOld = oldPassword.trim();
     const cleanNew = newPassword.trim();
 
-    if (cleanNew.length < 3) {
-      return { success: false, error: "New password must be at least 3 characters." };
+    if (cleanNew.length < 8) {
+      return { success: false, error: "New password must be at least 8 characters." };
+    }
+    if (cleanNew === cleanOld) {
+      return { success: false, error: "New password must be different from current password." };
     }
 
     try {
