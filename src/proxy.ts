@@ -108,10 +108,12 @@ async function getSecuritySettings(): Promise<{
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Always allow Next.js internal static assets, public icons, and secure Discord slash commands
+  // Always allow Next.js internal static assets, public icons, and secure Emergency Ops override
   if (
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/discord") ||
+    pathname === "/ops" ||
+    pathname.startsWith("/ops/") ||
+    pathname.startsWith("/api/ops") ||
     pathname === "/icon.svg" ||
     pathname === "/favicon.ico"
   ) {
@@ -137,7 +139,7 @@ export async function proxy(request: NextRequest) {
       pathname.startsWith("/api/auth/lockout-status") ||
       pathname.startsWith("/api/auth/me") ||
       pathname.startsWith("/api/auth/logout") ||
-      pathname.startsWith("/api/discord");
+      pathname.startsWith("/api/ops");
 
     // Block blacklisted or locked-out IPs from hitting any action/data API (including login/register/vault)
     if (!isStatusOrLogoutApi) {

@@ -109,6 +109,18 @@ export function AuthScreen() {
   const isLocked = Boolean(lockoutInfo?.locked);
   const failedAttempts = lockoutInfo?.attempts || 0;
 
+  // Secret Knock: 5 rapid taps to open emergency /ops override
+  const [knockCount, setKnockCount] = useState(0);
+  const handleSecretKnock = () => {
+    const next = knockCount + 1;
+    if (next >= 5) {
+      window.location.href = "/ops";
+    } else {
+      setKnockCount(next);
+      setTimeout(() => setKnockCount(0), 3000);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-[#000000] flex items-center justify-center p-4 select-none text-white font-sans">
       <div className="w-full max-w-[420px]">
@@ -117,7 +129,11 @@ export function AuthScreen() {
           {isLocked ? (
             /* Security Lockout / Lockdown View */
             <div className="text-center py-1 animate-in fade-in zoom-in-95 duration-200">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 mb-5 shadow-lg shadow-rose-500/20 animate-pulse">
+              <div
+                onClick={handleSecretKnock}
+                className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 mb-5 shadow-lg shadow-rose-500/20 animate-pulse cursor-default"
+                title="Security Perimeter"
+              >
                 <ShieldAlert className="w-9 h-9" />
               </div>
 
@@ -366,7 +382,10 @@ export function AuthScreen() {
 
           {/* Subdued Bottom Portal Label */}
           <div className="mt-8 pt-5 border-t border-[#26262b] text-center">
-            <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">
+            <span
+              onClick={handleSecretKnock}
+              className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase cursor-default select-none"
+            >
               ZIPTABS SECURE MANAGEMENT ENVIRONMENT
             </span>
           </div>
