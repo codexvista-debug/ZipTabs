@@ -408,14 +408,24 @@ export function LoginsView() {
     }
   }, [isUnlocked]);
 
-  // Auto-authenticate & unlock immediately on mount if user is Chief
+  // Auto-authenticate & unlock on initial mount if user is Chief AND vault was not explicitly locked
   useEffect(() => {
-    if (isChief && !isUnlocked && !vaultKey) {
+    let wasLocked = false;
+    try {
+      wasLocked = typeof window !== "undefined" && sessionStorage.getItem("ziptabs_vault_locked") === "true";
+    } catch {}
+
+    if (isChief && !isUnlocked && !vaultKey && !wasLocked) {
       handleUnlock();
     }
   }, [isChief]);
 
   const handleLockVault = () => {
+    try {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("ziptabs_vault_locked", "true");
+      }
+    } catch {}
     setIsUnlocked(false);
     setVaultKey(null);
     setLogins([]);
@@ -436,6 +446,11 @@ export function LoginsView() {
       const derived = await deriveVaultKey(masterSecret);
       setVaultKey(derived);
       setIsUnlocked(true);
+      try {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("ziptabs_vault_locked");
+        }
+      } catch {}
       await fetchAndDecryptLogins(derived);
     } catch (err: any) {
       console.error("Unlock error:", err);

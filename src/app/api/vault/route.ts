@@ -76,21 +76,39 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    if (!payload || !payload.id) {
+    const cleanId = String(payload?.id || "").trim();
+    const encPass = String(payload?.encrypted_password || "").trim();
+    const iv = String(payload?.iv || "").trim();
+
+    if (!cleanId) {
       return NextResponse.json(
-        { success: false, error: "Invalid credential payload." },
+        { success: false, error: "Credential ID is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!encPass || encPass.length < 16 || !/^[A-Za-z0-9+/=]+$/.test(encPass)) {
+      return NextResponse.json(
+        { success: false, error: "A valid non-empty AES-GCM encrypted_password payload is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!iv || iv.length < 12 || !/^[A-Za-z0-9+/=]+$/.test(iv)) {
+      return NextResponse.json(
+        { success: false, error: "A valid non-empty AES-GCM initialization vector (iv) is required." },
         { status: 400 }
       );
     }
 
     const dbPayload = {
-      id: String(payload.id).trim(),
+      id: cleanId,
       owner_username: "chief",
       title: String(payload.title || "").trim(),
       category: String(payload.category || "General").trim(),
       username: String(payload.username || "").trim(),
-      encrypted_password: String(payload.encrypted_password || "").trim(),
-      iv: String(payload.iv || "").trim(),
+      encrypted_password: encPass,
+      iv: iv,
       url: payload.url ? String(payload.url).trim() : null,
       encrypted_notes: payload.encrypted_notes ? String(payload.encrypted_notes).trim() : null,
       created_at: payload.created_at || new Date().toISOString(),
