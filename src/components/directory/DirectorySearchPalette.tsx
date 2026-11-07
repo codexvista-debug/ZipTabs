@@ -425,19 +425,18 @@ function SearchContactRow({
           <div className="flex items-center gap-1">
             <div className="flex items-center bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
               <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono font-medium text-slate-700 mr-1 select-all">
-                <span>{record.phone}</span>
-                {record.extension && (
-                  <>
-                    <span className="text-slate-300 font-light select-none">|</span>
-                    <span
+                <div className="inline-flex items-baseline">
+                  <span>{record.phone}</span>
+                  {record.extension && (
+                    <sup
                       title={`Extension: ${record.extension}`}
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/90 text-indigo-700 text-[9.5px] font-mono font-bold shrink-0 shadow-2xs select-all"
+                      className="ml-1 text-[8px] font-bold font-mono text-indigo-700 bg-indigo-50 border border-indigo-200/90 rounded px-1 py-0.2 select-all shrink-0 align-super shadow-2xs inline-flex items-center gap-0.5"
                     >
-                      <PhoneForwarded className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                      <span className="text-[6.5px] uppercase font-extrabold text-indigo-500">ext</span>
                       <span>{record.extension.replace(/^(ext|x|ext\.|ext:)\s*/i, "")}</span>
-                    </span>
-                  </>
-                )}
+                    </sup>
+                  )}
+                </div>
               </span>
               <button
                 type="button"
