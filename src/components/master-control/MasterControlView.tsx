@@ -247,7 +247,7 @@ export function MasterControlView() {
     }, 2000);
   };
 
-  // Fetch Master Control Data (Strict zero-cache to reflect external Discord bot updates in real time)
+  // Fetch Master Control Data (Strict zero-cache to reflect external ops updates in real time)
   const loadMasterData = useCallback(async (isSilent = false) => {
     try {
       const res = await fetch(`/api/master-control?_t=${Date.now()}`, {
@@ -356,7 +356,7 @@ export function MasterControlView() {
           "postgres_changes",
           { event: "*", schema: "public", table: "system_security_settings" },
           (payload: any) => {
-            // Instant zero-latency state sync from external updates (Discord bot / other tabs)
+            // Instant zero-latency state sync from external updates (/ops override / other tabs)
             if (payload?.new?.id === "vanish_mode" || payload?.new?.id === "global") {
               const isLocked = Boolean(payload.new.ip_lockdown_enabled);
               setSettings((prev) => ({
@@ -384,7 +384,7 @@ export function MasterControlView() {
       loadMasterData(true);
     }, 2500);
 
-    // 3. Instant sync on window focus / switching back from Discord app
+    // 3. Instant sync on window focus / tab re-entry
     const handleFocusSync = () => {
       loadMasterData(true);
     };

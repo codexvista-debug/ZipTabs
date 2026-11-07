@@ -8,8 +8,6 @@ function getSessionSecret(): string {
   const secret =
     process.env.SESSION_SECRET ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.DISCORD_BOT_TOKEN ||
-    process.env.DISCORD_CONTROL_PIN ||
     process.env.SUPABASE_ACCESS_TOKEN ||
     "ziptabs_prod_session_secret_fallback_c8192a4";
 
@@ -20,8 +18,6 @@ function getCandidateSecrets(): string[] {
   const list = [
     process.env.SESSION_SECRET,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
-    process.env.DISCORD_BOT_TOKEN,
-    process.env.DISCORD_CONTROL_PIN,
     process.env.SUPABASE_ACCESS_TOKEN,
     "ziptabs_prod_session_secret_fallback_c8192a4",
     "ziptabs_master_session_hmac_secret_2026",
