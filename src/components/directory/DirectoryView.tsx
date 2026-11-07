@@ -2,10 +2,8 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { supabase } from "@/lib/supabase";
 import {
   DirectoryRecord,
-  RawSupabaseDirectoryRow,
   getDirectoryKey,
   encryptDirectoryRecordForDb,
   decryptSupabaseDirectoryRow,
@@ -106,21 +104,15 @@ export function DirectoryView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Fetch and decrypt all directory records from Supabase
+  // Fetch and decrypt all directory records from authenticated /api/directory gateway
   const fetchDirectory = useCallback(async () => {
     setIsLoading(true);
     try {
-      if (!supabase) {
-        console.warn("Supabase not available");
-        setIsLoading(false);
-        return;
-      }
-
       const key = await getDirectoryKey();
 
       let data: any[] | null = null;
       try {
-        const dirRes = await fetch("/api/directory");
+        const dirRes = await fetch("/api/directory", { cache: "no-store" });
         if (dirRes.ok) {
           const dirJson = await dirRes.json();
           if (dirJson.success && Array.isArray(dirJson.data)) {
@@ -150,7 +142,7 @@ export function DirectoryView() {
 
         // Quietly upgrade any unformatted legacy phone records in Supabase in the background
         const recordsToUpgrade = decryptedList.filter((r) => r._phoneNeedsUpgrade);
-        if (recordsToUpgrade.length > 0 && supabase) {
+        if (recordsToUpgrade.length > 0) {
           (async () => {
             for (const r of recordsToUpgrade) {
               try {
@@ -185,60 +177,6 @@ export function DirectoryView() {
     fetchDirectory();
   }, [fetchDirectory]);
 
-  // Real-time synchronization via Supabase postgres_changes
-  useEffect(() => {
-    if (!supabase) return;
-
-    const channel = supabase
-      .channel("phone_directory_realtime_sync")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "phone_directory",
-        },
-        async (payload) => {
-          if (payload.eventType === "DELETE") {
-            const deletedId = (payload.old as any)?.id;
-            if (deletedId) {
-              setRecords((prev) => prev.filter((r) => r.id !== deletedId));
-            }
-          } else if (payload.eventType === "INSERT") {
-            const newRow = payload.new as RawSupabaseDirectoryRow;
-            try {
-              const key = await getDirectoryKey();
-              const dec = await decryptSupabaseDirectoryRow(newRow, key);
-              setRecords((prev) => {
-                if (prev.some((r) => r.id === dec.id)) return prev;
-                return [dec, ...prev];
-              });
-            } catch (err) {
-              console.warn("Could not decrypt realtime inserted row:", err);
-            }
-          } else if (payload.eventType === "UPDATE") {
-            const updatedRow = payload.new as RawSupabaseDirectoryRow;
-            try {
-              const key = await getDirectoryKey();
-              const dec = await decryptSupabaseDirectoryRow(updatedRow, key);
-              setRecords((prev) =>
-                prev.map((r) => (r.id === dec.id ? dec : r))
-              );
-            } catch (err) {
-              console.warn("Could not decrypt realtime updated row:", err);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      if (supabase) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, []);
-
   // Copy to clipboard helper with checkmark animation
   const copyToClipboard = (text: string, id: string, type: "phone" | "email") => {
     navigator.clipboard.writeText(text);
@@ -265,7 +203,6 @@ export function DirectoryView() {
     extension?: string;
     notes?: string;
   }) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
     const key = await getDirectoryKey();
 
     const dbPayload = await encryptDirectoryRecordForDb(data, key);
@@ -346,7 +283,7 @@ export function DirectoryView() {
 
   // Delete contact
   const confirmDeleteRecord = async () => {
-    if (!recordToDelete || !supabase) return;
+    if (!recordToDelete) return;
     setIsDeleting(true);
 
     try {
@@ -383,7 +320,6 @@ export function DirectoryView() {
     parsedItems: ParsedSpreadsheetContact[],
     divisionChoice: "employee" | "vendor" | "auto"
   ) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
     const key = await getDirectoryKey();
 
     const dbRows: any[] = [];

@@ -17,6 +17,7 @@ export const DIRECTORY_MASTER_SECRET = "ziptabs_directory_vault_secure_pepper_20
 export const DIRECTORY_SALT = "ziptabs_dir_kdf_salt_c814b7e_2026";
 
 let cachedDirectoryKey: CryptoKey | null = null;
+let cachedLegacyFallbackKey: CryptoKey | null = null;
 
 export function getDirectorySecret(): string {
   if (typeof process !== "undefined" && process?.env) {
@@ -29,6 +30,12 @@ export async function getDirectoryKey(): Promise<CryptoKey> {
   if (cachedDirectoryKey) return cachedDirectoryKey;
   cachedDirectoryKey = await deriveVaultKey(getDirectorySecret(), DIRECTORY_SALT);
   return cachedDirectoryKey;
+}
+
+async function getLegacyFallbackDirectoryKey(): Promise<CryptoKey> {
+  if (cachedLegacyFallbackKey) return cachedLegacyFallbackKey;
+  cachedLegacyFallbackKey = await deriveVaultKey(DIRECTORY_MASTER_SECRET, DIRECTORY_SALT);
+  return cachedLegacyFallbackKey;
 }
 
 /**
@@ -153,24 +160,34 @@ export async function encryptField(plaintext: string, key: CryptoKey): Promise<s
 }
 
 /**
- * Decrypts iv:ciphertext string.
+ * Decrypts iv:ciphertext string with automatic fallback between server and legacy keys.
  */
 export async function decryptField(payload: string, key: CryptoKey, fallbackIv = ""): Promise<string> {
   if (!payload) return "";
-  try {
+
+  const attemptDecrypt = async (candidateKey: CryptoKey): Promise<string> => {
     if (payload.includes(":")) {
       const colonIdx = payload.indexOf(":");
       const iv = payload.substring(0, colonIdx);
       const ciphertext = payload.substring(colonIdx + 1);
-      return await decryptVaultData(ciphertext, iv, key);
+      return await decryptVaultData(ciphertext, iv, candidateKey);
     }
     if (fallbackIv) {
-      return await decryptVaultData(payload, fallbackIv, key);
+      return await decryptVaultData(payload, fallbackIv, candidateKey);
     }
     return payload;
-  } catch (err) {
-    console.warn("Failed to decrypt field payload:", err);
-    return "[Encrypted Data]";
+  };
+
+  try {
+    return await attemptDecrypt(key);
+  } catch {
+    try {
+      const legacyKey = await getLegacyFallbackDirectoryKey();
+      return await attemptDecrypt(legacyKey);
+    } catch (err) {
+      console.warn("Failed to decrypt field payload:", err);
+      return "[Encrypted Data]";
+    }
   }
 }
 

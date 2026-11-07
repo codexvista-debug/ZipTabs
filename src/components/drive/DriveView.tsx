@@ -154,23 +154,8 @@ export function DriveView({ onNavigateUsage }: DriveViewProps) {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Auto-purge any expired Recycle Bin files (> 7 days)
+  // Auto-purge any expired Recycle Bin files (> 7 days) via authenticated API gateway
   const purgeExpiredFiles = async () => {
-    if (!supabase) return;
-    try {
-      // 1. Invoke Supabase RPC if present
-      const { data: purged } = await supabase.rpc("purge_expired_drive_files");
-      if (purged && purged.length > 0) {
-        const storagePaths = purged.map((p: any) => p.purged_storage_path).filter(Boolean);
-        if (storagePaths.length > 0) {
-          await deleteFilesFromStorage(storagePaths);
-        }
-      }
-    } catch (err) {
-      console.warn("Auto-purge RPC notice:", err);
-    }
-
-    // 2. Authenticated API purge safeguard for any temporary files past their expires_at
     try {
       const purgeRes = await fetch("/api/drive", {
         method: "POST",
