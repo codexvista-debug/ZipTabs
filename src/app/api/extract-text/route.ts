@@ -9,6 +9,10 @@ function isPrivateOrLoopbackHost(hostname: string): boolean {
     lower === "127.0.0.1" ||
     lower === "0.0.0.0" ||
     lower === "::1" ||
+    lower.startsWith("127.") ||
+    lower.startsWith("fe80:") ||
+    lower.startsWith("fc00:") ||
+    lower.startsWith("fd") ||
     lower.endsWith(".local") ||
     lower.endsWith(".internal")
   ) {
@@ -79,26 +83,58 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        if (parsedUrl.protocol !== "https:") {
-          return NextResponse.json(
-            { success: false, error: "Only secure HTTPS image URLs are permitted." },
-            { status: 400 }
-          );
+        let currentUrl = parsedUrl;
+        let imageRes: Response | null = null;
+        let hops = 0;
+        const MAX_REDIRECTS = 3;
+
+        while (hops <= MAX_REDIRECTS) {
+          if (currentUrl.protocol !== "https:") {
+            return NextResponse.json(
+              { success: false, error: "Only secure HTTPS image URLs are permitted." },
+              { status: 400 }
+            );
+          }
+
+          if (isPrivateOrLoopbackHost(currentUrl.hostname)) {
+            return NextResponse.json(
+              { success: false, error: "Access to internal, loopback, or cloud metadata addresses is forbidden." },
+              { status: 403 }
+            );
+          }
+
+          imageRes = await fetch(currentUrl.toString(), {
+            redirect: "manual",
+            signal: AbortSignal.timeout(10000), // 10s timeout
+          });
+
+          // Defend against SSRF bypass via open redirects
+          if ([301, 302, 303, 307, 308].includes(imageRes.status)) {
+            const location = imageRes.headers.get("location");
+            if (!location) {
+              return NextResponse.json(
+                { success: false, error: "Redirect target missing location header." },
+                { status: 400 }
+              );
+            }
+            try {
+              currentUrl = new URL(location, currentUrl);
+            } catch {
+              return NextResponse.json(
+                { success: false, error: "Malformed redirect URL target." },
+                { status: 400 }
+              );
+            }
+            hops++;
+            continue;
+          }
+
+          break;
         }
 
-        if (isPrivateOrLoopbackHost(parsedUrl.hostname)) {
+        if (!imageRes || !imageRes.ok) {
           return NextResponse.json(
-            { success: false, error: "Access to internal, loopback, or cloud metadata addresses is forbidden." },
-            { status: 403 }
-          );
-        }
-
-        const imageRes = await fetch(parsedUrl.toString(), {
-          signal: AbortSignal.timeout(10000), // 10s timeout
-        });
-        if (!imageRes.ok) {
-          return NextResponse.json(
-            { success: false, error: `Failed to download image (status ${imageRes.status}).` },
+            { success: false, error: `Failed to download image (status ${imageRes?.status || "error"}).` },
             { status: 400 }
           );
         }

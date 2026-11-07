@@ -4,6 +4,10 @@ import { hashPassword, verifyPassword, isLegacyPasswordHash } from "@/lib/crypto
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { getClientIp, getClientCountry } from "@/lib/serverIp";
 
+// Pre-computed PBKDF2 hash used to neutralize username enumeration timing side-channels
+const DUMMY_PBKDF2_HASH =
+  "pbkdf2:100000:f83d9147e539976d75fc613147ffcd8a:55a1b272c3b6fb3fb596e3d0cebf91a5b30f444e5c7ef50a1be9b7e9a6db2485";
+
 
 
 export async function POST(req: NextRequest) {
@@ -169,7 +173,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Verify password
+    // 2. Verify password (runs constant-time PBKDF2 to eliminate username enumeration)
     let passwordMatches = false;
     if (userRecord) {
       passwordMatches = await verifyPassword(cleanPassword, userRecord.password);
@@ -189,6 +193,9 @@ export async function POST(req: NextRequest) {
             console.error("[AUTH] Failed to auto-upgrade password to PBKDF2:", err);
           });
       }
+    } else {
+      // Execute identical PBKDF2 workload (100,000 iterations) when user does not exist
+      await verifyPassword(cleanPassword, DUMMY_PBKDF2_HASH);
     }
 
     // 3. Handle Successful Login
