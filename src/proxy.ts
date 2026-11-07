@@ -107,7 +107,7 @@ export async function proxy(request: NextRequest) {
       }
       if (
         pathname.startsWith("/api/master-control") &&
-        session.username !== "chief" &&
+        session.username?.toLowerCase() !== "chief" &&
         session.role !== "Chief Administrator"
       ) {
         return NextResponse.json(

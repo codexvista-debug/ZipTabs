@@ -227,6 +227,115 @@ function getCellFont(cell: any): {
   };
 }
 
+/**
+ * Pure AST recursive-descent mathematical expression evaluator.
+ * Safely evaluates arithmetic expressions, nested parentheses, and math functions (ROUND, MIN, MAX, ABS)
+ * with zero usage of eval() or new Function(), eliminating client-side code execution risks.
+ */
+function safeEvaluateMath(exprStr: string): number {
+  let pos = 0;
+  const str = exprStr.replace(/\s+/g, "");
+
+  function parseExpression(): number {
+    let result = parseTerm();
+    while (pos < str.length) {
+      const op = str[pos];
+      if (op === "+") {
+        pos++;
+        result += parseTerm();
+      } else if (op === "-") {
+        pos++;
+        result -= parseTerm();
+      } else {
+        break;
+      }
+    }
+    return result;
+  }
+
+  function parseTerm(): number {
+    let result = parseFactor();
+    while (pos < str.length) {
+      const op = str[pos];
+      if (op === "*") {
+        pos++;
+        result *= parseFactor();
+      } else if (op === "/") {
+        pos++;
+        const divisor = parseFactor();
+        result = divisor !== 0 ? result / divisor : 0;
+      } else {
+        break;
+      }
+    }
+    return result;
+  }
+
+  function parseFactor(): number {
+    if (pos >= str.length) return 0;
+    if (str[pos] === "+") {
+      pos++;
+      return parseFactor();
+    }
+    if (str[pos] === "-") {
+      pos++;
+      return -parseFactor();
+    }
+    if (str[pos] === "(") {
+      pos++;
+      const val = parseExpression();
+      if (str[pos] === ")") pos++;
+      return val;
+    }
+
+    const fnMatch = str.slice(pos).match(/^([A-Za-z_]+)\(/);
+    if (fnMatch) {
+      const fnName = fnMatch[1].toUpperCase();
+      pos += fnMatch[0].length;
+      const args: number[] = [];
+      if (str[pos] !== ")") {
+        while (pos < str.length) {
+          args.push(parseExpression());
+          if (str[pos] === ",") {
+            pos++;
+          } else {
+            break;
+          }
+        }
+      }
+      if (str[pos] === ")") pos++;
+
+      if (fnName === "MIN") return args.length ? Math.min(...args) : 0;
+      if (fnName === "MAX") return args.length ? Math.max(...args) : 0;
+      if (fnName === "ABS") return args.length ? Math.abs(args[0]) : 0;
+      if (fnName === "ROUND") {
+        const v = args[0] || 0;
+        const d = args[1] || 0;
+        const factor = Math.pow(10, d);
+        return Math.round(v * factor) / factor;
+      }
+      return args[0] || 0;
+    }
+
+    const numMatch = str.slice(pos).match(/^([0-9]+(?:\.[0-9]+)?)/);
+    if (numMatch) {
+      pos += numMatch[0].length;
+      return parseFloat(numMatch[1]);
+    }
+
+    pos++;
+    return 0;
+  }
+
+  try {
+    const val = parseExpression();
+    if (typeof val === "number" && !isNaN(val) && isFinite(val)) {
+      return Math.round(val * 10000) / 10000;
+    }
+  } catch {}
+  return 0;
+}
+
 // Helper: Evaluate Excel formulas when cached result is not stored in the workbook
 function evaluateExcelFormula(
   formulaStr: string,
@@ -333,24 +442,8 @@ function evaluateExcelFormula(
   // 6. Replace percentage literals e.g. 80% -> (80/100)
   expr = expr.replace(/([0-9.]+)%/g, "($1/100)");
 
-  // 7. Handle ROUND(val, digits), MIN(a, b), MAX(a, b), ABS(val)
-  expr = expr.replace(/\bROUND\s*\(/gi, "((v,d)=>Math.round(v*Math.pow(10,d))/Math.pow(10,d))(");
-  expr = expr.replace(/\bMIN\s*\(/gi, "Math.min(");
-  expr = expr.replace(/\bMAX\s*\(/gi, "Math.max(");
-  expr = expr.replace(/\bABS\s*\(/gi, "Math.abs(");
-
-  // 8. Safely evaluate arithmetic (+, -, *, /, parentheses, Math.min/max/round/abs)
-  try {
-    const sanitized = expr.replace(/Math\.(min|max|round|pow|abs)/g, "").replace(/\(\(v,d\)=>/g, "");
-    if (/^[0-9.+\-*/(),><= ]+$/.test(sanitized)) {
-      const calc = new Function(`return (${expr});`)();
-      if (typeof calc === "number" && !isNaN(calc) && isFinite(calc)) {
-        return Math.round(calc * 10000) / 10000;
-      }
-    }
-  } catch {}
-
-  return 0;
+  // 7. Safely evaluate arithmetic and math functions without new Function() or eval()
+  return safeEvaluateMath(expr);
 }
 
 // Helper: Format cell value cleanly (Unpacks formulas, shared formulas, currency, dates, percentages, integers)
